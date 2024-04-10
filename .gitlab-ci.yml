@@ -1,0 +1,28 @@
+include:
+  - project: cs/gitlabci-templates
+    file: /build-image-using-buildah.yml
+
+stages:
+  - build containers
+
+build container:
+  extends: .build-image-using-buildah
+  stage: "build containers"
+  timeout: 4h
+  variables:
+    KUBERNETES_CPU_LIMIT: 4
+    KUBERNETES_CPU_REQUEST: 2
+    KUBERNETES_MEMORY_LIMIT: 8Gi
+    KUBERNETES_MEMORY_REQUEST: 4Gi
+    BUILD_PATH: $CI_PROJECT_DIR/container
+    REGISTRY_IMAGE_TAG: "0.1"
+    BUILDAH_EXTRA_ARGS:
+      --label org.opencontainers.image.title="hpc-resource-provisioner"
+      --label org.opencontainers.image.version="$REGISTRY_IMAGE_TAG"
+      --label org.opencontainers.image.revision="$CI_COMMIT_SHA"
+      --label org.opencontainers.image.authors="$GITLAB_USER_NAME <$GITLAB_USER_EMAIL>"
+      --label org.opencontainers.image.url="$CI_PROJECT_URL"
+      --label org.opencontainers.image.source="$CI_PROJECT_URL"
+      --label org.opencontainers.image.created="$CI_JOB_STARTED_AT"
+      --label ch.epfl.bbpgitlab.ci-pipeline-url="$CI_PIPELINE_URL"
+      --label ch.epfl.bbpgitlab.ci-commit-branch="$CI_COMMIT_BRANCH"
