@@ -1,0 +1,28 @@
+InstanceType: t3.medium
+Networking:
+  SubnetId: subnet-076ece71c00742d3c # compute
+  SecurityGroups:
+  - sg-0b5941ba4f4d1a9ff # sbo-poc-compute / hpc
+Ssh:
+  KeyName: aws_coreservices
+Iam:
+  S3Access:
+    - BucketName: sboinfrastructureassets
+      EnableWriteAccess: True
+CustomActions:
+  OnNodeConfigured:
+    Sequence:
+      - Script: s3://sboinfrastructureassets/scripts/create_users.py
+        Args:
+          - /sbo/home/resources/users.json
+      - Script: s3://sboinfrastructureassets/scripts/all_or_nothing_allocation.sh
+      - Script: s3://sboinfrastructureassets/scripts/setup_lustre_directories.py
+        Args:
+          - /sbo/home/resources/users.json
+          - /sbo/data
+      - Script: s3://sboinfrastructureassets/scripts/setup_slurm.sh
+      - Script: s3://sboinfrastructureassets/scripts/setup_environment.sh
+        Args:
+          - /sbo/data
+      - Script: s3://sboinfrastructureassets/scripts/setup_sshd.sh
+      - Script: s3://sboinfrastructureassets/scripts/setup_nexus_storage_service.sh

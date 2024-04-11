@@ -1,0 +1,28 @@
+Region: us-east-1
+Image:
+  Os: alinux2
+  CustomAmi: ami-08e31a824b0e1ec59  # alinux2-x86-sbo-pcluster-v5
+Tags:
+  - Key: SBO_Billing
+    Value: parallelcluster
+HeadNode:
+  !include _head_node.tpl.yaml
+Scheduling:
+  Scheduler: slurm
+  SlurmSettings:
+    EnableMemoryBasedScheduling: true
+    CustomSlurmSettingsIncludeFile: s3://sboinfrastructureassets/config/slurm_extras.conf
+    Database:
+      Uri: hpc-slurm-db.ctydazornca3.us-east-1.rds.amazonaws.com:3306
+      UserName: slurm_admin
+      PasswordSecretArn: arn:aws:secretsmanager:us-east-1:671250183987:secret:hpc_slurm_db_password-6LNuBy
+  SlurmQueues:
+    !include _slurm_queues.tpl.yaml
+Imds:
+  ImdsSupport: v2.0
+SharedStorage:
+  - Name: Efs-Home
+    StorageType: Efs
+    MountDir: /sbo/home
+    EfsSettings:
+      FileSystemId: fs-0c2a2f3ad1b1beeca
