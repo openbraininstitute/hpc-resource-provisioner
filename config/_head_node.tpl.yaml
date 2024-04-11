@@ -1,10 +1,10 @@
 InstanceType: t3.medium
 Networking:
-  SubnetId: subnet-076ece71c00742d3c # compute
+  SubnetId: !config base_subnet_id # compute
   SecurityGroups:
-  - sg-0b5941ba4f4d1a9ff # sbo-poc-compute / hpc
+  - !config base_security_group_id # sbo-poc-compute / hpc
 Ssh:
-  KeyName: aws_coreservices
+  KeyName: compute-cluster-key
 Iam:
   S3Access:
     - BucketName: sboinfrastructureassets

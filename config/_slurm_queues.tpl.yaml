@@ -11,9 +11,9 @@
     MaxCount: 8
   Networking:
     SubnetIds:
-    - subnet-076ece71c00742d3c # compute
+    - !config base_subnet_id
     SecurityGroups:
-    - sg-0b5941ba4f4d1a9ff # sbo-poc-compute / hpc
+    - !config base_security_group_id
   Iam:
     S3Access:
       - BucketName: sboinfrastructureassets
@@ -52,10 +52,10 @@
     PlacementGroup: # try to place nodes close to each other
       Enabled: true
     SubnetIds:
-    - subnet-076ece71c00742d3c # compute
+    - !config base_subnet_id
     SecurityGroups:
-    - sg-0b5941ba4f4d1a9ff # sbo-poc-compute / hpc
-    - sg-0184e34d690eddb22 # sbo-poc-compute / hpc_efa
+    - !config base_security_group_id
+    - sg-06556c57796520f86  # Efa
   CustomSlurmSettings:
     MaxNodes: 20
     MaxTime: 720
@@ -96,9 +96,9 @@
     PlacementGroup: # try to place nodes close to each other
       Enabled: false
     SubnetIds:
-    - subnet-076ece71c00742d3c # compute
+    - !config base_subnet_id
     SecurityGroups:
-    - sg-0b5941ba4f4d1a9ff # sbo-poc-compute / hpc
+    - !config base_security_group_id
   CustomSlurmSettings:
     MaxNodes: 4
     MaxTime: 120

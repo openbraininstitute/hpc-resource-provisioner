@@ -3,28 +3,35 @@
 # This is the top-level script to create a Parallel Cluster
 # It requires the `base_system` terraform to have been applied. If not it will error out.
 
-
+import json
+import pprint
+import sys
 import yaml
 from pathlib import Path
-# from pcluster import lib as pc
+from pcluster import lib as pc
 
 PCLUSTER_CONFIG_TPL = str(Path(__file__).parent / "config" / "compute-cluster.tpl.yaml")
-
 
 DEFAULTS = {
     "tier": "lite",
     "fs_type": "efs",
     "project_id": "-",
 }
+CONFIG_VALUES = {
+    "base_subnet_id": "subnet-0890aaffabda6d298",       # Compute-0 # TODO: Dynamic
+    "base_security_group_id": "sg-0cf0c39efb8c1b033",   # VPC default
+    "efs_id": "fs-06fba3379737f55c0",                   # Home
+}
 
 
 def pcluster_create_handler(event, _context=None):
+    """Request the creation of an HPC cluster for a given vlab_id
+    """
     vlab = event.get("vlab_id")
     if vlab is None and "queryStringParameters" in event:
         options = event.get("queryStringParameters")
     else:
         options = {"vlab_id": vlab}  # enable testing
-
     if not isinstance(options, dict) or not options.get("vlab_id"):
         return {"statusCode": 400, "body": "missing vlab query param"}
 
@@ -32,10 +39,10 @@ def pcluster_create_handler(event, _context=None):
         options.setdefault(k, default)
 
     with open(PCLUSTER_CONFIG_TPL, 'r') as f:
-        full_yaml = yaml.load(f, Loader)
+        pcluster_config = YamlLoader(f, CONFIG_VALUES).get_single_data()
 
     # Add tags
-    full_yaml["Tags"].extend([{
+    pcluster_config["Tags"].extend([{
         "Key": "sbo:billing:vlabid",
         "Value": options["vlab_id"]
     }, {
@@ -43,56 +50,76 @@ def pcluster_create_handler(event, _context=None):
         "Value": options["project_id"]
     }])
 
+    cluster_name = f"hpc-pcluster-vlab-{vlab}"
+    output_file = f"deplyment-{cluster_name}.yaml"
+
+    with open(output_file, "w") as out:
+        yaml.dump(pcluster_config, out, sort_keys=False)
+
+    try:
+        pc_output = pc.create_cluster(cluster_name=cluster_name, cluster_configuration=output_file)
+    except Exception as e:
+        return {
+            "statusCode": 400,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps(e)
+        }
+
+    return {
+        "statusCode": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps(pc_output)
+    }
 
 
-    # return {
-    #     "statusCode": 200,
-    #     "headers": {"Content-Type": "application/json"},
-    #     "body": json.dumps(result)
-    # }
+def pcluster_describe_handler(event, _context=None):
+    """Describe a cluster given the vlab_id
+    """
+    vlab = event.get("vlab_id")
+    if vlab is None and "queryStringParameters" in event:
+        if options := event.get("queryStringParameters"):
+            vlab = options.get("vlab_id")
+
+    cluster_name = f"hpc-pcluster-vlab-{vlab}"
+    pc_output = pc.describe_cluster(cluster_name=cluster_name)
+    return {
+        "statusCode": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps(pc_output)
+    }
 
 
-# Yaml extension for including files
+class YamlLoader(yaml.SafeLoader):
+    """A custom Yaml Loader for handling of includes and config values
+    """
 
-class Loader(yaml.SafeLoader):
-
-    def __init__(self, stream):
+    def __init__(self, stream, config_map):
         self._root = Path(stream.name).parent
-        super(Loader, self).__init__(stream)
+        self._config_map = config_map
+        super(YamlLoader, self).__init__(stream)
 
     def include(self, node):
         filename = self._root / str(self.construct_scalar(node))
         with open(filename, 'r') as f:
-            return yaml.load(f, Loader)
+            return YamlLoader(f, self._config_map).get_single_data()
+
+    def config(self, node):
+        config_entry = str(self.construct_scalar(node))
+        return self._config_map[config_entry]
 
 
-Loader.add_constructor('!include', Loader.include)
-
-# @click.command()
-# @click.argument('cluster-name')
-# @click.option('--base-subnet-id', type=str, required=True)
-# @click.option('--base-security-group-id', type=str, required=True)
-# @click.option('--slurm-db-uri', type=str, required=True)
-# @click.option('--slurm-db-secret_arn', type=str, required=True)
-# @click.option('--efs-id', type=str, required=True)
-# @click.option('--apply', is_flag=True, default=False)
-# def create_pcluster(apply, **args):
-#     print(args)
-#     pcluster_name = args['cluster_name']
-#     out_config_file = f"pcluster_creation_{pcluster_name}.yaml"
-#     with open(PCLUSTER_CONFIG_TPL) as f:
-#         tpl_contents = f.read()
-
-#     final_config = tpl_contents
-#     for arg, value in args.items():
-#         final_config = final_config.replace("${{" + arg + "}}", value)
-
-#     with open(out_config_file, "w") as f:
-#         f.write(final_config)
-
-#     if apply:
-#         pc.create_cluster(cluster_name=pcluster_name, cluster_configuration=out_config_file)
+YamlLoader.add_constructor('!include', YamlLoader.include)
+YamlLoader.add_constructor('!config', YamlLoader.config)
 
 
 if __name__ == "__main__":
-    pcluster_create_handler({"vlab_id": "test"})
+    if len(sys.argv) == 3:
+        if sys.argv[1] == "create":
+            out = pcluster_create_handler({"vlab_id": sys.argv[2]})
+        elif sys.argv[1] == "describe":
+            out = pcluster_describe_handler({"vlab_id": sys.argv[2]})
+        else:
+            raise RuntimeError(f"Invalid command: {sys.argv[1]}")
+        pprint.pprint(out, width=120, sort_dicts=False)
+    else:
+        print(f"Syntax: {sys.argv[0]} [create, describe] <cluster_name>", file=sys.stderr)
