@@ -4,7 +4,7 @@ Image:
   # CustomAmi: ami-08e31a824b0e1ec59  # alinux2-x86-sbo-pcluster-v5
 Tags:
   - Key: SBO_Billing
-    Value: parallelcluster
+    Value: hpc
 HeadNode:
   !include _head_node.tpl.yaml
 Scheduling:

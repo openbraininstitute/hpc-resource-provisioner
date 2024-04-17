@@ -10,7 +10,7 @@ import yaml
 from pathlib import Path
 from pcluster import lib as pc
 
-PCLUSTER_CONFIG_TPL = str(Path(__file__).parent / "config" / "compute-cluster.tpl.yaml")
+PCLUSTER_CONFIG_TPL = str(Path(__file__).parent / "config" / "compute_cluster.tpl.yaml")
 
 DEFAULTS = {
     "tier": "lite",
@@ -59,11 +59,7 @@ def pcluster_create_handler(event, _context=None):
     try:
         pc_output = pc.create_cluster(cluster_name=cluster_name, cluster_configuration=output_file)
     except Exception as e:
-        return {
-            "statusCode": 400,
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps(e)
-        }
+        return {"statusCode": 400, "body": str(e)}
 
     return {
         "statusCode": 200,
