@@ -51,7 +51,7 @@ def pcluster_create_handler(event, _context=None):
     }])
 
     cluster_name = f"hpc-pcluster-vlab-{vlab}"
-    output_file = f"deplyment-{cluster_name}.yaml"
+    output_file = f"deployment-{cluster_name}.yaml"
 
     with open(output_file, "w") as out:
         yaml.dump(pcluster_config, out, sort_keys=False)
