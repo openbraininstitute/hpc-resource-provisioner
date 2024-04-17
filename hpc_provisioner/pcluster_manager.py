@@ -110,13 +110,29 @@ def pcluster_delete(vlab_id: str):
     return pc.delete_cluster(cluster_name=cluster_name)
 
 
+
+def pcluster_delete_handler(event, _context=None):
+    vlab_id, _options = get_vlab_query_params(event)
+
+    try:
+        pc_output = pcluster_delete(vlab_id)
+    except Exception as e:
+        return {"statusCode": 400, "body": str(e)}
+
+    return {
+        "statusCode": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps(pc_output)
+    }
+
+
 def get_vlab_query_params(event):
     vlab_id = event.get("vlab_id")
     options = {}
 
     if vlab_id is None and "queryStringParameters" in event:
         if options := event.get("queryStringParameters"):
-            vlab_id = options.pop("vlab_id")
+            vlab_id = options.pop("vlab_id", None)
 
     if vlab_id is None:
         raise RuntimeError("missing required 'vlab' query param")
