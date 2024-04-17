@@ -18,9 +18,9 @@ DEFAULTS = {
 }
 
 CONFIG_VALUES = {
-    "base_subnet_id": "subnet-0890aaffabda6d298",       # Compute-0 # TODO: Dynamic
-    "base_security_group_id": "sg-0cf0c39efb8c1b033",   # VPC default
-    "efs_id": "fs-06fba3379737f55c0",                   # Home
+    "base_subnet_id": "subnet-0533234eef89bbd93",       # Compute-0 # TODO: Dynamic
+    "base_security_group_id": "sg-07bdce153f212accf",   # sbo-poc-compute-hpc-sg
+    "efs_id": "fs-0740626872953c769",                   # Home
 }
 
 
@@ -47,6 +47,10 @@ def pcluster_create(vlab_id: str, options: dict):
         "Key": "sbo:billing:project",
         "Value": options["project_id"],
     }])
+
+    if options["tier"] == "lite":
+        queues = pcluster_config["Scheduling"]["SlurmQueues"]
+        del queues[1:]
 
     cluster_name = f"hpc-pcluster-vlab-{vlab_id}"
     output_file = f"deployment-{cluster_name}.yaml"

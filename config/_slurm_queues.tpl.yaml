@@ -14,16 +14,16 @@
     - !config base_subnet_id
     SecurityGroups:
     - !config base_security_group_id
-  Iam:
-    S3Access:
-      - BucketName: sboinfrastructureassets
-  CustomActions:
-    OnNodeConfigured:
-      Sequence:
-        - Script: s3://sboinfrastructureassets/scripts/create_users.py
-          Args:
-            - /sbo/home/resources/users.json
-        - Script: s3://sboinfrastructureassets/scripts/setup_environment_compute.sh
+  # Iam:
+  #   S3Access:
+  #     - BucketName: sboinfrastructureassets
+  # CustomActions:
+  #   OnNodeConfigured:
+  #     Sequence:
+  #       - Script: s3://sboinfrastructureassets/scripts/create_users.py
+  #         Args:
+  #           - /sbo/home/resources/users.json
+  #       - Script: s3://sboinfrastructureassets/scripts/setup_environment_compute.sh
   CustomSlurmSettings:
     MaxNodes: 8
     MaxTime: 1-00:00:00
@@ -55,20 +55,20 @@
     - !config base_subnet_id
     SecurityGroups:
     - !config base_security_group_id
-    - sg-06556c57796520f86  # Efa
+    # - sg-06556c57796520f86  # Efa
   CustomSlurmSettings:
     MaxNodes: 20
     MaxTime: 720
   Iam:
     S3Access:
       - BucketName: sboinfrastructureassets
-  # CustomActions:
-  #   OnNodeConfigured:
-  #     Sequence:
-  #       - Script: s3://sboinfrastructureassets/scripts/create_users.py
-  #         Args:
-  #           - /sbo/home/resources/users.json
-  #       - Script: s3://sboinfrastructureassets/scripts/setup_environment_compute.sh
+  CustomActions:
+    OnNodeConfigured:
+      Sequence:
+        - Script: s3://sboinfrastructureassets/scripts/create_users.py
+          Args:
+            - /sbo/home/resources/users.json
+        - Script: s3://sboinfrastructureassets/scripts/setup_environment_compute.sh
 
 # ====================================
 # prod-batch queue, for benchmarking

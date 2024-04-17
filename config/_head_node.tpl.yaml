@@ -5,10 +5,10 @@ Networking:
   - !config base_security_group_id # sbo-poc-compute / hpc
 Ssh:
   KeyName: compute-cluster-key
-Iam:
-  S3Access:
-    - BucketName: sboinfrastructureassets
-      EnableWriteAccess: True
+# Iam:
+#   S3Access:
+#     - BucketName: sboinfrastructureassets
+#       EnableWriteAccess: True
 # CustomActions:
 #   OnNodeConfigured:
 #     Sequence:
