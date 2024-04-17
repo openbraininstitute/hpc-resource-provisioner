@@ -9,7 +9,7 @@ from pathlib import Path
 from pcluster import lib as pc
 from .yaml_loader import load_yaml_extended
 
-PCLUSTER_CONFIG_TPL = str(Path(__file__).parent / "config" / "compute_cluster.tpl.yaml")
+PCLUSTER_CONFIG_TPL = str(Path(__file__).parent.parent / "config" / "compute_cluster.tpl.yaml")
 
 DEFAULTS = {
     "tier": "lite",
@@ -75,11 +75,11 @@ def pcluster_create_handler(event, _context=None):
     }
 
 
-def pcluste_describe(vlab_id: str):
+def pcluster_describe(vlab_id: str):
     """Describe a cluster, given the vlab_id
     """
     cluster_name = f"hpc-pcluster-vlab-{vlab_id}"
-    pc.describe_cluster(cluster_name=cluster_name)
+    return pc.describe_cluster(cluster_name=cluster_name)
 
 
 def pcluster_describe_handler(event, _context=None):
@@ -88,7 +88,7 @@ def pcluster_describe_handler(event, _context=None):
     vlab_id, _options = get_vlab_query_params(event)
 
     try:
-        pc_output = pcluste_describe(vlab_id)
+        pc_output = pcluster_describe(vlab_id)
     except Exception as e:
         return {"statusCode": 400, "body": str(e)}
 
@@ -97,6 +97,13 @@ def pcluster_describe_handler(event, _context=None):
         "headers": {"Content-Type": "application/json"},
         "body": json.dumps(pc_output)
     }
+
+
+def pcluster_delete(vlab_id: str):
+    """Destroy a cluster, given the vlab_id
+    """
+    cluster_name = f"hpc-pcluster-vlab-{vlab_id}"
+    return pc.delete_cluster(cluster_name=cluster_name)
 
 
 def get_vlab_query_params(event):
