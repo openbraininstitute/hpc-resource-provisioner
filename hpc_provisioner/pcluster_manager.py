@@ -4,8 +4,6 @@
 # It requires the `base_system` terraform to have been applied. If not it will error out.
 
 import json
-import pprint
-import sys
 import yaml
 from pathlib import Path
 from pcluster import lib as pc
@@ -113,16 +111,3 @@ def get_vlab_query_params(event):
         raise RuntimeError("missing required 'vlab' query param")
 
     return vlab_id, options
-
-
-if __name__ == "__main__":
-    if len(sys.argv) == 3:
-        if sys.argv[1] == "create":
-            out = pcluster_create(sys.argv[2], {})
-        elif sys.argv[1] == "describe":
-            out = pcluste_describe(sys.argv[2])
-        else:
-            raise RuntimeError(f"Invalid command: {sys.argv[1]}")
-        pprint.pprint(out, width=120, sort_dicts=False)
-    else:
-        print(f"Syntax: {sys.argv[0]} [create, describe] <cluster_name>", file=sys.stderr)
