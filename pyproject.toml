@@ -31,6 +31,9 @@ Repository = "https://bbpgitlab.epfl.ch/hpc/hpc-resource-provisioner.git"
 [tool.setuptools]
 packages = ["hpc_provisioner"]
 
+[tool.setuptools.package-data]
+hpc_provisioner = ["config/*"]
+
 [tool.ruff]
 line-length = 100
 

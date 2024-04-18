@@ -11,7 +11,7 @@ from pcluster import lib as pc
 
 from .yaml_loader import load_yaml_extended
 
-PCLUSTER_CONFIG_TPL = str(Path(__file__).parent.parent / "config" / "compute_cluster.tpl.yaml")
+PCLUSTER_CONFIG_TPL = str(Path(__file__).parent / "config" / "compute_cluster.tpl.yaml")
 
 DEFAULTS = {
     "tier": "lite",
