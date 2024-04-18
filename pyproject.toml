@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hpc_provisioner"
+version = "0.1.0"
+dependencies = [
+    "aws-parallelcluster",
+    "boto3",
+    "PyYAML"
+]
+authors = [{"name" = "Fernando Pereira", "email" = "fernando.pereira@epfl.ch"}]
+maintainers = [{"name" = "Fernando Pereira", "email" = "fernando.pereira@epfl.ch"}]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+    "License :: OSI Approved :: Apache Software License",
+]
+
+
+[project.scripts]
+hpc-provisioner = "hpc_provisioner.provisioner_main:main"
+
+[project.urls]
+Homepage = "https://bbpgitlab.epfl.ch/hpc/hpc-resource-provisioner"
+Repository = "https://bbpgitlab.epfl.ch/hpc/hpc-resource-provisioner.git"
+
+[tool.setuptools]
+packages = ["hpc_provisioner"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E",  # pycodestyle
+		  "F",  # pyflakes
+          "I",  # isort
+          "PL",  # pylint
+]
