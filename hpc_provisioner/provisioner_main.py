@@ -3,12 +3,12 @@
 import pprint
 import sys
 
-from hpc_provisioner.pcluster_manager import (pcluster_create, pcluster_delete,
-                                              pcluster_describe)
+from hpc_provisioner.pcluster_manager import pcluster_create, pcluster_delete, pcluster_describe
 
+REQUIRED_ARG_COUNT = 3
 
 def main():
-    if len(sys.argv) == 3:
+    if len(sys.argv) == REQUIRED_ARG_COUNT:
         cmd = sys.argv[1]
         if cmd == "create":
             out = pcluster_create(sys.argv[2], {})
