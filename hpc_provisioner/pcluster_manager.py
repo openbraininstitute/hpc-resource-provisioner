@@ -12,6 +12,8 @@ from pcluster import lib as pc
 from .yaml_loader import load_yaml_extended
 
 PCLUSTER_CONFIG_TPL = str(Path(__file__).parent / "config" / "compute_cluster.tpl.yaml")
+VLAB_TAG_KEY = "obp:costcenter:vlabid"
+PROJECT_TAG_KEY = "obp:costcenter:project"
 
 DEFAULTS = {
     "tier": "lite",
@@ -45,11 +47,11 @@ def pcluster_create(vlab_id: str, options: dict):
     pcluster_config["Tags"].extend(
         [
             {
-                "Key": "sbo:billing:vlabid",
+                "Key": VLAB_TAG_KEY,
                 "Value": vlab_id,
             },
             {
-                "Key": "sbo:billing:project",
+                "Key": PROJECT_TAG_KEY,
                 "Value": options["project_id"],
             },
         ]
