@@ -22,7 +22,7 @@ classifiers = [
 
 
 [project.scripts]
-hpc-provisioner = "hpc_provisioner.provisioner_main:main"
+hpc-provisioner = "hpc_provisioner.commands:hpc_provisioner"
 
 [project.urls]
 Homepage = "https://bbpgitlab.epfl.ch/hpc/hpc-resource-provisioner"
