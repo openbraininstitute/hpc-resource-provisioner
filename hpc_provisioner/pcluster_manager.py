@@ -21,9 +21,10 @@ DEFAULTS = {
 }
 
 CONFIG_VALUES = {
-    "base_subnet_id": "subnet-061e82790d3f3fafc",  # Compute-0 # TODO: Dynamic
-    "base_security_group_id": "sg-01209a71b48264d4d",  # sbo-poc-compute-hpc-sg
-    "efs_id": "fs-06335fb5b165c27da",  # Home
+    "base_subnet_id": "subnet-02719babe5e178f9f",  # Compute-0 # TODO: Dynamic
+    # "base_subnet_id": "subnet-061e82790d3f3fafc",  # Compute-0 # TODO: Dynamic
+    "base_security_group_id": "sg-0a22b30ec4989f0ba",  # sbo-poc-compute-hpc-sg
+    "efs_id": "fs-0e64b596272e62bb2",  # Home
 }
 
 
