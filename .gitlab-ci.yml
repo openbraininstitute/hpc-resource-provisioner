@@ -21,7 +21,7 @@ build container:
       --label org.opencontainers.image.created="$CI_JOB_STARTED_AT" --label ch.epfl.bbpgitlab.ci-pipeline-url="$CI_PIPELINE_URL"
       --label ch.epfl.bbpgitlab.ci-commit-branch="$CI_COMMIT_BRANCH"
 upload to ecr:
-  image: ubuntu:latest
+  image: ubuntu:22.04
   stage: upload containers
   timeout: 2h
   script:
