@@ -1,6 +1,7 @@
 include:
   - project: cs/gitlabci-templates
     file: /build-image-using-buildah.yml
+    ref: more_output
 
 stages:
   - build containers
