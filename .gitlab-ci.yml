@@ -34,8 +34,9 @@ upload to ecr:
     - apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y -q awscli podman
     - mkdir ~/.aws
     - |
+      set -x
       export AWS_SHARED_CREDENTIALS_FILE=${AWS_CREDENTIALS}
       export AWS_CONFIG_FILE=${AWS_CONFIG}
       aws ecr get-login-password --region us-east-1 | podman login --username AWS --password-stdin ${ECR_REPO_URL}
-      podman pull docker://${CI_REGISTRY_IMAGE}:${REGISTRY_IMAGE_TAG}
-      podman push docker://${ECR_REPO_URL}/hpc-resource-provisioner:latest
+      podman pull ${CI_REGISTRY_IMAGE}:${REGISTRY_IMAGE_TAG}
+      podman push ${ECR_REPO_URL}/hpc-resource-provisioner:latest
