@@ -5,9 +5,9 @@ FROM python:3.9-alpine
 # libexecinfo-dev has to come from 3.16; after that it was removed :'(
 
 RUN apk add --no-cache --update --repository=https://dl-cdn.alpinelinux.org/alpine/v3.19/main autoconf=2.71-r2 \
- && apk add automake bash binutils cmake g++ gcc libtool make nodejs \
- && apk add --no-cache --update --repository=https://dl-cdn.alpinelinux.org/alpine/v3.16/main/ libexecinfo-dev \
- && python3 -m pip install aws-parallelcluster awslambdaric
+    && apk add automake bash binutils cmake g++ gcc libtool make nodejs \
+    && apk add --no-cache --update --repository=https://dl-cdn.alpinelinux.org/alpine/v3.16/main/ libexecinfo-dev \
+    && python3 -m pip install aws-parallelcluster awslambdaric
 
 ADD hpc_provisioner /opt/hpc_provisioner
 RUN python3 -m pip install /opt/hpc_provisioner

@@ -3,9 +3,6 @@ include:
   - project: cs/gitlabci-templates
     file: /build-image-using-buildah.yml
 stages: [build containers, upload containers]
-variables:
-  # Defining REGISTRY_IMAGE_TAG here is not sufficient to override it in .build-image-using-buildah
-  REGISTRY_IMAGE_NAME: hpc-resource-provisioner
 build container:
   extends: .build-image-using-buildah
   stage: build containers
@@ -15,38 +12,21 @@ build container:
     KUBERNETES_CPU_REQUEST: 2
     KUBERNETES_MEMORY_LIMIT: 8Gi
     KUBERNETES_MEMORY_REQUEST: 4Gi
-    # !! Redefined in "upload to ecr" job - if you modify this one, modify the other one too!
-    REGISTRY_IMAGE_TAG: '0.3'
     BUILD_PATH: $CI_PROJECT_DIR
-    BUILDAH_EXTRA_ARGS: --label org.opencontainers.image.title="${REGISTRY_IMAGE_NAME}"
+    REGISTRY_IMAGE_TAG: '0.1'
+    BUILDAH_EXTRA_ARGS: --label org.opencontainers.image.title="hpc-resource-provisioner"
       --label org.opencontainers.image.version="$REGISTRY_IMAGE_TAG" --label org.opencontainers.image.revision="$CI_COMMIT_SHA"
       --label org.opencontainers.image.authors="$GITLAB_USER_NAME <$GITLAB_USER_EMAIL>"
       --label org.opencontainers.image.url="$CI_PROJECT_URL" --label org.opencontainers.image.source="$CI_PROJECT_URL"
       --label org.opencontainers.image.created="$CI_JOB_STARTED_AT" --label ch.epfl.bbpgitlab.ci-pipeline-url="$CI_PIPELINE_URL"
       --label ch.epfl.bbpgitlab.ci-commit-branch="$CI_COMMIT_BRANCH"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_PIPELINE_SOURCE == "web"
 upload to ecr:
-  image: ubuntu:22.04
+  image: ubuntu:latest
   stage: upload containers
-  variables:
-    # !! Redefined in "build container" job - if you modify this one, modify the other one too!
-    REGISTRY_IMAGE_TAG: '0.3'
   timeout: 2h
   script:
-    - apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y -q awscli
-      podman
-    - mkdir ~/.aws
-    - |
-      set -x
-      export AWS_SHARED_CREDENTIALS_FILE=${AWS_CREDENTIALS}
-      export AWS_CONFIG_FILE=${AWS_CONFIG}
-      aws ecr get-login-password --region us-east-1 | podman login --username AWS --password-stdin ${ECR_REPO_URL}
-      podman login -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD} --tls-verify=false ${CI_REGISTRY}
-      podman pull ${CI_REGISTRY_IMAGE}:${REGISTRY_IMAGE_TAG}
-      podman push ${REGISTRY_IMAGE_NAME}:${REGISTRY_IMAGE_TAG} ${ECR_REPO_URL}/${REGISTRY_IMAGE_NAME}:${REGISTRY_IMAGE_TAG}
-      podman push ${REGISTRY_IMAGE_NAME}:${REGISTRY_IMAGE_TAG} ${ECR_REPO_URL}/${REGISTRY_IMAGE_NAME}:latest
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_PIPELINE_SOURCE == "web"
+    - apt-get update && apt-get install -y -q awscli podman
+    - aws ecr get-login-password --region us-east-1 | podman login --username AWS
+      --password-stdin 130659266700.dkr.ecr.us-east-1.amazonaws.com
+    - podman pull ${CI_REGISTRY_IMAGE}:${REGISTRY_IMAGE_TAG}
+    - podman push 130659266700.dkr.ecr.us-east-1.amazonaws.com/hpc-resource-provisioner:latest
