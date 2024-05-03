@@ -1,8 +1,11 @@
----
 include:
   - project: cs/gitlabci-templates
     file: /build-image-using-buildah.yml
-stages: [build containers, upload containers]
+
+stages:
+  - build containers
+  - upload containers
+
 build container:
   extends: .build-image-using-buildah
   stage: build containers
@@ -15,19 +18,20 @@ build container:
     BUILD_PATH: $CI_PROJECT_DIR
     REGISTRY_IMAGE_TAG: '0.1'
     BUILDAH_EXTRA_ARGS: --label org.opencontainers.image.title="hpc-resource-provisioner"
-      --label org.opencontainers.image.version="$REGISTRY_IMAGE_TAG" --label org.opencontainers.image.revision="$CI_COMMIT_SHA"
+      --label org.opencontainers.image.version="$REGISTRY_IMAGE_TAG"
+      --label org.opencontainers.image.revision="$CI_COMMIT_SHA"
       --label org.opencontainers.image.authors="$GITLAB_USER_NAME <$GITLAB_USER_EMAIL>"
-      --label org.opencontainers.image.url="$CI_PROJECT_URL" --label org.opencontainers.image.source="$CI_PROJECT_URL"
-      --label org.opencontainers.image.created="$CI_JOB_STARTED_AT" --label ch.epfl.bbpgitlab.ci-pipeline-url="$CI_PIPELINE_URL"
+      --label org.opencontainers.image.url="$CI_PROJECT_URL"
+      --label org.opencontainers.image.source="$CI_PROJECT_URL"
+      --label org.opencontainers.image.created="$CI_JOB_STARTED_AT"
+      --label ch.epfl.bbpgitlab.ci-pipeline-url="$CI_PIPELINE_URL"
       --label ch.epfl.bbpgitlab.ci-commit-branch="$CI_COMMIT_BRANCH"
 upload to ecr:
   image: ubuntu:22.04
   stage: upload containers
   timeout: 2h
   script:
-    - apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y -q awscli
-      podman
-    - aws ecr get-login-password --region us-east-1 | podman login --username AWS
-      --password-stdin 130659266700.dkr.ecr.us-east-1.amazonaws.com
+    - apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y -q awscli podman
+    - aws ecr get-login-password --region us-east-1 | podman login --username AWS --password-stdin 130659266700.dkr.ecr.us-east-1.amazonaws.com
     - podman pull ${CI_REGISTRY_IMAGE}:${REGISTRY_IMAGE_TAG}
     - podman push 130659266700.dkr.ecr.us-east-1.amazonaws.com/hpc-resource-provisioner:latest
