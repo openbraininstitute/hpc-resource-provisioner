@@ -19,6 +19,7 @@ build container:
     KUBERNETES_CPU_REQUEST: 2
     KUBERNETES_MEMORY_LIMIT: 8Gi
     KUBERNETES_MEMORY_REQUEST: 4Gi
+    REGISTRY_IMAGE_TAG: $REGISTRY_IMAGE_TAG
     BUILD_PATH: $CI_PROJECT_DIR
     BUILDAH_EXTRA_ARGS: --label org.opencontainers.image.title="${REGISTRY_IMAGE_NAME}"
       --label org.opencontainers.image.version="$REGISTRY_IMAGE_TAG"
