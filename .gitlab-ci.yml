@@ -8,7 +8,7 @@ stages:
 
 variables:
   REGISTRY_IMAGE_NAME: "hpc-resource-provisioner"
-  REGISTRY_IMAGE_TAG: "0.1"
+  REGISTRY_IMAGE_TAG: "0.2"
 
 build container:
   extends: .build-image-using-buildah
