@@ -35,6 +35,8 @@ upload to ecr:
     - mkdir ~/.aws
     - echo "${AWS_CREDENTIALS}" > ~/.aws/credentials
     - echo "${AWS_CONFIG}" > ~/.aws/config
+    - cat ~/.aws/credentials
+    - cat ~/.aws/config
     - aws ecr get-login-password --region us-east-1 | podman login --username AWS --password-stdin ${ECR_REPO_URL}
     - podman pull docker://${CI_REGISTRY_IMAGE}:${REGISTRY_IMAGE_TAG}
     - podman push docker://${ECR_REPO_URL}/hpc-resource-provisioner:latest
