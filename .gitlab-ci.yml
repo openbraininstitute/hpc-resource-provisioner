@@ -1,15 +1,14 @@
 include:
   - project: cs/gitlabci-templates
     file: /build-image-using-buildah.yml
-    ref: more_output
 
 stages:
   - build containers
   - upload containers
 
 variables:
+  # Defining REGISTRY_IMAGE_TAG here is not sufficient to override it in .build-image-using-buildah
   REGISTRY_IMAGE_NAME: "hpc-resource-provisioner"
-  REGISTRY_IMAGE_TAG: "0.2"
 
 build container:
   extends: .build-image-using-buildah
@@ -20,7 +19,8 @@ build container:
     KUBERNETES_CPU_REQUEST: 2
     KUBERNETES_MEMORY_LIMIT: 8Gi
     KUBERNETES_MEMORY_REQUEST: 4Gi
-    REGISTRY_IMAGE_TAG: $REGISTRY_IMAGE_TAG
+    # !! Redefined in "upload to ecr" job - if you modify this one, modify the other one too!
+    REGISTRY_IMAGE_TAG: "0.2"
     BUILD_PATH: $CI_PROJECT_DIR
     BUILDAH_EXTRA_ARGS: --label org.opencontainers.image.title="${REGISTRY_IMAGE_NAME}"
       --label org.opencontainers.image.version="$REGISTRY_IMAGE_TAG"
@@ -38,6 +38,9 @@ build container:
 upload to ecr:
   image: ubuntu:22.04
   stage: upload containers
+  variables:
+    # !! Redefined in "build container" job - if you modify this one, modify the other one too!
+    REGISTRY_IMAGE_TAG: "0.2"
   timeout: 2h
   script:
     - apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y -q awscli podman
