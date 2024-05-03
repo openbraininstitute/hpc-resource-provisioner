@@ -29,6 +29,9 @@ build container:
       --label org.opencontainers.image.created="$CI_JOB_STARTED_AT"
       --label ch.epfl.bbpgitlab.ci-pipeline-url="$CI_PIPELINE_URL"
       --label ch.epfl.bbpgitlab.ci-commit-branch="$CI_COMMIT_BRANCH"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
 
 upload to ecr:
   image: ubuntu:22.04
@@ -46,3 +49,6 @@ upload to ecr:
       podman pull ${CI_REGISTRY_IMAGE}:${REGISTRY_IMAGE_TAG}
       podman push ${REGISTRY_IMAGE_NAME}:${REGISTRY_IMAGE_TAG} ${ECR_REPO_URL}/${REGISTRY_IMAGE_NAME}:${REGISTRY_IMAGE_TAG}
       podman push ${REGISTRY_IMAGE_NAME}:${REGISTRY_IMAGE_TAG} ${ECR_REPO_URL}/${REGISTRY_IMAGE_NAME}:latest
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
