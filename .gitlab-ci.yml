@@ -6,6 +6,9 @@ stages:
   - build containers
   - upload containers
 
+variables:
+  REGISTRY_IMAGE_TAG: '0.1'
+
 build container:
   extends: .build-image-using-buildah
   stage: build containers
@@ -16,7 +19,6 @@ build container:
     KUBERNETES_MEMORY_LIMIT: 8Gi
     KUBERNETES_MEMORY_REQUEST: 4Gi
     BUILD_PATH: $CI_PROJECT_DIR
-    REGISTRY_IMAGE_TAG: '0.1'
     BUILDAH_EXTRA_ARGS: --label org.opencontainers.image.title="hpc-resource-provisioner"
       --label org.opencontainers.image.version="$REGISTRY_IMAGE_TAG"
       --label org.opencontainers.image.revision="$CI_COMMIT_SHA"
@@ -26,6 +28,7 @@ build container:
       --label org.opencontainers.image.created="$CI_JOB_STARTED_AT"
       --label ch.epfl.bbpgitlab.ci-pipeline-url="$CI_PIPELINE_URL"
       --label ch.epfl.bbpgitlab.ci-commit-branch="$CI_COMMIT_BRANCH"
+
 upload to ecr:
   image: ubuntu:22.04
   stage: upload containers
