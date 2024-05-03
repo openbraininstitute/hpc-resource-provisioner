@@ -25,7 +25,8 @@ upload to ecr:
   stage: upload containers
   timeout: 2h
   script:
-    - apt-get update && apt-get install -y -q awscli podman
+    - apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y -q awscli
+      podman
     - aws ecr get-login-password --region us-east-1 | podman login --username AWS
       --password-stdin 130659266700.dkr.ecr.us-east-1.amazonaws.com
     - podman pull ${CI_REGISTRY_IMAGE}:${REGISTRY_IMAGE_TAG}
