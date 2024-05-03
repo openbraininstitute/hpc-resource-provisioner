@@ -32,6 +32,9 @@ upload to ecr:
   timeout: 2h
   script:
     - apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y -q awscli podman
-    - aws ecr get-login-password --region us-east-1 | podman login --username AWS --password-stdin 130659266700.dkr.ecr.us-east-1.amazonaws.com
-    - podman pull ${CI_REGISTRY_IMAGE}:${REGISTRY_IMAGE_TAG}
-    - podman push 130659266700.dkr.ecr.us-east-1.amazonaws.com/hpc-resource-provisioner:latest
+    - mkdir ~/.aws
+    - echo "${AWS_CREDENTIALS}" > ~/.aws/credentials
+    - echo "${AWS_CONFIG}" > ~/.aws/config
+    - aws ecr get-login-password --region us-east-1 | podman login --username AWS --password-stdin ${ECR_REPO_URL}
+    - podman pull docker://${CI_REGISTRY_IMAGE}:${REGISTRY_IMAGE_TAG}
+    - podman push docker://${ECR_REPO_URL}/hpc-resource-provisioner:latest
