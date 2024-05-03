@@ -41,5 +41,6 @@ upload to ecr:
       export AWS_SHARED_CREDENTIALS_FILE=${AWS_CREDENTIALS}
       export AWS_CONFIG_FILE=${AWS_CONFIG}
       aws ecr get-login-password --region us-east-1 | podman login --username AWS --password-stdin ${ECR_REPO_URL}
+      podman login -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD} --tls-verify=false ${CI_REGISTRY}
       podman pull ${CI_REGISTRY_IMAGE}:${REGISTRY_IMAGE_TAG}
       podman push ${ECR_REPO_URL}/hpc-resource-provisioner:latest
