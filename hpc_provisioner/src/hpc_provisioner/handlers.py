@@ -14,7 +14,19 @@ def pcluster_handler(event, _context=None):
     * Check whether we have a GET, a POST or a DELETE method
     * Pass on to pcluster_*_handler
     """
-    return {"statuscode": 200, "body": f"Event is {event}, context is {_context}"}
+    if event.get("http_method"):
+        if event["http_method"] == "GET":
+            return pcluster_describe_handler(event, _context)
+        elif event["http_method"] == "POST":
+            return pcluster_create_handler(event, _context)
+        elif event["http_method"] == "DELETE":
+            return pcluster_delete_handler(event, _context)
+        else:
+            return response_text(f"{event['http_method']} not supported", code=400)
+
+    return response_text(
+        "Could not determine HTTP method - make sure to GET, POST or DELETE", code=400
+    )
 
 
 def pcluster_create_handler(event, _context=None):
@@ -23,13 +35,13 @@ def pcluster_create_handler(event, _context=None):
         vlab_id, options = _get_vlab_query_params(event)
         pc_output = pcluster_create(vlab_id, options)
     except InvalidRequest as e:
-        return reponse_text(str(e), code=400)
+        return response_text(str(e), code=400)
     except PClusterError as e:
         return {"statusCode": 403, "body": str(e)}
     except Exception as e:
         return {"statusCode": 500, "body": str(e)}
 
-    return reponse_json(pc_output)
+    return response_json(pc_output)
 
 
 def pcluster_describe_handler(event, _context=None):
@@ -41,7 +53,7 @@ def pcluster_describe_handler(event, _context=None):
     except Exception as e:
         return {"statusCode": 500, "body": str(e)}
 
-    return reponse_json(pc_output)
+    return response_json(pc_output)
 
 
 def pcluster_delete_handler(event, _context=None):
@@ -52,7 +64,7 @@ def pcluster_delete_handler(event, _context=None):
     except Exception as e:
         return {"statusCode": 500, "body": str(e)}
 
-    return reponse_json(pc_output)
+    return response_json(pc_output)
 
 
 def _get_vlab_query_params(event):
@@ -69,11 +81,11 @@ def _get_vlab_query_params(event):
     return vlab_id, options
 
 
-def reponse_text(text: str, code: int = 200):
+def response_text(text: str, code: int = 200):
     return {"statusCode": code, "body": text}
 
 
-def reponse_json(data: dict, code: int = 200):
+def response_json(data: dict, code: int = 200):
     return {
         "statusCode": code,
         "headers": {"Content-Type": "application/json"},
