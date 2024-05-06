@@ -28,6 +28,14 @@ CONFIG_VALUES = {
 }
 
 
+class PClusterError(Exception):
+    """An error reported by PCluster"""
+
+
+class InvalidRequest(Exception):
+    """When the request is invalid, likely due to invalid or missing data"""
+
+
 def pcluster_create(vlab_id: str, options: dict):
     """Create a pcluster for a given vlab
 
@@ -44,18 +52,9 @@ def pcluster_create(vlab_id: str, options: dict):
         pcluster_config = load_yaml_extended(f, CONFIG_VALUES)
 
     # Add tags
-    pcluster_config["Tags"].extend(
-        [
-            {
-                "Key": VLAB_TAG_KEY,
-                "Value": vlab_id,
-            },
-            {
-                "Key": PROJECT_TAG_KEY,
-                "Value": options["project_id"],
-            },
-        ]
-    )
+    tags = pcluster_config["Tags"]
+    tags.append({"Key": VLAB_TAG_KEY, "Value": vlab_id})
+    tags.append({"Key": PROJECT_TAG_KEY, "Value": options.get("project_id")})
 
     if options["tier"] == "lite":
         queues = pcluster_config["Scheduling"]["SlurmQueues"]
@@ -67,8 +66,10 @@ def pcluster_create(vlab_id: str, options: dict):
     with open(output_file, "w") as out:
         yaml.dump(pcluster_config, out, sort_keys=False)
 
-    # On success returns json. Otherwise throws
-    return pc.create_cluster(cluster_name=cluster_name, cluster_configuration=output_file)
+    try:
+        return pc.create_cluster(cluster_name=cluster_name, cluster_configuration=output_file)
+    except Exception as e:
+        raise PClusterError from e
 
 
 def pcluster_describe(vlab_id: str):

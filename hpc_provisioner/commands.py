@@ -5,9 +5,9 @@ import sys
 
 from .pcluster_manager import pcluster_create, pcluster_delete, pcluster_describe
 
-REQUIRED_ARG_COUNT = 3
 
 def hpc_provisioner():
+    REQUIRED_ARG_COUNT = 3
     if len(sys.argv) != REQUIRED_ARG_COUNT:
         print(f"Syntax: {sys.argv[0]} <create, describe, delete> <cluster_name>", file=sys.stderr)
         return 1
