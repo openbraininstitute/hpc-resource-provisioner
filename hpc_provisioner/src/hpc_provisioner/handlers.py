@@ -14,15 +14,15 @@ def pcluster_handler(event, _context=None):
     * Check whether we have a GET, a POST or a DELETE method
     * Pass on to pcluster_*_handler
     """
-    if event.get("http_method"):
-        if event["http_method"] == "GET":
+    if event.get("httpMethod"):
+        if event["httpMethod"] == "GET":
             return pcluster_describe_handler(event, _context)
-        elif event["http_method"] == "POST":
+        elif event["httpMethod"] == "POST":
             return pcluster_create_handler(event, _context)
-        elif event["http_method"] == "DELETE":
+        elif event["httpMethod"] == "DELETE":
             return pcluster_delete_handler(event, _context)
         else:
-            return response_text(f"{event['http_method']} not supported", code=400)
+            return response_text(f"{event['httpMethod']} not supported", code=400)
 
     return response_text(
         "Could not determine HTTP method - make sure to GET, POST or DELETE", code=400
@@ -76,7 +76,7 @@ def _get_vlab_query_params(event):
             vlab_id = options.pop("vlab_id", None)
 
     if vlab_id is None:
-        raise InvalidRequest("missing required 'vlab' query param")
+        raise InvalidRequest("missing required 'vlab_id' query param")
 
     return vlab_id, options
 
