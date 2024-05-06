@@ -9,6 +9,14 @@ from .pcluster_manager import (
 )
 
 
+def pcluster_handler(event, _context=None):
+    """
+    * Check whether we have a GET, a POST or a DELETE method
+    * Pass on to pcluster_*_handler
+    """
+    return {"statuscode": 200, "body": f"Event is {event}, context is {_context}"}
+
+
 def pcluster_create_handler(event, _context=None):
     """Request the creation of an HPC cluster for a given vlab_id"""
     try:

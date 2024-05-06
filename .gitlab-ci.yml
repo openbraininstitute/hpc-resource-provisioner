@@ -1,15 +1,11 @@
+---
 include:
   - project: cs/gitlabci-templates
     file: /build-image-using-buildah.yml
-
-stages:
-  - build containers
-  - upload containers
-
+stages: [build containers, upload containers]
 variables:
   # Defining REGISTRY_IMAGE_TAG here is not sufficient to override it in .build-image-using-buildah
-  REGISTRY_IMAGE_NAME: "hpc-resource-provisioner"
-
+  REGISTRY_IMAGE_NAME: hpc-resource-provisioner
 build container:
   extends: .build-image-using-buildah
   stage: build containers
@@ -20,30 +16,27 @@ build container:
     KUBERNETES_MEMORY_LIMIT: 8Gi
     KUBERNETES_MEMORY_REQUEST: 4Gi
     # !! Redefined in "upload to ecr" job - if you modify this one, modify the other one too!
-    REGISTRY_IMAGE_TAG: "0.2"
+    REGISTRY_IMAGE_TAG: '0.3'
     BUILD_PATH: $CI_PROJECT_DIR
     BUILDAH_EXTRA_ARGS: --label org.opencontainers.image.title="${REGISTRY_IMAGE_NAME}"
-      --label org.opencontainers.image.version="$REGISTRY_IMAGE_TAG"
-      --label org.opencontainers.image.revision="$CI_COMMIT_SHA"
+      --label org.opencontainers.image.version="$REGISTRY_IMAGE_TAG" --label org.opencontainers.image.revision="$CI_COMMIT_SHA"
       --label org.opencontainers.image.authors="$GITLAB_USER_NAME <$GITLAB_USER_EMAIL>"
-      --label org.opencontainers.image.url="$CI_PROJECT_URL"
-      --label org.opencontainers.image.source="$CI_PROJECT_URL"
-      --label org.opencontainers.image.created="$CI_JOB_STARTED_AT"
-      --label ch.epfl.bbpgitlab.ci-pipeline-url="$CI_PIPELINE_URL"
+      --label org.opencontainers.image.url="$CI_PROJECT_URL" --label org.opencontainers.image.source="$CI_PROJECT_URL"
+      --label org.opencontainers.image.created="$CI_JOB_STARTED_AT" --label ch.epfl.bbpgitlab.ci-pipeline-url="$CI_PIPELINE_URL"
       --label ch.epfl.bbpgitlab.ci-commit-branch="$CI_COMMIT_BRANCH"
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-    - if: '$CI_PIPELINE_SOURCE == "web"'
-
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "web"
 upload to ecr:
   image: ubuntu:22.04
   stage: upload containers
   variables:
     # !! Redefined in "build container" job - if you modify this one, modify the other one too!
-    REGISTRY_IMAGE_TAG: "0.2"
+    REGISTRY_IMAGE_TAG: '0.3'
   timeout: 2h
   script:
-    - apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y -q awscli podman
+    - apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y -q awscli
+      podman
     - mkdir ~/.aws
     - |
       set -x
@@ -55,5 +48,5 @@ upload to ecr:
       podman push ${REGISTRY_IMAGE_NAME}:${REGISTRY_IMAGE_TAG} ${ECR_REPO_URL}/${REGISTRY_IMAGE_NAME}:${REGISTRY_IMAGE_TAG}
       podman push ${REGISTRY_IMAGE_NAME}:${REGISTRY_IMAGE_TAG} ${ECR_REPO_URL}/${REGISTRY_IMAGE_NAME}:latest
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "web"
