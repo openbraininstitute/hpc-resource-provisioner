@@ -26,7 +26,7 @@ def pcluster_create_handler(event, _context=None):
 
 def pcluster_describe_handler(event, _context=None):
     """Describe a cluster given the vlab_id"""
-    vlab_id, _options = _get_vlab_query_params(event)
+    vlab_id, _ = _get_vlab_query_params(event)
 
     try:
         pc_output = pcluster_describe(vlab_id)
@@ -37,7 +37,7 @@ def pcluster_describe_handler(event, _context=None):
 
 
 def pcluster_delete_handler(event, _context=None):
-    vlab_id, _options = _get_vlab_query_params(event)
+    vlab_id, _ = _get_vlab_query_params(event)
 
     try:
         pc_output = pcluster_delete(vlab_id)
