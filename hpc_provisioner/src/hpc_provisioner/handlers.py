@@ -1,5 +1,7 @@
 import json
 
+from pcluster.api.errors import NotFoundException
+
 from .pcluster_manager import (
     InvalidRequest,
     PClusterError,
@@ -37,7 +39,7 @@ def pcluster_create_handler(event, _context=None):
     except InvalidRequest as e:
         return response_text(str(e), code=400)
     except PClusterError as e:
-        return {"statusCode": 403, "body": str(e)}
+        return {"statusCode": 403, "body": f"{type(e)}: {str(e)}"}
     except Exception as e:
         return {"statusCode": 500, "body": str(e)}
 
@@ -50,8 +52,10 @@ def pcluster_describe_handler(event, _context=None):
 
     try:
         pc_output = pcluster_describe(vlab_id)
+    except NotFoundException as e:
+        return {"statusCode": 404, "body": str(e)}
     except Exception as e:
-        return {"statusCode": 500, "body": str(e)}
+        return {"statusCode": 500, "body": str(type(e))}
 
     return response_json(pc_output)
 
