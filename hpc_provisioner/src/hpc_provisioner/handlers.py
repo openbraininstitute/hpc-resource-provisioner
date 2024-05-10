@@ -1,7 +1,10 @@
 import json
+import logging
+import logging.config
 
 from pcluster.api.errors import NotFoundException
 
+from .logging_config import LOGGING_CONFIG
 from .pcluster_manager import (
     InvalidRequest,
     PClusterError,
@@ -9,6 +12,9 @@ from .pcluster_manager import (
     pcluster_delete,
     pcluster_describe,
 )
+
+logging.config.dictConfig(LOGGING_CONFIG)
+logger = logging.getLogger("hpc-resource-provisioner")
 
 
 def pcluster_handler(event, _context=None):
@@ -18,10 +24,13 @@ def pcluster_handler(event, _context=None):
     """
     if event.get("httpMethod"):
         if event["httpMethod"] == "GET":
+            logger.debug("GET pcluster")
             return pcluster_describe_handler(event, _context)
         elif event["httpMethod"] == "POST":
+            logger.debug("POST pcluster")
             return pcluster_create_handler(event, _context)
         elif event["httpMethod"] == "DELETE":
+            logger.debug("DELETE pcluster")
             return pcluster_delete_handler(event, _context)
         else:
             return response_text(f"{event['httpMethod']} not supported", code=400)
@@ -35,7 +44,9 @@ def pcluster_create_handler(event, _context=None):
     """Request the creation of an HPC cluster for a given vlab_id"""
     try:
         vlab_id, options = _get_vlab_query_params(event)
+        logger.debug(f"create pcluster {vlab_id}")
         pc_output = pcluster_create(vlab_id, options)
+        logger.debug(f"created pcluster {vlab_id}")
     except InvalidRequest as e:
         return response_text(str(e), code=400)
     except PClusterError as e:
@@ -51,7 +62,9 @@ def pcluster_describe_handler(event, _context=None):
     vlab_id, _ = _get_vlab_query_params(event)
 
     try:
+        logger.debug(f"describe pcluster {vlab_id}")
         pc_output = pcluster_describe(vlab_id)
+        logger.debug(f"described pcluster {vlab_id}")
     except NotFoundException as e:
         return {"statusCode": 404, "body": str(e)}
     except Exception as e:
@@ -64,7 +77,9 @@ def pcluster_delete_handler(event, _context=None):
     vlab_id, _ = _get_vlab_query_params(event)
 
     try:
+        logger.debug(f"delete pcluster {vlab_id}")
         pc_output = pcluster_delete(vlab_id)
+        logger.debug(f"deleted pcluster {vlab_id}")
     except Exception as e:
         return {"statusCode": 500, "body": str(e)}
 

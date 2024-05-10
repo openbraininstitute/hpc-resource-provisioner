@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import logging
+import logging.config
 import pathlib
 import tempfile
 
@@ -10,8 +12,8 @@ from pathlib import Path
 import yaml
 from pcluster import lib as pc
 
-from hpc_provisioner.logging_config import LOGGING_CONFIG
-from hpc_provisioner.yaml_loader import load_yaml_extended
+from .logging_config import LOGGING_CONFIG
+from .yaml_loader import load_yaml_extended
 
 PCLUSTER_CONFIG_TPL = str(Path(__file__).parent / "config" / "compute_cluster.tpl.yaml")
 VLAB_TAG_KEY = "obp:costcenter:vlabid"
@@ -75,15 +77,19 @@ def pcluster_create(vlab_id: str, options: dict):
     output_file = f"deployment-{cluster_name}.yaml"
     output_file = tempfile.NamedTemporaryFile(delete=False)
 
+    logger.debug(f"Writing pcluster config to {output_file.name}")
     with open(output_file.name, "w") as out:
         yaml.dump(pcluster_config, out, sort_keys=False)
 
     try:
+        logger.debug("Actual create_cluster command")
         return pc.create_cluster(cluster_name=cluster_name, cluster_configuration=output_file.name)
     except Exception as e:
         raise PClusterError from e
     finally:
+        logger.debug("Cleaning up temporary config file")
         pathlib.Path(output_file.name).unlink()
+        logger.debug("Cleaned up temporary config file")
 
 
 def pcluster_describe(vlab_id: str):
