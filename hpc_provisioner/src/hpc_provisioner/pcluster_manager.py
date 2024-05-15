@@ -12,8 +12,8 @@ from pathlib import Path
 import yaml
 from pcluster import lib as pc
 
-from .logging_config import LOGGING_CONFIG
-from .yaml_loader import load_yaml_extended
+from hpc_provisioner.logging_config import LOGGING_CONFIG
+from hpc_provisioner.yaml_loader import load_yaml_extended
 
 PCLUSTER_CONFIG_TPL = str(Path(__file__).parent / "config" / "compute_cluster.tpl.yaml")
 VLAB_TAG_KEY = "obp:costcenter:vlabid"
