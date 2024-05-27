@@ -4,3 +4,6 @@ build
 venv
 __pycache__
 deployment-hpc-pcluster-vlab*yaml
+.terraform
+.terraform.lock.hcl
+terraform.tfstate*
