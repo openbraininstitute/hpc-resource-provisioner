@@ -76,12 +76,9 @@ def pcluster_describe_handler(event, _context=None):
 def pcluster_delete_handler(event, _context=None):
     vlab_id, _ = _get_vlab_query_params(event)
 
-    # try:
     logger.debug(f"delete pcluster {vlab_id}")
     pc_output = pcluster_delete(vlab_id)
     logger.debug(f"deleted pcluster {vlab_id}")
-    # except Exception as e:
-    #     return {"statusCode": 500, "body": str(e)}
 
     return response_json(pc_output)
 
