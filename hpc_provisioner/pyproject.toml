@@ -28,9 +28,6 @@ hpc-provisioner = "hpc_provisioner.commands:hpc_provisioner"
 Homepage = "https://bbpgitlab.epfl.ch/hpc/hpc-resource-provisioner"
 Repository = "https://bbpgitlab.epfl.ch/hpc/hpc-resource-provisioner.git"
 
-[tool.setuptools]
-packages = ["hpc_provisioner"]
-
 [tool.setuptools.package-data]
 hpc_provisioner = ["config/*"]
 

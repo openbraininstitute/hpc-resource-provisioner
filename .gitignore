@@ -2,3 +2,5 @@
 build
 *.egg-info
 venv
+__pycache__
+deployment-hpc-pcluster-vlab*yaml

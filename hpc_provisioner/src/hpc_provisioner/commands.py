@@ -3,7 +3,7 @@
 import pprint
 import sys
 
-from .pcluster_manager import pcluster_create, pcluster_delete, pcluster_describe
+from hpc_provisioner.pcluster_manager import pcluster_create, pcluster_delete, pcluster_describe
 
 
 def hpc_provisioner():
@@ -22,3 +22,7 @@ def hpc_provisioner():
     else:
         raise RuntimeError(f"Invalid command: {sys.argv[1]}")
     pprint.pprint(out, width=120, sort_dicts=False)
+
+
+if __name__ == "__main__":
+    hpc_provisioner()
