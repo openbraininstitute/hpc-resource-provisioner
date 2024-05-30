@@ -2,12 +2,12 @@ import json
 import logging
 import logging.config
 
+import boto3
 from pcluster.api.errors import NotFoundException
 
 from .logging_config import LOGGING_CONFIG
 from .pcluster_manager import (
     InvalidRequest,
-    PClusterError,
     pcluster_create,
     pcluster_delete,
     pcluster_describe,
@@ -15,6 +15,14 @@ from .pcluster_manager import (
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("hpc-resource-provisioner")
+
+
+def pcluster_do_create_handler(event, context):
+    logger.debug(f"event: {event}, context: {context}")
+    vlab_id, options = _get_vlab_query_params(event)
+    logger.debug(f"create pcluster {vlab_id}")
+    pcluster_create(vlab_id, options)
+    logger.debug(f"created pcluster {vlab_id}")
 
 
 def pcluster_handler(event, _context=None):
@@ -28,7 +36,7 @@ def pcluster_handler(event, _context=None):
             return pcluster_describe_handler(event, _context)
         elif event["httpMethod"] == "POST":
             logger.debug("POST pcluster")
-            return pcluster_create_handler(event, _context)
+            return pcluster_create_request_handler(event, _context)
         elif event["httpMethod"] == "DELETE":
             logger.debug("DELETE pcluster")
             return pcluster_delete_handler(event, _context)
@@ -40,21 +48,25 @@ def pcluster_handler(event, _context=None):
     )
 
 
-def pcluster_create_handler(event, _context=None):
+def pcluster_create_request_handler(event, _context=None):
     """Request the creation of an HPC cluster for a given vlab_id"""
-    try:
-        vlab_id, options = _get_vlab_query_params(event)
-        logger.debug(f"create pcluster {vlab_id}")
-        pc_output = pcluster_create(vlab_id, options)
-        logger.debug(f"created pcluster {vlab_id}")
-    except InvalidRequest as e:
-        return response_text(str(e), code=400)
-    except PClusterError as e:
-        return {"statusCode": 403, "body": f"{type(e)}: {str(e)}"}
-    except Exception as e:
-        return {"statusCode": 500, "body": str(e)}
 
-    return response_json(pc_output)
+    vlab_id, _ = _get_vlab_query_params(event)
+    logger.debug("calling create lambda async")
+    boto3.client("lambda").invoke_async(
+        FunctionName="hpc-resource-provisioner-creator",
+        InvokeArgs=json.dumps({"vlab_id": vlab_id}),
+    )
+    logger.debug("called create lambda async")
+
+    return response_json(
+        {
+            "cluster": {
+                "clusterName": f"hpc-pcluster-vlab-{vlab_id}",
+                "clusterStatus": "CREATE_REQUEST_RECEIVED",
+            }
+        }
+    )
 
 
 def pcluster_describe_handler(event, _context=None):
