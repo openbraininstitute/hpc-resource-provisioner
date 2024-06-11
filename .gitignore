@@ -7,3 +7,7 @@ deployment-hpc-pcluster-vlab*yaml
 .terraform
 .terraform.lock.hcl
 terraform.tfstate*
+*.log
+.coverage
+coverage.xml
+unittests.xml

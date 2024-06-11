@@ -1,0 +1,100 @@
+{
+  "createRequestBody": {
+    "cluster": {
+      "clusterName": "hpc-pcluster-vlab-test-vlab",
+      "clusterStatus": "CREATE_REQUEST_RECEIVED"
+    }
+  },
+  "existingCluster": {
+    "creationTime": "2024-06-04T09:26:29.320Z",
+    "headNode": {
+      "launchTime": "2024-06-04T09:30:51.000Z",
+      "instanceId": "i-05b1cf9bd0f1347ac",
+      "instanceType": "t3.medium",
+      "state": "running",
+      "privateIpAddress": "172.32.12.104"
+    },
+    "version": "3.9.2",
+    "clusterConfiguration": {
+      "url": "https://parallelcluster-17763177cd46d13e-v1-do-not-delete.s3.amazonaws.com/parallelcluster/3.9.2/clusters/hpc-pcluster-vlab-blorbo-kg8aitr1j8qtbr9n/configs/cluster-config.yaml?versionId=i4STBwMoZrjMVzNOuzswKVnl3Fa7U_Nn&AWSAccessKeyId=ASIAR427GGCGC23JYWVU&Signature=n57K8m0TO7JCMGVOFwPqMUVTE1U%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEB0aCXVzLWVhc3QtMSJIMEYCIQDqS9qiWenYigTZG3AgDN4Z%2BMt9eTg7hur5fOFgjW297gIhAMHrzvIiNsxKTqVOmmoiF0iCOgzrRvKyKAfwiSjANQnxKo0DCKb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQABoMMTMwNjU5MjY2NzAwIgz8OnyRSCidUe%2BTvFAq4QIc%2F203RA%2BbZdFObuM2SB20vtF5UKlPJqN7ft32k76rgqIEMFw1S6EWyQwPHH0by65ZHJZMgzM2FP1LVfP5QW549iTP8DkpPsnXZgRldjFwvQh1VDdYQHxd1hVcxXB0vQ3lAJDC1r4f4WRKYE43E7pxsRihj70E6BdTqV5wJ1%2B8UQkiE9KUAlhWO7sS2SKVjVxVpB8gC4vuVkXmzCIkM%2B5bboajAvgDWMnHCMEW6N1mQy8fjBEDk%2BaxYcgYF7L36iSIYA7AwFHlFCU0sz%2BqqqTQHUAQ8uspQN8CNgVgrI0Z0C09cwqMzkwNV3BF9mgPPQ6DSYk4oewaJ6LTLVyJ9zTOZcowtPSDVm9%2BOfYEhJM7wMXg%2BBNp8cYm1UTJDz6gqXD5AKAcFbThqYYemKAPe1SKG8iT2KaEpLkzFWdibcc3LT5k3JUlUw6CwEYGvr4o5tcuJDCJNoXbg9fDZUmS4SHm0jDSlfyyBjqdAZRYmcNo3rErNuH6u2F42%2FhZz3gXDQieNbc7wns4tCFbbSyRXl9KR7AQOlYPlWlZDEW2ecQ7SoIUpQawcuYVH5CVaVeIGUiEw9Zfvhl3fIwy5fEjgbXel2yayhfpDUXqByCLyaT2FzXJx6jSvNwbHw74%2FmQYxTS5EY8pP7CDeAoyGfaID2e5PAj%2BTAdRiTOdOeEzJ32ikyWwpwWUkiI%3D&Expires=1717508508"
+    },
+    "tags": [
+      {
+        "value": "3.9.2",
+        "key": "parallelcluster:version"
+      },
+      {
+        "value": "hpc",
+        "key": "SBO_Billing"
+      },
+      {
+        "value": "-",
+        "key": "obp:costcenter:project"
+      },
+      {
+        "value": "hpc-pcluster-vlab-blorbo",
+        "key": "parallelcluster:cluster-name"
+      },
+      {
+        "value": "blorbo",
+        "key": "obp:costcenter:vlabid"
+      }
+    ],
+    "cloudFormationStackStatus": "CREATE_COMPLETE",
+    "clusterName": "hpc-pcluster-vlab-blorbo",
+    "computeFleetStatus": "RUNNING",
+    "cloudformationStackArn": "arn:aws:cloudformation:us-east-1:130659266700:stack/hpc-pcluster-vlab-blorbo/85f22190-2254-11ef-8555-0ec34a7e08a5",
+    "lastUpdatedTime": "2024-06-04T09:26:29.320Z",
+    "region": "us-east-1",
+    "clusterStatus": "CREATE_COMPLETE",
+    "scheduler": {
+      "type": "slurm"
+    }
+  },
+  "deletingCluster": {
+    "creationTime": "2024-06-04T07:42:24.294Z",
+    "headNode": {
+      "launchTime": "2024-06-04T07:46:47.000Z",
+      "instanceId": "i-002decfa934e38b02",
+      "instanceType": "t3.medium",
+      "state": "running",
+      "privateIpAddress": "172.32.12.24"
+    },
+    "version": "3.9.2",
+    "clusterConfiguration": {
+      "url": "https://parallelcluster-17763177cd46d13e-v1-do-not-delete.s3.amazonaws.com/parallelcluster/3.9.2/clusters/hpc-pcluster-vlab-blub-k0bidbgmnjucioj9/configs/cluster-config.yaml?versionId=cFu5RuCL9AMkR.y8g9L5UK9XRd85e20s&AWSAccessKeyId=ASIAR427GGCGCSKA4U5O&Signature=LKlIFwG5PR%2BFYapKpoqQLxwnj0Y%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEBgaCXVzLWVhc3QtMSJGMEQCIGC%2BK2CSLbfQsZ41wnGnXcsoOnNetb47ujiVHOWx75v2AiANWL5aQKtVNejBC3RRW0U94mRaYFg8brwsSG0Yr0ZAlCqNAwih%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAAaDDEzMDY1OTI2NjcwMCIM4D4tP7%2B3ZKh88TjRKuEC2PjTHSoVqMZsAJXtEIdXgqdvX0n8OEiRdtxRuqoK5xmhbzAV%2BS%2BQARtGXE7Z80x9SN8HlvkvrKJv0qOvMc17GB3z4N2kdsYmqD%2BbILmsHFw8MUXPXOLNnjnF%2BV33kLT8xWWTu87ZKPbDO3RSMp45OBEHtss%2BacpsPhHoaHB90WdfqrrYm8LIQ8vGLg9saqk6qMqCPvaKUoMQsqwGno0OcnfJm9KcoOsmcDRVEXivObX9R2QrPHoXSxqbeVlkd%2B7yB4gxIWFDqdrGZnBKz3sZT4GLb4Th1eFystHunuJJcjkHPf3jyF%2BxsJkd65vAeG9azkceYVMtz%2F8E65CaQRVWJIRZV0VDrU96s91s1w6wmf8A1MgbclhbexL8ZKUaz%2F%2B9v%2BDpDnRFEN%2BZNqrUdpNjwuA28uThhuAFiJHx99FwAxsT0ra5oZas2caHiSLc04Ec3w6cWF6saGJoZt9rrGBZ2yMwxo%2F7sgY6nwF6BXwHxJjieLFX0qmhLch3%2BM3TXXEU2fdT%2FmifvclZWDMGAsZmjPJxjDnl5ZU3%2BJFYZD%2B6quTuCOuhiIuWf8c6z0i%2ByrSsiwBjfEnADaVmN8%2F21VxSChjxY3Pfc04XYGrKvcBIMf7z209ximuuL5Ol%2FMIq7q5PHwKWZjm7yWb%2BBROVvJpahYBYCtYouXoQh%2FaBkHWwLMrkvicg%2BnjJyPc%3D&Expires=1717491179"
+    },
+    "tags": [
+      {
+        "value": "3.9.2",
+        "key": "parallelcluster:version"
+      },
+      {
+        "value": "hpc",
+        "key": "SBO_Billing"
+      },
+      {
+        "value": "-",
+        "key": "obp:costcenter:project"
+      },
+      {
+        "value": "hpc-pcluster-vlab-blub",
+        "key": "parallelcluster:cluster-name"
+      },
+      {
+        "value": "blub",
+        "key": "obp:costcenter:vlabid"
+      }
+    ],
+    "cloudFormationStackStatus": "DELETE_IN_PROGRESS",
+    "clusterName": "hpc-pcluster-vlab-blub",
+    "computeFleetStatus": "UNKNOWN",
+    "cloudformationStackArn": "arn:aws:cloudformation:us-east-1:130659266700:stack/hpc-pcluster-vlab-blub/fb9d1bc0-2245-11ef-af5b-1205fbf00bf1",
+    "lastUpdatedTime": "2024-06-04T07:42:24.294Z",
+    "region": "us-east-1",
+    "clusterStatus": "DELETE_IN_PROGRESS",
+    "scheduler": {
+      "type": "slurm"
+    }
+  }
+}

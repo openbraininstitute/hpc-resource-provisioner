@@ -20,6 +20,8 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
 ]
 
+[project.optional-dependencies]
+test = ["pytest", "pytest-cov"]
 
 [project.scripts]
 hpc-provisioner = "hpc_provisioner.commands:hpc_provisioner"
@@ -40,3 +42,6 @@ select = ["E",  # pycodestyle
           "I",  # isort
           "PL",  # pylint
 ]
+
+[tool.pytest.ini_options]
+addopts = ["--import-mode=importlib", "-vv", "--disable-warnings", "--cov=hpc_provisioner", "--cov-report", "term", "--cov-report", "xml:coverage.xml", "--junitxml", "unittests.xml"]

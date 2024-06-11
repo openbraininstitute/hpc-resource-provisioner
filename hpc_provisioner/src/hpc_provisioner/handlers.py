@@ -17,8 +17,8 @@ logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("hpc-resource-provisioner")
 
 
-def pcluster_do_create_handler(event, context):
-    logger.debug(f"event: {event}, context: {context}")
+def pcluster_do_create_handler(event, _context=None):
+    logger.debug(f"event: {event}, _context: {_context}")
     vlab_id, options = _get_vlab_query_params(event)
     logger.debug(f"create pcluster {vlab_id}")
     pcluster_create(vlab_id, options)
@@ -73,12 +73,12 @@ def pcluster_describe_handler(event, _context=None):
     """Describe a cluster given the vlab_id"""
     vlab_id, _ = _get_vlab_query_params(event)
 
+    logger.debug(f"describe pcluster {vlab_id}")
     try:
-        logger.debug(f"describe pcluster {vlab_id}")
         pc_output = pcluster_describe(vlab_id)
         logger.debug(f"described pcluster {vlab_id}")
     except NotFoundException as e:
-        return {"statusCode": 404, "body": str(e)}
+        return {"statusCode": 404, "body": e.content.message}
     except Exception as e:
         return {"statusCode": 500, "body": str(type(e))}
 
@@ -89,8 +89,13 @@ def pcluster_delete_handler(event, _context=None):
     vlab_id, _ = _get_vlab_query_params(event)
 
     logger.debug(f"delete pcluster {vlab_id}")
-    pc_output = pcluster_delete(vlab_id)
-    logger.debug(f"deleted pcluster {vlab_id}")
+    try:
+        pc_output = pcluster_delete(vlab_id)
+        logger.debug(f"deleted pcluster {vlab_id}")
+    except NotFoundException as e:
+        return {"statusCode": 404, "body": e.content.message}
+    except Exception as e:
+        return {"statusCode": 500, "body": str(type(e))}
 
     return response_json(pc_output)
 

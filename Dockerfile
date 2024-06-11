@@ -1,4 +1,4 @@
-FROM python:3.9-alpine
+FROM python:3.12-alpine
 
 # autoconf=2.71-r2 has to come from 3.19; after that they upgraded, which breaks the awslambdaric install
 # see https://github.com/aws/aws-lambda-python-runtime-interface-client/issues/144
