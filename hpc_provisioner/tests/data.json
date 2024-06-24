@@ -96,5 +96,31 @@
     "scheduler": {
       "type": "slurm"
     }
+  },
+  "clusterList": {
+    "clusters": [
+      {
+        "clusterName": "hpc-pcluster-vlab-test1",
+        "cloudformationStackStatus": "CREATE_COMPLETE",
+        "cloudformationStackArn": "arn:aws:cloudformation:us-east-1:130659266700:stack/hpc-pcluster-vlab-test1/9904c3e0-2caf-11ef-bee4-12ef869bc51b",
+        "region": "us-east-1",
+        "version": "3.9.2",
+        "clusterStatus": "CREATE_COMPLETE",
+        "scheduler": {
+          "type": "slurm"
+        }
+      },
+      {
+        "clusterName": "hpc-pcluster-vlab-test2",
+        "cloudformationStackStatus": "CREATE_COMPLETE",
+        "cloudformationStackArn": "arn:aws:cloudformation:us-east-1:130659266700:stack/hpc-pcluster-vlab-test2/b4f677dc-c58c-438f-af8c-b8d859bbcf46",
+        "region": "us-east-1",
+        "version": "3.9.2",
+        "clusterStatus": "CREATE_COMPLETE",
+        "scheduler": {
+          "type": "slurm"
+        }
+      }
+    ]
   }
 }

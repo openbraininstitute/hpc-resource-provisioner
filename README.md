@@ -1,15 +1,17 @@
 # HPC Resource Provisioner
 
-## Uploading to the POC
+The HPC Resource Provisioner is a small application that offers an API to manage the creation and deletion of parallel-clusters in AWS. When creating a parallel-cluster, consumers are expected to poll regularly to check the progress.
 
-By default, the `upload to ecr` job will upload to the sandbox account. If you want to upload to the PoC account, you'll need to run the job manually and set the `ENVIRONMENT` variable to "production".
+## Uploading the container image to the POC
+
+By default, the `upload to ecr` job will upload the resource provisioner container images to the sandbox account. If you want to upload to the PoC account, you'll need to run the job manually and set the `ENVIRONMENT` variable to "production".
 
 Before running the job, however, you'll need to modify the AWS_CREDENTIALS variable. The reason for this is that it unfortunately includes a session token that expires and we haven't invested time into investigating why yet.
 
 To get the credentials, go to https://bbp-sbo-poc.awsapps.com/start/#/?tab=accounts and log in. On the access portal, click the `Access keys` link for the `FullECSContainersAccess` account and copy the contents of the AWS credentials file.
 Next, go to https://bbpgitlab.epfl.ch/hpc/hpc-resource-provisioner/-/settings/ci_cd and expand the Variables section, then edit the `AWS_CREDENTIALS` variable. Replace the value with the value you just copied and save the variable.
 
-## Installing
+## Installing locally
 
 Create a virtualenv and run `pip install .` in the repository root:
 
@@ -29,6 +31,7 @@ Using the HPC provisioner is fairly straightforward:
 hpc-provisioner create my-pcluster
 hpc-provisioner describe my-pcluster
 hpc-provisioner delete my-pcluster
+hpc-provisioner list
 ```
 
 Manually calling the deployed API gateway is also possible. Save your AWS keypair as environment variables:

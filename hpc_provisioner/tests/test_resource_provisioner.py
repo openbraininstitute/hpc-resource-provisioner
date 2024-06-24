@@ -136,6 +136,16 @@ def test_get(data, get_event):
     assert result == expected_response
 
 
+def test_get_all_clusters(data):
+    with patch(
+        "hpc_provisioner.pcluster_manager.pc.list_clusters", return_value=data["clusterList"]
+    ):
+        result = handlers.pcluster_describe_handler({"httpMethod": "GET"})
+
+    expected_response = expected_response_template(text=json.dumps(data["clusterList"]))
+    assert result == expected_response
+
+
 @patch("hpc_provisioner.handlers.boto3")
 def test_post(patched_boto3, post_event):
     mock_client = MagicMock()
@@ -230,7 +240,7 @@ def test_invalid_http_method(put_event):
     }
 
 
-@pytest.mark.parametrize("method", ["GET", "POST", "DELETE"])
+@pytest.mark.parametrize("method", ["POST", "DELETE"])
 def test_vlab_id_not_specified(method):
     with pytest.raises(InvalidRequest):
         handlers.pcluster_handler({"httpMethod": method})

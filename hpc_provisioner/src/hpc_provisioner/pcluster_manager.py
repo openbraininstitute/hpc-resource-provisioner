@@ -92,6 +92,11 @@ def pcluster_create(vlab_id: str, options: dict):
         logger.debug("Cleaned up temporary config file")
 
 
+def pcluster_list():
+    """List the existing pclusters"""
+    return pc.list_clusters(region=REGION)
+
+
 def pcluster_describe(vlab_id: str):
     """Describe a cluster, given the vlab_id"""
     cluster_name = f"hpc-pcluster-vlab-{vlab_id}"

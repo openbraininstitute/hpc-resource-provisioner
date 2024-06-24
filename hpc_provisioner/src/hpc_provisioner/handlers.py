@@ -11,6 +11,7 @@ from .pcluster_manager import (
     pcluster_create,
     pcluster_delete,
     pcluster_describe,
+    pcluster_list,
 )
 
 logging.config.dictConfig(LOGGING_CONFIG)
@@ -71,16 +72,20 @@ def pcluster_create_request_handler(event, _context=None):
 
 def pcluster_describe_handler(event, _context=None):
     """Describe a cluster given the vlab_id"""
-    vlab_id, _ = _get_vlab_query_params(event)
-
-    logger.debug(f"describe pcluster {vlab_id}")
     try:
-        pc_output = pcluster_describe(vlab_id)
-        logger.debug(f"described pcluster {vlab_id}")
-    except NotFoundException as e:
-        return {"statusCode": 404, "body": e.content.message}
-    except Exception as e:
-        return {"statusCode": 500, "body": str(type(e))}
+        vlab_id, _ = _get_vlab_query_params(event)
+    except InvalidRequest:
+        logger.debug("No vlab_id specified - listing pclusters")
+        pc_output = pcluster_list()
+    else:
+        logger.debug(f"describe pcluster {vlab_id}")
+        try:
+            pc_output = pcluster_describe(vlab_id)
+            logger.debug(f"described pcluster {vlab_id}")
+        except NotFoundException as e:
+            return {"statusCode": 404, "body": e.content.message}
+        except Exception as e:
+            return {"statusCode": 500, "body": str(type(e))}
 
     return response_json(pc_output)
 
