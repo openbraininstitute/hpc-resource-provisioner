@@ -26,12 +26,20 @@ DEFAULTS = {
     "project_id": "-",
 }
 
+# PoC
 CONFIG_VALUES = {
-    "base_subnet_id": "subnet-021910397b5213f7b",  # Compute-0 # TODO: Dynamic
-    # "base_subnet_id": "subnet-061e82790d3f3fafc",  # Compute-0 # TODO: Dynamic
-    "base_security_group_id": "sg-0a22b30ec4989f0ba",  # sbo-poc-compute-hpc-sg
-    "efs_id": "fs-0e64b596272e62bb2",  # Home
+    "base_subnet_id": "subnet-05cbaf2293e986c7e",  # Compute # TODO: Dynamic
+    "base_security_group_id": "sg-0b54621dfc3976f8a",  # sbo-poc-compute-sg
+    "efs_id": "fs-0f0081dcb8cec9647",  # Home
 }
+
+# Sandbox
+# CONFIG_VALUES = {
+#     "base_subnet_id": "subnet-021910397b5213f7b",  # Compute-0 # TODO: Dynamic
+#     "base_security_group_id": "sg-0a22b30ec4989f0ba",  # sbo-poc-compute-hpc-sg
+#     "efs_id": "fs-0e64b596272e62bb2",  # Home
+# }
+
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("hpc-resource-provisioner")
@@ -45,16 +53,17 @@ class InvalidRequest(Exception):
     """When the request is invalid, likely due to invalid or missing data"""
 
 
-def pcluster_create(vlab_id: str, options: dict):
+def pcluster_create(vlab_id: str, project_id: str, options: dict):
     """Create a pcluster for a given vlab
 
     Args:
         vlab_id: The id of the vlab
+        project_id: The id of the project within the vlab
         options: a dict of user provided options.
             All possible options can be seen in DEFAULTS.
 
     """
-    logger.info(f"Creating pcluster: {vlab_id}")
+    logger.info(f"Creating pcluster: {vlab_id}-{project_id}")
     for k, default in DEFAULTS.items():
         options.setdefault(k, default)
 
@@ -66,14 +75,14 @@ def pcluster_create(vlab_id: str, options: dict):
     # Add tags
     tags = pcluster_config["Tags"]
     tags.append({"Key": VLAB_TAG_KEY, "Value": vlab_id})
-    tags.append({"Key": PROJECT_TAG_KEY, "Value": options.get("project_id")})
+    tags.append({"Key": PROJECT_TAG_KEY, "Value": project_id})
     logger.debug(f"Tags: {tags}")
 
     if options["tier"] == "lite":
         queues = pcluster_config["Scheduling"]["SlurmQueues"]
         del queues[1:]
 
-    cluster_name = f"hpc-pcluster-vlab-{vlab_id}"
+    cluster_name = f"pcluster-{vlab_id}-{project_id}"
     output_file = f"deployment-{cluster_name}.yaml"
     output_file = tempfile.NamedTemporaryFile(delete=False)
 
@@ -97,13 +106,13 @@ def pcluster_list():
     return pc.list_clusters(region=REGION)
 
 
-def pcluster_describe(vlab_id: str):
-    """Describe a cluster, given the vlab_id"""
-    cluster_name = f"hpc-pcluster-vlab-{vlab_id}"
+def pcluster_describe(vlab_id: str, project_id: str):
+    """Describe a cluster, given the vlab_id and project_id"""
+    cluster_name = f"pcluster-{vlab_id}-{project_id}"
     return pc.describe_cluster(cluster_name=cluster_name, region=REGION)
 
 
-def pcluster_delete(vlab_id: str):
-    """Destroy a cluster, given the vlab_id"""
-    cluster_name = f"hpc-pcluster-vlab-{vlab_id}"
+def pcluster_delete(vlab_id: str, project_id: str):
+    """Destroy a cluster, given the vlab_id and project_id"""
+    cluster_name = f"pcluster-{vlab_id}-{project_id}"
     return pc.delete_cluster(cluster_name=cluster_name, region=REGION)

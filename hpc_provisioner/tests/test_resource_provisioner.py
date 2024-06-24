@@ -37,7 +37,7 @@ def data():
 
 @pytest.fixture
 def event():
-    return {"vlab_id": "test-vlab"}
+    return {"vlab_id": "test_vlab", "project_id": "test_project"}
 
 
 @pytest.fixture
@@ -45,7 +45,10 @@ def get_event(event):
     retval = copy.deepcopy(event)
     retval["httpMethod"] = "GET"
     retval.pop("vlab_id")
-    retval["queryStringParameters"] = {"vlab_id": "vlab-as-querystring-param"}
+    retval["queryStringParameters"] = {
+        "vlab_id": "vlab_as_querystring_param",
+        "project_id": "project_as_querystring_param",
+    }
     return retval
 
 
@@ -70,8 +73,8 @@ def delete_event(event):
     return retval
 
 
-def cluster_name(vlab_id):
-    return f"hpc-pcluster-vlab-{vlab_id}"
+def cluster_name(vlab_id, project_id):
+    return f"pcluster-{vlab_id}-{project_id}"
 
 
 @patch("hpc_provisioner.handlers.pcluster_describe_handler")
@@ -127,9 +130,10 @@ def test_get(data, get_event):
         return_value=data["existingCluster"],
     ) as describe_cluster:
         vlab_id = get_event["queryStringParameters"]["vlab_id"]
+        project_id = get_event["project_id"]
         result = handlers.pcluster_describe_handler(get_event)
         describe_cluster.assert_called_once_with(
-            cluster_name=cluster_name(vlab_id),
+            cluster_name=cluster_name(vlab_id, project_id),
             region="us-east-1",
         )
     expected_response = expected_response_template(text=json.dumps(data["existingCluster"]))
@@ -153,13 +157,15 @@ def test_post(patched_boto3, post_event):
     actual_response = handlers.pcluster_create_request_handler(post_event)
     mock_client.invoke_async.assert_called_once_with(
         FunctionName="hpc-resource-provisioner-creator",
-        InvokeArgs=json.dumps({"vlab_id": post_event["vlab_id"]}),
+        InvokeArgs=json.dumps(
+            {"vlab_id": post_event["vlab_id"], "project_id": post_event["project_id"]}
+        ),
     )
     expected_response = expected_response_template(
         text=json.dumps(
             {
                 "cluster": {
-                    "clusterName": cluster_name(post_event["vlab_id"]),
+                    "clusterName": cluster_name(post_event["vlab_id"], post_event["project_id"]),
                     "clusterStatus": "CREATE_REQUEST_RECEIVED",
                 }
             }
@@ -174,14 +180,17 @@ def test_delete(data, delete_event):
     ) as patched_delete_cluster:
         actual_response = handlers.pcluster_delete_handler(delete_event)
         patched_delete_cluster.assert_called_once_with(
-            cluster_name=cluster_name(delete_event["vlab_id"]), region="us-east-1"
+            cluster_name=cluster_name(delete_event["vlab_id"], delete_event["project_id"]),
+            region="us-east-1",
         )
     expected_response = expected_response_template(text=json.dumps(data["deletingCluster"]))
     assert actual_response == expected_response
 
 
 def test_get_not_found(get_event):
-    error_message = f"Cluster {get_event['queryStringParameters']['vlab_id']} does not exist"
+    vlab_id = get_event["queryStringParameters"]["vlab_id"]
+    project_id = get_event["queryStringParameters"]["project_id"]
+    error_message = f"Cluster {vlab_id}-{project_id} does not exist"
     with patch(
         "hpc_provisioner.pcluster_manager.pc.describe_cluster",
         side_effect=NotFoundException(error_message),
@@ -202,7 +211,7 @@ def test_get_internal_server_error(get_event):
 
 
 def test_delete_not_found(delete_event):
-    error_message = f"Cluster {delete_event['vlab_id']} does not exist"
+    error_message = f"Cluster {delete_event['vlab_id']}-{delete_event['project_id']} does not exist"
     with patch(
         "hpc_provisioner.pcluster_manager.pc.delete_cluster",
         side_effect=NotFoundException(error_message),
@@ -227,7 +236,7 @@ def test_do_create(patched_create_cluster, post_event):
     handlers.pcluster_do_create_handler(post_event)
     patched_create_cluster.assert_called_once()
     assert patched_create_cluster.call_args.kwargs["cluster_name"] == cluster_name(
-        post_event["vlab_id"]
+        post_event["vlab_id"], post_event["project_id"]
     )
     assert patched_create_cluster.call_args.kwargs["cluster_configuration"].startswith("/tmp/tmp")
 
@@ -244,6 +253,12 @@ def test_invalid_http_method(put_event):
 def test_vlab_id_not_specified(method):
     with pytest.raises(InvalidRequest):
         handlers.pcluster_handler({"httpMethod": method})
+
+
+@pytest.mark.parametrize("method", ["POST", "DELETE"])
+def test_project_id_not_specified(method):
+    with pytest.raises(InvalidRequest):
+        handlers.pcluster_handler({"httpMethod": method, "vlab_id": "test_vlab"})
 
 
 def test_http_method_not_specified():

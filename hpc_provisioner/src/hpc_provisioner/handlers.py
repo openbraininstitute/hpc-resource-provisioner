@@ -20,10 +20,10 @@ logger = logging.getLogger("hpc-resource-provisioner")
 
 def pcluster_do_create_handler(event, _context=None):
     logger.debug(f"event: {event}, _context: {_context}")
-    vlab_id, options = _get_vlab_query_params(event)
-    logger.debug(f"create pcluster {vlab_id}")
-    pcluster_create(vlab_id, options)
-    logger.debug(f"created pcluster {vlab_id}")
+    vlab_id, project_id, options = _get_vlab_query_params(event)
+    logger.debug(f"create pcluster {vlab_id}-{project_id}")
+    pcluster_create(vlab_id, project_id, options)
+    logger.debug(f"created pcluster {vlab_id}-{project_id}")
 
 
 def pcluster_handler(event, _context=None):
@@ -50,20 +50,20 @@ def pcluster_handler(event, _context=None):
 
 
 def pcluster_create_request_handler(event, _context=None):
-    """Request the creation of an HPC cluster for a given vlab_id"""
+    """Request the creation of an HPC cluster for a given vlab_id and project_id"""
 
-    vlab_id, _ = _get_vlab_query_params(event)
+    vlab_id, project_id, _ = _get_vlab_query_params(event)
     logger.debug("calling create lambda async")
     boto3.client("lambda").invoke_async(
         FunctionName="hpc-resource-provisioner-creator",
-        InvokeArgs=json.dumps({"vlab_id": vlab_id}),
+        InvokeArgs=json.dumps({"vlab_id": vlab_id, "project_id": project_id}),
     )
     logger.debug("called create lambda async")
 
     return response_json(
         {
             "cluster": {
-                "clusterName": f"hpc-pcluster-vlab-{vlab_id}",
+                "clusterName": f"pcluster-{vlab_id}-{project_id}",
                 "clusterStatus": "CREATE_REQUEST_RECEIVED",
             }
         }
@@ -71,17 +71,17 @@ def pcluster_create_request_handler(event, _context=None):
 
 
 def pcluster_describe_handler(event, _context=None):
-    """Describe a cluster given the vlab_id"""
+    """Describe a cluster given the vlab_id and project_id"""
     try:
-        vlab_id, _ = _get_vlab_query_params(event)
+        vlab_id, project_id, _ = _get_vlab_query_params(event)
     except InvalidRequest:
         logger.debug("No vlab_id specified - listing pclusters")
         pc_output = pcluster_list()
     else:
-        logger.debug(f"describe pcluster {vlab_id}")
+        logger.debug(f"describe pcluster {vlab_id}-{project_id}")
         try:
-            pc_output = pcluster_describe(vlab_id)
-            logger.debug(f"described pcluster {vlab_id}")
+            pc_output = pcluster_describe(vlab_id, project_id)
+            logger.debug(f"described pcluster {vlab_id}-{project_id}")
         except NotFoundException as e:
             return {"statusCode": 404, "body": e.content.message}
         except Exception as e:
@@ -91,12 +91,13 @@ def pcluster_describe_handler(event, _context=None):
 
 
 def pcluster_delete_handler(event, _context=None):
-    vlab_id, _ = _get_vlab_query_params(event)
+    """Delete a cluster given the vlab_id and project_id"""
+    vlab_id, project_id, _ = _get_vlab_query_params(event)
 
-    logger.debug(f"delete pcluster {vlab_id}")
+    logger.debug(f"delete pcluster {vlab_id}-{project_id}")
     try:
-        pc_output = pcluster_delete(vlab_id)
-        logger.debug(f"deleted pcluster {vlab_id}")
+        pc_output = pcluster_delete(vlab_id, project_id)
+        logger.debug(f"deleted pcluster {vlab_id}-{project_id}")
     except NotFoundException as e:
         return {"statusCode": 404, "body": e.content.message}
     except Exception as e:
@@ -107,17 +108,23 @@ def pcluster_delete_handler(event, _context=None):
 
 def _get_vlab_query_params(event):
     vlab_id = event.get("vlab_id")
-    options = {}
+    project_id = event.get("project_id")
 
     logger.debug(f"Event: {event}")
-    if vlab_id is None and "queryStringParameters" in event:
-        if options := event.get("queryStringParameters"):
+    if options := event.get("queryStringParameters", {}):
+        if vlab_id is None:
+            logger.debug(f"getting vlab id from {options}")
             vlab_id = options.pop("vlab_id", None)
+        if project_id is None:
+            logger.debug(f"getting project id from {options}")
+            project_id = options.pop("project_id", None)
 
     if vlab_id is None:
         raise InvalidRequest("missing required 'vlab_id' query param")
+    if project_id is None:
+        raise InvalidRequest("missing required 'project_id' query param")
 
-    return vlab_id, options
+    return vlab_id, project_id, options
 
 
 def response_text(text: str, code: int = 200):
