@@ -7,7 +7,7 @@ FROM python:3.12-alpine
 RUN apk add --no-cache --update --repository=https://dl-cdn.alpinelinux.org/alpine/v3.19/main autoconf=2.71-r2 \
     && apk add automake bash binutils cmake g++ gcc libtool make nodejs \
     && apk add --no-cache --update --repository=https://dl-cdn.alpinelinux.org/alpine/v3.16/main/ libexecinfo-dev \
-    && python3 -m pip install aws-parallelcluster awslambdaric
+    && python3 -m pip install aws-parallelcluster==3.9.3 awslambdaric
 
 ADD hpc_provisioner /opt/hpc_provisioner
 RUN python3 -m pip install /opt/hpc_provisioner

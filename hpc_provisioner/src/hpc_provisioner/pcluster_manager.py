@@ -29,7 +29,7 @@ DEFAULTS = {
 # PoC
 CONFIG_VALUES = {
     "base_subnet_id": "subnet-05cbaf2293e986c7e",  # Compute # TODO: Dynamic
-    "base_security_group_id": "sg-0b54621dfc3976f8a",  # sbo-poc-compute-sg
+    "base_security_group_id": "sg-0e52c60a35e2f1985",  # sbo-poc-compute-sg
     "efs_id": "fs-0f0081dcb8cec9647",  # Home
 }
 
