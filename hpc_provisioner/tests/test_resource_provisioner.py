@@ -1,9 +1,10 @@
 import copy
 import json
 import logging
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
+from botocore.client import ClientError
 from hpc_provisioner import handlers
 from hpc_provisioner.pcluster_manager import InvalidRequest
 from pcluster.api.errors import NotFoundException
@@ -174,17 +175,34 @@ def test_post(patched_boto3, post_event):
     assert actual_response == expected_response
 
 
-def test_delete(data, delete_event):
+@patch(
+    "hpc_provisioner.aws_queries.dynamodb_client",
+)
+@patch("hpc_provisioner.aws_queries.free_subnet")
+def test_delete(patched_free_subnet, patched_dynamodb_client, data, delete_event):
+    mock_client = MagicMock()
+    patched_dynamodb_client.return_value = mock_client
     with patch(
         "hpc_provisioner.pcluster_manager.pc.delete_cluster", return_value=data["deletingCluster"]
     ) as patched_delete_cluster:
-        actual_response = handlers.pcluster_delete_handler(delete_event)
-        patched_delete_cluster.assert_called_once_with(
-            cluster_name=cluster_name(delete_event["vlab_id"], delete_event["project_id"]),
-            region="us-east-1",
-        )
+        with patch(
+            "hpc_provisioner.aws_queries.get_registered_subnets",
+            return_value={
+                "subnet-123": cluster_name(delete_event["vlab_id"], delete_event["project_id"]),
+                "subnet-234": cluster_name(delete_event["vlab_id"], delete_event["project_id"]),
+            },
+        ) as patched_get_registered_subnets:
+            actual_response = handlers.pcluster_delete_handler(delete_event)
+            patched_delete_cluster.assert_called_once_with(
+                cluster_name=cluster_name(delete_event["vlab_id"], delete_event["project_id"]),
+                region="us-east-1",
+            )
     expected_response = expected_response_template(text=json.dumps(data["deletingCluster"]))
     assert actual_response == expected_response
+    patched_get_registered_subnets.assert_called_once()
+    call1 = call(mock_client, "subnet-123")
+    call2 = call(mock_client, "subnet-234")
+    patched_free_subnet.assert_has_calls([call1, call2], any_order=True)
 
 
 def test_get_not_found(get_event):
@@ -210,7 +228,10 @@ def test_get_internal_server_error(get_event):
     assert result == {"statusCode": 500, "body": "<class 'RuntimeError'>"}
 
 
-def test_delete_not_found(delete_event):
+@patch(
+    "hpc_provisioner.aws_queries.dynamodb_client",
+)
+def test_delete_not_found(patched_dynamodb_client, delete_event):
     error_message = f"Cluster {delete_event['vlab_id']}-{delete_event['project_id']} does not exist"
     with patch(
         "hpc_provisioner.pcluster_manager.pc.delete_cluster",
@@ -219,9 +240,13 @@ def test_delete_not_found(delete_event):
         result = handlers.pcluster_delete_handler(delete_event)
         delete_cluster.assert_called_once()
     assert result == {"statusCode": 404, "body": error_message}
+    patched_dynamodb_client.assert_called_once()
 
 
-def test_delete_internal_server_error(delete_event):
+@patch(
+    "hpc_provisioner.aws_queries.dynamodb_client",
+)
+def test_delete_internal_server_error(patched_dynamodb_client, delete_event):
     with patch(
         "hpc_provisioner.pcluster_manager.pc.delete_cluster",
         side_effect=RuntimeError,
@@ -229,16 +254,57 @@ def test_delete_internal_server_error(delete_event):
         result = handlers.pcluster_delete_handler(delete_event)
         patched_delete_cluster.assert_called_once()
     assert result == {"statusCode": 500, "body": "<class 'RuntimeError'>"}
+    patched_dynamodb_client.assert_called_once()
 
 
 @patch("hpc_provisioner.pcluster_manager.pc.create_cluster")
-def test_do_create(patched_create_cluster, post_event):
+@patch("hpc_provisioner.pcluster_manager.boto3")
+def test_do_create_already_exists(patched_boto3, patched_create_cluster, post_event):
+    mock_cloudformation_client = MagicMock()
+    patched_boto3.client.return_value = mock_cloudformation_client
+    handlers.pcluster_do_create_handler(post_event)
+    mock_cloudformation_client.describe_stacks.assert_called_once_with(
+        StackName=cluster_name(post_event["vlab_id"], post_event["project_id"])
+    )
+    patched_create_cluster.assert_not_called()
+
+
+@patch("hpc_provisioner.pcluster_manager.pc.create_cluster")
+@patch("hpc_provisioner.pcluster_manager.boto3")
+@patch("hpc_provisioner.pcluster_manager.get_available_subnet", return_value="subnet-123")
+@patch("hpc_provisioner.pcluster_manager.get_security_group", return_value="sg-123")
+@patch("hpc_provisioner.pcluster_manager.get_efs", return_value="efs-123")
+@patch("hpc_provisioner.pcluster_manager.get_keypair", return_value="keypair-123")
+def test_do_create(
+    patched_get_keypair,
+    patched_get_efs,
+    patched_get_security_group,
+    patched_get_available_subnet,
+    patched_boto3,
+    patched_create_cluster,
+    post_event,
+):
+    mock_cloudformation_client = MagicMock()
+    mock_cloudformation_client.describe_stacks.side_effect = ClientError(
+        operation_name="describe_stacks", error_response={404: "No stacks found"}
+    )
+    mock_ec2_client = MagicMock()
+    mock_efs_client = MagicMock()
+    patched_boto3.client.side_effect = lambda x: {
+        "cloudformation": mock_cloudformation_client,
+        "ec2": mock_ec2_client,
+        "efs": mock_efs_client,
+    }[x]
     handlers.pcluster_do_create_handler(post_event)
     patched_create_cluster.assert_called_once()
     assert patched_create_cluster.call_args.kwargs["cluster_name"] == cluster_name(
         post_event["vlab_id"], post_event["project_id"]
     )
-    assert patched_create_cluster.call_args.kwargs["cluster_configuration"].startswith("/tmp/tmp")
+    assert "tmp" in patched_create_cluster.call_args.kwargs["cluster_configuration"]
+    patched_get_keypair.assert_called_once()
+    patched_get_efs.assert_called_once()
+    patched_get_security_group.assert_called_once()
+    patched_get_available_subnet.assert_called_once()
 
 
 def test_invalid_http_method(put_event):

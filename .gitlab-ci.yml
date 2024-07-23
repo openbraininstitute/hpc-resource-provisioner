@@ -16,7 +16,7 @@ build container:
     KUBERNETES_MEMORY_LIMIT: 8Gi
     KUBERNETES_MEMORY_REQUEST: 4Gi
     # !! Redefined in "upload to ecr" job - if you modify this one, modify the other one too!
-    REGISTRY_IMAGE_TAG: '0.5'
+    REGISTRY_IMAGE_TAG: 0.5.7
     BUILD_PATH: $CI_PROJECT_DIR
     BUILDAH_EXTRA_ARGS: --label org.opencontainers.image.title="${REGISTRY_IMAGE_NAME}"
       --label org.opencontainers.image.version="$REGISTRY_IMAGE_TAG" --label org.opencontainers.image.revision="$CI_COMMIT_SHA"
@@ -32,7 +32,7 @@ upload to ecr:
   stage: upload containers
   variables:
     # !! Redefined in "build container" job - if you modify this one, modify the other one too!
-    REGISTRY_IMAGE_TAG: '0.5'
+    REGISTRY_IMAGE_TAG: 0.5.7
   timeout: 2h
   script:
     - apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y -q awscli

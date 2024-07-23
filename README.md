@@ -66,6 +66,10 @@ You can replace the `httpMethod` with `POST` or `DELETE` as desired.
 
 ## Development
 
+### Tags
+
+The resource provisioner uses certain resources deployed in the AWS cloud and identifies the ones it can use through the presence of the `HPC_Goal:compute_cluster` tag. If there's a need for new terraform-deployed resources to be used, don't forget to apply this tag in the [terraform configuration](https://bbpgitlab.epfl.ch/hpc/hpc-resource-provisioner/).
+
 ### Using Ruff
 
 `ruff check` will output a list of formatting issues with your code

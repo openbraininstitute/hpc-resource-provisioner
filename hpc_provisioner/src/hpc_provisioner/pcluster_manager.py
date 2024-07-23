@@ -1,23 +1,32 @@
 #!/usr/bin/env python
+# This is the top-level script to create a Parallel Cluster
+# It requires the `base_system` terraform to have been applied. If not it will error out.
 
 import logging
 import logging.config
 import pathlib
 import tempfile
-
-# This is the top-level script to create a Parallel Cluster
-# It requires the `base_system` terraform to have been applied. If not it will error out.
 from pathlib import Path
 
+import boto3
 import yaml
+from botocore.client import ClientError
 from pcluster import lib as pc
 
+from hpc_provisioner.aws_queries import (
+    get_available_subnet,
+    get_efs,
+    get_keypair,
+    get_security_group,
+    release_subnets,
+)
 from hpc_provisioner.logging_config import LOGGING_CONFIG
 from hpc_provisioner.yaml_loader import load_yaml_extended
 
 PCLUSTER_CONFIG_TPL = str(Path(__file__).parent / "config" / "compute_cluster.tpl.yaml")
 VLAB_TAG_KEY = "obp:costcenter:vlabid"
 PROJECT_TAG_KEY = "obp:costcenter:project"
+AVAILABLE_IPS_IN_UNUSED_SUBNET = 251
 REGION = "us-east-1"  # TODO: don't hardcode?
 
 DEFAULTS = {
@@ -26,20 +35,7 @@ DEFAULTS = {
     "project_id": "-",
 }
 
-# PoC
-CONFIG_VALUES = {
-    "base_subnet_id": "subnet-05cbaf2293e986c7e",  # Compute # TODO: Dynamic
-    "base_security_group_id": "sg-0e52c60a35e2f1985",  # sbo-poc-compute-sg
-    "efs_id": "fs-0f0081dcb8cec9647",  # Home
-}
-
-# Sandbox
-# CONFIG_VALUES = {
-#     "base_subnet_id": "subnet-021910397b5213f7b",  # Compute-0 # TODO: Dynamic
-#     "base_security_group_id": "sg-0a22b30ec4989f0ba",  # sbo-poc-compute-hpc-sg
-#     "efs_id": "fs-0e64b596272e62bb2",  # Home
-# }
-
+CONFIG_VALUES = {}
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("hpc-resource-provisioner")
@@ -67,12 +63,31 @@ def pcluster_create(vlab_id: str, project_id: str, options: dict):
     for k, default in DEFAULTS.items():
         options.setdefault(k, default)
 
-    logger.debug("Loading default pcluster config")
+    cluster_name = f"pcluster-{vlab_id}-{project_id}"
+
+    try:
+        cloudformation_client = boto3.client("cloudformation")
+        cloudformation_client.describe_stacks(StackName=cluster_name)
+        logger.debug(f"Stack {cluster_name} already exists - nothing to do")
+        return
+    except ClientError:
+        logger.debug(f"Stack {cluster_name} does not exist yet - creating")
+
+    ec2_client = boto3.client("ec2")
+    efs_client = boto3.client("efs")
+
+    # base_security_group_id, efs_id and ssh_key should be fairly static and change only if
+    # something changes about the deployment.
+    # base_subnet_id is where the interesting stuff happens
+    CONFIG_VALUES["base_subnet_id"] = get_available_subnet(ec2_client, cluster_name)
+    CONFIG_VALUES["base_security_group_id"] = get_security_group(ec2_client)
+    CONFIG_VALUES["efs_id"] = get_efs(efs_client)
+    CONFIG_VALUES["ssh_key"] = get_keypair(ec2_client)
+    logger.debug(f"Config values: {CONFIG_VALUES}")
     with open(PCLUSTER_CONFIG_TPL, "r") as f:
         pcluster_config = load_yaml_extended(f, CONFIG_VALUES)
 
     logger.debug("Adding tags")
-    # Add tags
     tags = pcluster_config["Tags"]
     tags.append({"Key": VLAB_TAG_KEY, "Value": vlab_id})
     tags.append({"Key": PROJECT_TAG_KEY, "Value": project_id})
@@ -82,7 +97,6 @@ def pcluster_create(vlab_id: str, project_id: str, options: dict):
         queues = pcluster_config["Scheduling"]["SlurmQueues"]
         del queues[1:]
 
-    cluster_name = f"pcluster-{vlab_id}-{project_id}"
     output_file = f"deployment-{cluster_name}.yaml"
     output_file = tempfile.NamedTemporaryFile(delete=False)
 
@@ -115,4 +129,5 @@ def pcluster_describe(vlab_id: str, project_id: str):
 def pcluster_delete(vlab_id: str, project_id: str):
     """Destroy a cluster, given the vlab_id and project_id"""
     cluster_name = f"pcluster-{vlab_id}-{project_id}"
+    release_subnets(cluster_name)
     return pc.delete_cluster(cluster_name=cluster_name, region=REGION)
