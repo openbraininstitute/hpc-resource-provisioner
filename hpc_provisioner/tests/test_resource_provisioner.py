@@ -38,7 +38,11 @@ def data():
 
 @pytest.fixture
 def event():
-    return {"vlab_id": "test_vlab", "project_id": "test_project"}
+    return {
+        "vlab_id": "test_vlab",
+        "project_id": "test_project",
+        "path": "/hpc-provisioner/pcluster",
+    }
 
 
 @pytest.fixture

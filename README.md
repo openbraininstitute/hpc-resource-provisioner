@@ -11,6 +11,23 @@ Before running the job, however, you'll need to modify the AWS_CREDENTIALS varia
 To get the credentials, go to https://bbp-sbo-poc.awsapps.com/start/#/?tab=accounts and log in. On the access portal, click the `Access keys` link for the `FullECSContainersAccess` account and copy the contents of the AWS credentials file.
 Next, go to https://bbpgitlab.epfl.ch/hpc/hpc-resource-provisioner/-/settings/ci_cd and expand the Variables section, then edit the `AWS_CREDENTIALS` variable. Replace the value with the value you just copied and save the variable.
 
+## Manually uploading an image to the PoC ECR
+
+To get the credentials, go to https://bbp-sbo-poc.awsapps.com/start/#/?tab=accounts and log in. On the access portal, click the `Access keys` link for the `FullECSContainersAccess` account and copy the contents of the AWS credentials file. Put these in `~/.aws/credentials` (this can be a symlink if you're juggling multiple credential sets).
+Keep in mind that there's a session token included with these credentials, so they will become invalid after some time. At that point you'll have to perform this step again.
+
+Now you can log in (if you use docker, replace `podman` with `docker` and everything should work the same):
+
+```bash
+aws ecr get-login-password --profile 671250183987_FullECSContainersAccess --region us-east-1 | podman login --username AWS --password-stdin 671250183987.dkr.ecr.us-east-1.amazonaws.com
+```
+
+With all of this done, you can finally push:
+
+```bash
+podman push prov:$PROV_VERSION 671250183987.dkr.ecr.us-east-1.amazonaws.com/hpc-resource-provisioner:latest
+```
+
 ## Installing locally
 
 Create a virtualenv and run `pip install .` in the repository root:
@@ -65,6 +82,10 @@ If you want to skip the API part and call the lambda directly, that's also possi
 You can replace the `httpMethod` with `POST` or `DELETE` as desired.
 
 ## Development
+
+### Version
+
+When building, don't forget to bump the version number in hpc_provisioner/pyproject.toml - this is used to determine the container version!
 
 ### Tags
 

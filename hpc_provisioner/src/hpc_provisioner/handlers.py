@@ -1,6 +1,7 @@
 import json
 import logging
 import logging.config
+from importlib.metadata import version
 
 import boto3
 from pcluster.api.errors import NotFoundException
@@ -33,8 +34,12 @@ def pcluster_handler(event, _context=None):
     """
     if event.get("httpMethod"):
         if event["httpMethod"] == "GET":
-            logger.debug("GET pcluster")
-            return pcluster_describe_handler(event, _context)
+            if event["path"] == "/hpc-provisioner/pcluster":
+                logger.debug("GET pcluster")
+                return pcluster_describe_handler(event, _context)
+            elif event["path"] == "/hpc-provisioner/version":
+                logger.debug("GET version")
+                return response_text(text=version("hpc_provisioner"))
         elif event["httpMethod"] == "POST":
             logger.debug("POST pcluster")
             return pcluster_create_request_handler(event, _context)
