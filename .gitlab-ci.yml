@@ -44,7 +44,7 @@ verify version:
     - !reference [.prepare for aws login, script]
     - export REGISTRY_IMAGE_TAG=$(awk '/version/ {print $3}' hpc_provisioner/pyproject.toml | tr -d '"')
     - echo "Checking whether ${REGISTRY_IMAGE_TAG} already exists"
-    - aws ecr get-login-password --region us-east-1 | skopeo login --username AWS --password-stdin 130659266700.dkr.ecr.us-east-1.amazonaws.com
+    - aws ecr get-login-password ${PROFILE_ARG} --region us-east-1 | skopeo login --username AWS --password-stdin ${ECR_REPO_URL}
     - |
       set +e
       skopeo inspect docker://${ECR_REPO_URL}/${REGISTRY_IMAGE_NAME}:${REGISTRY_IMAGE_TAG}
