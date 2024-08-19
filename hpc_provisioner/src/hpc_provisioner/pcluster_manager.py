@@ -51,7 +51,7 @@ class InvalidRequest(Exception):
     """When the request is invalid, likely due to invalid or missing data"""
 
 
-def pcluster_create(vlab_id: str, project_id: str, options: dict):
+def pcluster_create(vlab_id: str, project_id: str, options: dict = None):
     """Create a pcluster for a given vlab
 
     Args:
@@ -62,6 +62,8 @@ def pcluster_create(vlab_id: str, project_id: str, options: dict):
 
     """
     logger.info(f"Creating pcluster: {vlab_id}-{project_id}")
+    if not options:
+        options = {}
     for k, default in DEFAULTS.items():
         options.setdefault(k, default)
 

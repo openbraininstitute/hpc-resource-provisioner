@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import pprint
-import sys
 from argparse import ArgumentParser
 
 from hpc_provisioner.pcluster_manager import (
@@ -34,31 +33,29 @@ def list_clusters(args):
 
 def hpc_provisioner():
     parser = ArgumentParser("HPC Resource Provisioner")
-    subparsers = parser.add_subparsers(dest="command")
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
     parser_create = subparsers.add_parser("create", help="Create a new pcluster")
+    parser_create.set_defaults(func=pcluster_create)
     parser_create.add_argument("vlab_id", type=str, help="vlab ID")
 
     parser_describe = subparsers.add_parser("describe", help="describe a pcluster")
+    parser_describe.set_defaults(func=pcluster_describe)
     parser_describe.add_argument("vlab_id", type=str, help="vlab ID")
 
     parser_delete = subparsers.add_parser("delete", help="delete a pcluster")
+    parser_delete.set_defaults(func=pcluster_delete)
     parser_delete.add_argument("vlab_id", type=str, help="vlab ID")
 
     parser_list = subparsers.add_parser("list", help="list pclusters")
+    parser_list.set_defaults(func=pcluster_list)
 
     args = parser.parse_args()
+    kwargs = {}
+    if vlab_id := getattr(args, "vlab_id", None):
+        kwargs["vlab_id"] = vlab_id
+    out = args.func(**kwargs)
 
-    if args.command == "create":
-        out = pcluster_create(sys.argv[2], {})
-    elif args.command == "describe":
-        out = pcluster_describe(sys.argv[2])
-    elif args.command == "delete":
-        out = pcluster_delete(sys.argv[2])
-    elif args.command == "list":
-        out = pcluster_list()
-    else:
-        raise RuntimeError(f"Invalid command: {sys.argv[1]}")
     pprint.pprint(out, width=120, sort_dicts=False)
 
 
