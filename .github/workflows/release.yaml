@@ -1,0 +1,61 @@
+---
+name: Build and Release HPC Resource Provisioner
+on:
+  workflow_dispatch:
+    inputs:
+      rel_branch:
+        description: Release branch/commit
+        default: main
+        required: true
+      rel_tag:
+        description: Release version (tag name)
+        default: x.y.z
+        required: true
+env:
+  REL_TAG: ${{ github.event.inputs.rel_tag }}
+  REL_BRANCH: ${{ github.event.inputs.rel_branch }}
+jobs:
+  tag-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: clone repo
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.REL_BRANCH }}
+      - name: Create and upload tag ${{ env.REL_TAG }}
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git tag -a $REL_TAG -m "${REL_TAG}"
+          git push origin $REL_TAG
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: ${{runner.workspace}}/hpc-resource-provisioner
+      - name: install dependencies
+        run: |-
+          mkdir package
+          pip install --upgrade pip
+          pip install ./hpc_provisioner --target=package
+          # newer versions don't seem to work on lambda
+          rm -rf package/jsonschema*
+          pip install "jsonschema==4.17.3" --target=package
+      - name: create provisioner package
+        run: |-
+          cp lambda_function_provisioner.py package/lambda_function.py
+          cd package
+          zip -r ../hpc_resource_provisioner.zip .
+          cd ..
+      - name: create creator package
+        run: |-
+          cp lambda_function_creator.py package/lambda_function.py
+          cd package
+          zip -r ../hpc_resource_creator.zip .
+          cd ..
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.REL_TAG }}
+          make_latest: true
+          files: |-
+            hpc_resource_provisioner.zip
+            hpc_resource_creator.zip
