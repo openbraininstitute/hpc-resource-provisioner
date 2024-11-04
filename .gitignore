@@ -11,3 +11,5 @@ terraform.tfstate*
 .coverage
 coverage.xml
 unittests.xml
+package/
+*.zip
