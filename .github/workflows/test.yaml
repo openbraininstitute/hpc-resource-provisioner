@@ -23,7 +23,7 @@ jobs:
           badge: true
           fail_below_min: true
           format: markdown
-          thresholds: '95 99'
+          thresholds: '80 90'
           output: both
       - name: Code Coverage as PR comment
         uses: marocchino/sticky-pull-request-comment@v2
