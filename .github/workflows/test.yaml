@@ -24,3 +24,10 @@ jobs:
           fail_below_min: true
           format: markdown
           thresholds: '80 95'
+          output: both
+      - name: Code Coverage as PR comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          recreate: true
+          path: code-coverage-results.md
+
