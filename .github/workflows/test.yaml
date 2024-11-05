@@ -17,10 +17,10 @@ jobs:
           source venv/bin/activate
           pytest hpc_provisioner
       - name: Code Coverage Report
-        uses: 5monkeys/cobertura-action@master
+        uses: irongut/CodeCoverageSummary@v1.3.0
         with:
-          path: coverage.xml
-          minimum_coverage: 90
-          fail_below_threshold: true
-          show_missing: true
-          only_changed_files: true
+          filename: coverage.xml
+          badge: true
+          fail_below_min: true
+          format: markdown
+          thresholds: '80 95'
