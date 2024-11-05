@@ -1,0 +1,25 @@
+---
+name: Test HPC Resource Provisioner
+on: push
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: clone repo
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          python3 -m venv venv
+          source venv/bin/activate
+          pip3 install -e 'hpc_provisioner[test]'
+      - name: Run tests
+        run: |-
+          pytest hpc_provisioner
+      - name: Code Coverage Report
+        uses: actions/cobertura-report@v14
+        with:
+          path: coverage.xml
+          minimum_coverage: 90
+          fail_below_threshold: true
+          show_missing: true
+          only_changed_files: true
