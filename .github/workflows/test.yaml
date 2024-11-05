@@ -14,6 +14,7 @@ jobs:
           pip3 install -e 'hpc_provisioner[test]'
       - name: Run tests
         run: |-
+          source venv/bin/activate
           pytest hpc_provisioner
       - name: Code Coverage Report
         uses: 5monkeys/cobertura-action@v14
