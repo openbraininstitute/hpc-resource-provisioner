@@ -17,7 +17,7 @@ jobs:
           source venv/bin/activate
           pytest hpc_provisioner
       - name: Code Coverage Report
-        uses: 5monkeys/cobertura-action@v14
+        uses: 5monkeys/cobertura-action@master
         with:
           path: coverage.xml
           minimum_coverage: 90
