@@ -44,4 +44,4 @@ select = ["E",  # pycodestyle
 ]
 
 [tool.pytest.ini_options]
-addopts = ["--import-mode=importlib", "-vv", "--disable-warnings", "--cov=hpc_provisioner", "--cov-report", "term", "--cov-report", "xml:coverage.xml", "--junitxml", "unittests.xml"]
+addopts = ["--import-mode=importlib", "-vv", "--disable-warnings", "--cov=hpc_provisioner/src", "--cov-report", "term", "--cov-report", "xml:coverage.xml", "--junitxml", "unittests.xml"]
