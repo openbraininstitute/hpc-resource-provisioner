@@ -6,7 +6,7 @@ from importlib.metadata import version
 import boto3
 from pcluster.api.errors import NotFoundException
 
-from hpc_provisioner.aws_queries import create_keypair
+from hpc_provisioner.aws_queries import create_keypair, create_secret, get_secret
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
     BILLING_TAG_VALUE,
@@ -80,27 +80,11 @@ def pcluster_create_request_handler(event, _context=None):
     )
 
     if "KeyMaterial" in ssh_keypair:
-        secret = sm_client.create_secret(
-            Name=ssh_keypair["KeyName"],
-            Description=f"SSH Key for cluster for vlab {vlab_id}, project {project_id}",
-            SecretString=ssh_keypair["KeyMaterial"],
-            Tags=[
-                {"Key": VLAB_TAG_KEY, "Value": vlab_id},
-                {"Key": PROJECT_TAG_KEY, "Value": project_id},
-                {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
-            ],
+        secret = create_secret(
+            sm_client, vlab_id, project_id, ssh_keypair["KeyName"], ssh_keypair["KeyMaterial"]
         )
     else:
-        existing_secrets = sm_client.list_secrets(
-            Filters=[{"Key": "name", "Values": [ssh_keypair["KeyName"]]}]
-        )
-        if secret_list := existing_secrets["SecretList"]:
-            secret = secret_list[0]
-        else:
-            raise RuntimeError(
-                f"SSH Keypair {ssh_keypair['KeyName']} already exists in EC2 but "
-                "was not stored in SecretsManager - unable to retrieve private key"
-            )
+        secret = get_secret(sm_client, ssh_keypair["KeyName"])
 
     logger.debug("calling create lambda async")
     boto3.client("lambda").invoke_async(

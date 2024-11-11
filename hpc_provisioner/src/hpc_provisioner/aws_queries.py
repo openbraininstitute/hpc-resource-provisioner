@@ -6,6 +6,12 @@ from typing import Optional
 import boto3
 from botocore.exceptions import ClientError
 
+from hpc_provisioner.constants import (
+    BILLING_TAG_KEY,
+    BILLING_TAG_VALUE,
+    PROJECT_TAG_KEY,
+    VLAB_TAG_KEY,
+)
 from hpc_provisioner.dynamodb_actions import (
     SubnetAlreadyRegisteredException,
     dynamodb_client,
@@ -59,6 +65,31 @@ def create_keypair(ec2_client, vlab_id, project_id, tags) -> dict:
                 }
             ],
         )
+
+
+def create_secret(sm_client, vlab_id, project_id, secret_name, secret_value):
+    secret = sm_client.create_secret(
+        Name=secret_name,
+        Description=f"SSH Key for cluster for vlab {vlab_id}, project {project_id}",
+        SecretString=secret_value,
+        Tags=[
+            {"Key": VLAB_TAG_KEY, "Value": vlab_id},
+            {"Key": PROJECT_TAG_KEY, "Value": project_id},
+            {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+        ],
+    )
+
+    return secret
+
+
+def get_secret(sm_client, secret_name):
+    existing_secrets = sm_client.list_secrets(Filters=[{"Key": "name", "Values": [secret_name]}])
+    if secret_list := existing_secrets.get("SecretList", []):
+        secret = secret_list[0]
+    else:
+        raise RuntimeError(f"Secret {secret_name} does not exist in SecretsManager")
+
+    return secret
 
 
 def get_efs(efs_client) -> str:

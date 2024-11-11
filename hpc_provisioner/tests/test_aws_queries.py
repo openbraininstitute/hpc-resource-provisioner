@@ -2,16 +2,24 @@ import logging
 from unittest.mock import MagicMock, call, patch
 
 import pytest
+from botocore.exceptions import ClientError
 from hpc_provisioner.aws_queries import (
     CouldNotDetermineEFSException,
-    CouldNotDetermineKeyPairException,
     CouldNotDetermineSecurityGroupException,
     OutOfSubnetsException,
     claim_subnet,
+    create_keypair,
+    create_secret,
     get_available_subnet,
     get_efs,
-    get_keypair,
+    get_secret,
     get_security_group,
+)
+from hpc_provisioner.constants import (
+    BILLING_TAG_KEY,
+    BILLING_TAG_VALUE,
+    PROJECT_TAG_KEY,
+    VLAB_TAG_KEY,
 )
 from hpc_provisioner.dynamodb_actions import SubnetAlreadyRegisteredException
 
@@ -26,36 +34,6 @@ sh.setLevel(logging.DEBUG)
 logger.addHandler(fh)
 logger.addHandler(sh)
 logger.setLevel(logging.DEBUG)
-
-
-@pytest.mark.parametrize(
-    "keypairs",
-    [
-        {"KeyPairs": [{"KeyName": "keypair-1"}]},
-    ],
-)
-def test_get_keypair(keypairs):
-    mock_ec2_client = MagicMock()
-    mock_ec2_client.describe_key_pairs.return_value = keypairs
-    keypair = get_keypair(mock_ec2_client)
-    assert keypair == keypairs["KeyPairs"][0]["KeyName"]
-
-
-@pytest.mark.parametrize(
-    "keypairs",
-    [
-        {"KeyPairs": []},
-        {"KeyPairs": ["keypair-1", "keypair-2"]},
-    ],
-)
-def test_get_keypair_fails(keypairs):
-    mock_ec2_client = MagicMock()
-    mock_ec2_client.describe_key_pairs.return_value = keypairs
-    with pytest.raises(
-        CouldNotDetermineKeyPairException,
-        match=str(keypairs["KeyPairs"]).replace("[", "\\["),
-    ):
-        get_keypair(mock_ec2_client)
 
 
 @pytest.mark.parametrize(
@@ -333,3 +311,54 @@ def test_get_available_subnet(mock_dynamodb_client, mock_claim_subnet):
         mock_dynamodb_client(), ec2_subnets["Subnets"], cluster_name
     )
     assert subnet == "sub-1"
+
+
+def test_create_keypair():
+    mock_ec2_client = MagicMock()
+    mock_ec2_client.describe_key_pairs.side_effect = ClientError(
+        error_response={"Error": {"Code": 1, "Message": "It failed"}},
+        operation_name="describe_key_pairs",
+    )
+    mock_ec2_client.create_key_pair.return_value = "key created"
+    vlab_id = "test_vlab"
+    project_id = "test_project"
+    tags = [{"Key": "tagkey", "Value": "tagvalue"}]
+    create_keypair(mock_ec2_client, vlab_id, project_id, tags)
+    mock_ec2_client.create_key_pair.assert_called_once_with(
+        KeyName=f"pcluster-{vlab_id}-{project_id}",
+        TagSpecifications=[{"ResourceType": "key-pair", "Tags": tags}],
+    )
+
+
+def test_get_secret():
+    secret_value = "supersecret"
+    mock_sm_client = MagicMock()
+    mock_sm_client.list_secrets.return_value = {"SecretList": [secret_value]}
+    retrieved_secret = get_secret(mock_sm_client, "mysecret")
+    assert retrieved_secret == secret_value
+
+
+def test_get_secret_not_found():
+    mock_sm_client = MagicMock()
+    mock_sm_client.list_secrets.return_value = {}
+    with pytest.raises(RuntimeError):
+        get_secret(mock_sm_client, "mysecret")
+
+
+def test_create_secret():
+    mock_sm_client = MagicMock()
+    vlab_id = "test_vlab"
+    project_id = "test_project"
+    secret_name = "mysecret"
+    secret_value = "supersecret"
+    create_secret(mock_sm_client, vlab_id, project_id, secret_name, secret_value)
+    mock_sm_client.create_secret.assert_called_once_with(
+        Name=secret_name,
+        Description=f"SSH Key for cluster for vlab {vlab_id}, project {project_id}",
+        SecretString=secret_value,
+        Tags=[
+            {"Key": VLAB_TAG_KEY, "Value": vlab_id},
+            {"Key": PROJECT_TAG_KEY, "Value": project_id},
+            {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+        ],
+    )
