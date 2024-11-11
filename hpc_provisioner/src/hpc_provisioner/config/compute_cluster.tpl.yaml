@@ -1,3 +1,4 @@
+---
 Region: us-east-1
 Image:
   Os: alinux2
@@ -7,18 +8,13 @@ Monitoring:
     CloudWatch:
       RetentionInDays: 90
       DeletionPolicy: Delete
-Tags:
-  - Key: SBO_Billing
-    Value: hpc
-HeadNode:
-  !include _head_node.tpl.yaml
+HeadNode: !include _head_node.tpl.yaml
 Scheduling:
   Scheduler: slurm
   SlurmSettings:
     EnableMemoryBasedScheduling: true
     # CustomSlurmSettingsIncludeFile: s3://sboinfrastructureassets/config/slurm_extras.conf
-  SlurmQueues:
-    !include _slurm_queues.tpl.yaml
+  SlurmQueues: !include _slurm_queues.tpl.yaml
 Imds:
   ImdsSupport: v2.0
 SharedStorage:

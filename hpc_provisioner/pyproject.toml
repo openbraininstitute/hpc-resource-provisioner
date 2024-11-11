@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hpc_provisioner"
-version = "0.5.8.7"
+version = "0.5.9.0"
 dependencies = [
     "aws-parallelcluster",
     "boto3",

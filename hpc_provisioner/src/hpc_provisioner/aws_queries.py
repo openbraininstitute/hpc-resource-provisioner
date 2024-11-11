@@ -3,6 +3,9 @@ import logging.config
 import time
 from typing import Optional
 
+import boto3
+from botocore.exceptions import ClientError
+
 from hpc_provisioner.dynamodb_actions import (
     SubnetAlreadyRegisteredException,
     dynamodb_client,
@@ -37,18 +40,25 @@ class CouldNotDetermineKeyPairException(Exception):
     """Indicates that we either found too many or no keypairs with tags HPC_Goal:compute_cluster"""
 
 
-def get_keypair(ec2_client) -> str:
-    keypairs = ec2_client.describe_key_pairs(
-        Filters=[{"Name": "tag:HPC_Goal", "Values": ["compute_cluster"]}]
-    )
-    if len(keypairs["KeyPairs"]) != 1:
-        raise CouldNotDetermineKeyPairException(
-            f"Could not choose keypair from {keypairs['KeyPairs']}"
+def get_cluster_name(vlab_id: str, project_id: str) -> str:
+    return f"pcluster-{vlab_id}-{project_id}"
+
+
+def create_keypair(ec2_client, vlab_id, project_id, tags) -> dict:
+    keypair_name = get_cluster_name(vlab_id, project_id)
+    try:
+        existing_key = ec2_client.describe_key_pairs(KeyNames=[keypair_name])
+        return existing_key["KeyPairs"][0]
+    except ClientError:
+        return ec2_client.create_key_pair(
+            KeyName=keypair_name,
+            TagSpecifications=[
+                {
+                    "ResourceType": "key-pair",
+                    "Tags": tags,
+                }
+            ],
         )
-
-    keypair = keypairs["KeyPairs"][0]
-
-    return keypair["KeyName"]
 
 
 def get_efs(efs_client) -> str:
@@ -189,3 +199,15 @@ def get_available_subnet(ec2_client, cluster_name: str) -> str:
                 raise
 
     return subnet_id
+
+
+def remove_key(keypair_name: str) -> None:
+    ec2_client = boto3.client("ec2")
+    sm_client = boto3.client("secretsmanager")
+    logger.debug(f"Deleting keypair {keypair_name} from EC2")
+    client_delete = ec2_client.delete_key_pair(KeyName=keypair_name)
+    logger.debug(f"Keypair deletion response: {client_delete}")
+
+    logger.debug("Deleting secret from SecretsManager")
+    secret_delete = sm_client.delete_secret(SecretId=keypair_name, RecoveryWindowInDays=7)
+    logger.debug(f"Secret deletion response: {secret_delete}")
