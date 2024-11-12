@@ -7,12 +7,7 @@ on:
         description: Release branch/commit
         default: main
         required: true
-      rel_tag:
-        description: Release version (tag name)
-        default: x.y.z
-        required: true
 env:
-  REL_TAG: ${{ github.event.inputs.rel_tag }}
   REL_BRANCH: ${{ github.event.inputs.rel_branch }}
 jobs:
   tag-and-release:
@@ -22,6 +17,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ env.REL_BRANCH }}
+      - name: Determine version
+        run: |
+          echo REL_TAG=$(awk '/version =/ {print $3}' hpc_provisioner/pyproject.toml | tr -d '"') >> $GITHUB_ENV
       - name: Create and upload tag ${{ env.REL_TAG }}
         run: |
           git config user.name github-actions
@@ -30,32 +28,20 @@ jobs:
           git push origin $REL_TAG
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BBPBUILDBOT_DOCKERHUB_PASSWORD: ${{ secrets.BBPBUILDBOT_DOCKERHUB_PASSWORD }}
         working-directory: ${{runner.workspace}}/hpc-resource-provisioner
-      - name: install dependencies
-        run: |-
-          mkdir package
-          pip install --upgrade pip
-          pip install ./hpc_provisioner --target=package
-          # newer versions don't seem to work on lambda
-          rm -rf package/jsonschema*
-          pip install "jsonschema==4.17.3" --target=package
-      - name: create provisioner package
-        run: |-
-          cp lambda_function_provisioner.py package/lambda_function.py
-          cd package
-          zip -r ../hpc_resource_provisioner.zip .
-          cd ..
-      - name: create creator package
-        run: |-
-          cp lambda_function_creator.py package/lambda_function.py
-          cd package
-          zip -r ../hpc_resource_creator.zip .
-          cd ..
+      - name: Build and push container
+        run: |
+          SOURCE_CHECKSUM=$(find hpc_provisioner -type f -exec sha256sum {} \; | sha256sum | awk '{print $1}')
+          docker build --label "org.opencontainers.image.checksum=${SOURCE_CHECKSUM}" --label "org.opencontainers.image.software_version=${REL_TAG}" -t hpc-resource-provisioner:${REL_TAG}
+          docker login -u bbpbuildbot -p ${BBPBUILDBOT_DOCKERHUB_PASSWORD}
+          docker push hpc-resource-provisioner:${REL_TAG} docker.io/bluebrain/hpc-resource-provisioner:${REL_TAG}
+          docker push hpc-resource-provisioner:${REL_TAG} docker.io/bluebrain/hpc-resource-provisioner:latest
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.REL_TAG }}
           make_latest: true
-          files: |-
-            hpc_resource_provisioner.zip
-            hpc_resource_creator.zip
+          body: |-
+            Latest container image will always be: `docker pull bluebrain/hpc-resource-provisioner:latest`
+            This particular version is `docker pull bluebrain/hpc-resource-provisioner:${REL_TAG}`

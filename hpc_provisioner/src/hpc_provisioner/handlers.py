@@ -6,6 +6,14 @@ from importlib.metadata import version
 import boto3
 from pcluster.api.errors import NotFoundException
 
+from hpc_provisioner.aws_queries import create_keypair, store_private_key
+from hpc_provisioner.constants import (
+    BILLING_TAG_KEY,
+    BILLING_TAG_VALUE,
+    PROJECT_TAG_KEY,
+    VLAB_TAG_KEY,
+)
+
 from .logging_config import LOGGING_CONFIG
 from .pcluster_manager import (
     InvalidRequest,
@@ -21,9 +29,9 @@ logger = logging.getLogger("hpc-resource-provisioner")
 
 def pcluster_do_create_handler(event, _context=None):
     logger.debug(f"event: {event}, _context: {_context}")
-    vlab_id, project_id, options = _get_vlab_query_params(event)
+    vlab_id, project_id, keyname, options = _get_vlab_query_params(event)
     logger.debug(f"create pcluster {vlab_id}-{project_id}")
-    pcluster_create(vlab_id, project_id, options)
+    pcluster_create(vlab_id, project_id, keyname, options)
     logger.debug(f"created pcluster {vlab_id}-{project_id}")
 
 
@@ -57,11 +65,28 @@ def pcluster_handler(event, _context=None):
 def pcluster_create_request_handler(event, _context=None):
     """Request the creation of an HPC cluster for a given vlab_id and project_id"""
 
-    vlab_id, project_id, _ = _get_vlab_query_params(event)
+    vlab_id, project_id, _, _ = _get_vlab_query_params(event)
+    ec2_client = boto3.client("ec2")
+    sm_client = boto3.client("secretsmanager")
+    ssh_keypair = create_keypair(
+        ec2_client,
+        vlab_id=vlab_id,
+        project_id=project_id,
+        tags=[
+            {"Key": VLAB_TAG_KEY, "Value": vlab_id},
+            {"Key": PROJECT_TAG_KEY, "Value": project_id},
+            {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+        ],
+    )
+
+    secret = store_private_key(sm_client, vlab_id, project_id, ssh_keypair)
+
     logger.debug("calling create lambda async")
     boto3.client("lambda").invoke_async(
         FunctionName="hpc-resource-provisioner-creator",
-        InvokeArgs=json.dumps({"vlab_id": vlab_id, "project_id": project_id}),
+        InvokeArgs=json.dumps(
+            {"vlab_id": vlab_id, "project_id": project_id, "keyname": ssh_keypair["KeyName"]}
+        ),
     )
     logger.debug("called create lambda async")
 
@@ -70,6 +95,7 @@ def pcluster_create_request_handler(event, _context=None):
             "cluster": {
                 "clusterName": f"pcluster-{vlab_id}-{project_id}",
                 "clusterStatus": "CREATE_REQUEST_RECEIVED",
+                "private_ssh_key_arn": secret["ARN"],
             }
         }
     )
@@ -78,7 +104,7 @@ def pcluster_create_request_handler(event, _context=None):
 def pcluster_describe_handler(event, _context=None):
     """Describe a cluster given the vlab_id and project_id"""
     try:
-        vlab_id, project_id, _ = _get_vlab_query_params(event)
+        vlab_id, project_id, _, _ = _get_vlab_query_params(event)
     except InvalidRequest:
         logger.debug("No vlab_id specified - listing pclusters")
         pc_output = pcluster_list()
@@ -97,7 +123,7 @@ def pcluster_describe_handler(event, _context=None):
 
 def pcluster_delete_handler(event, _context=None):
     """Delete a cluster given the vlab_id and project_id"""
-    vlab_id, project_id, _ = _get_vlab_query_params(event)
+    vlab_id, project_id, _, _ = _get_vlab_query_params(event)
 
     logger.debug(f"delete pcluster {vlab_id}-{project_id}")
     try:
@@ -114,6 +140,7 @@ def pcluster_delete_handler(event, _context=None):
 def _get_vlab_query_params(event):
     vlab_id = event.get("vlab_id")
     project_id = event.get("project_id")
+    keyname = event.get("keyname")
 
     logger.debug(f"Event: {event}")
     if options := event.get("queryStringParameters", {}):
@@ -123,13 +150,16 @@ def _get_vlab_query_params(event):
         if project_id is None:
             logger.debug(f"getting project id from {options}")
             project_id = options.pop("project_id", None)
+        if keyname is None:
+            logger.debug(f"getting keyname from {options}")
+            keyname = options.pop("keyname", None)
 
     if vlab_id is None:
         raise InvalidRequest("missing required 'vlab_id' query param")
     if project_id is None:
         raise InvalidRequest("missing required 'project_id' query param")
 
-    return vlab_id, project_id, options
+    return vlab_id, project_id, keyname, options
 
 
 def response_text(text: str, code: int = 200):
