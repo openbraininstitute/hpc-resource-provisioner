@@ -14,6 +14,7 @@ from hpc_provisioner.aws_queries import (
     get_efs,
     get_secret,
     get_security_group,
+    store_private_key,
 )
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
@@ -362,3 +363,46 @@ def test_create_secret():
             {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
         ],
     )
+
+
+@pytest.mark.parametrize("keypair_exists", [True, False])
+@pytest.mark.parametrize("secret_exists", [True, False])
+def test_store_private_key(keypair_exists, secret_exists):
+    if secret_exists and not keypair_exists:
+        pytest.skip(
+            "New keypair with existing secret: sm_client.create_secret will raise "
+            "on trying to create a secret that already exists."
+        )
+    mock_sm_client = MagicMock()
+    vlab_id = "testvlab"
+    project_id = "testproject"
+    secret_name = key_name = f"pcluster-{vlab_id}-{project_id}"
+    if not keypair_exists:
+        ssh_keypair = {"KeyMaterial": "supersecret", "KeyName": key_name}
+    else:
+        ssh_keypair = {"KeyName": key_name}
+
+    if not keypair_exists:
+        if not secret_exists:
+            print("Keypair created, secret does not exist yet")
+            store_private_key(mock_sm_client, vlab_id, project_id, ssh_keypair)
+            mock_sm_client.create_secret.assert_called_once_with(
+                Name=secret_name,
+                Description=f"SSH Key for cluster for vlab {vlab_id}, project {project_id}",
+                SecretString=ssh_keypair["KeyMaterial"],
+                Tags=[
+                    {"Key": VLAB_TAG_KEY, "Value": vlab_id},
+                    {"Key": PROJECT_TAG_KEY, "Value": project_id},
+                    {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+                ],
+            )
+    elif secret_exists:
+        print("Both already exist")
+        mock_sm_client.list_secrets.return_value = {"SecretList": ["somesecret"]}
+        retrieved_secret = store_private_key(mock_sm_client, vlab_id, project_id, ssh_keypair)
+        assert retrieved_secret == "somesecret"
+    else:
+        print("Keypair already existed but was not stored in secretsmanager yet")
+        mock_sm_client.list_secrets.return_value = {"SecretList": []}
+        with pytest.raises(RuntimeError):
+            store_private_key(mock_sm_client, vlab_id, project_id, ssh_keypair)

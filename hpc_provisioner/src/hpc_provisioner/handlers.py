@@ -6,7 +6,7 @@ from importlib.metadata import version
 import boto3
 from pcluster.api.errors import NotFoundException
 
-from hpc_provisioner.aws_queries import create_keypair, create_secret, get_secret
+from hpc_provisioner.aws_queries import create_keypair, store_private_key
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
     BILLING_TAG_VALUE,
@@ -79,12 +79,7 @@ def pcluster_create_request_handler(event, _context=None):
         ],
     )
 
-    if "KeyMaterial" in ssh_keypair:
-        secret = create_secret(
-            sm_client, vlab_id, project_id, ssh_keypair["KeyName"], ssh_keypair["KeyMaterial"]
-        )
-    else:
-        secret = get_secret(sm_client, ssh_keypair["KeyName"])
+    secret = store_private_key(sm_client, vlab_id, project_id, ssh_keypair)
 
     logger.debug("calling create lambda async")
     boto3.client("lambda").invoke_async(

@@ -42,10 +42,6 @@ class CouldNotDetermineEFSException(Exception):
     """
 
 
-class CouldNotDetermineKeyPairException(Exception):
-    """Indicates that we either found too many or no keypairs with tags HPC_Goal:compute_cluster"""
-
-
 def get_cluster_name(vlab_id: str, project_id: str) -> str:
     return f"pcluster-{vlab_id}-{project_id}"
 
@@ -65,6 +61,17 @@ def create_keypair(ec2_client, vlab_id, project_id, tags) -> dict:
                 }
             ],
         )
+
+
+def store_private_key(sm_client, vlab_id, project_id, ssh_keypair):
+    if "KeyMaterial" in ssh_keypair:
+        secret = create_secret(
+            sm_client, vlab_id, project_id, ssh_keypair["KeyName"], ssh_keypair["KeyMaterial"]
+        )
+    else:
+        secret = get_secret(sm_client, ssh_keypair["KeyName"])
+
+    return secret
 
 
 def create_secret(sm_client, vlab_id, project_id, secret_name, secret_value):

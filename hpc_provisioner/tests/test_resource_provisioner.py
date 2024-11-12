@@ -172,15 +172,9 @@ def test_post(patched_boto3, post_event, key_exists):
                 "KeyName": test_cluster_name,
             }
 
-        with patch("hpc_provisioner.handlers.create_secret") as patched_create_secret:
-            patched_create_keypair.return_value = {
-                "KeyMaterial": "secret_stuff",
-                "KeyName": test_cluster_name,
-            }
-            patched_create_secret.return_value = {"ARN": "secret ARN"}
-            with patch("hpc_provisioner.handlers.get_secret") as patched_get_secret:
-                patched_get_secret.return_value = {"ARN": "secret ARN"}
-                actual_response = handlers.pcluster_create_request_handler(post_event)
+        with patch("hpc_provisioner.handlers.store_private_key") as patched_store_private_key:
+            patched_store_private_key.return_value = {"ARN": "secret ARN"}
+            actual_response = handlers.pcluster_create_request_handler(post_event)
     mock_client.invoke_async.assert_called_with(
         FunctionName="hpc-resource-provisioner-creator",
         InvokeArgs=json.dumps(
