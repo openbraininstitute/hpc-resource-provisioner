@@ -33,7 +33,7 @@ jobs:
       - name: Build and push container
         run: |
           SOURCE_CHECKSUM=$(find hpc_provisioner -type f -exec sha256sum {} \; | sha256sum | awk '{print $1}')
-          docker build --label "org.opencontainers.image.checksum=${SOURCE_CHECKSUM}" --label "org.opencontainers.image.software_version=${REL_TAG}" -t hpc-resource-provisioner:${REL_TAG}
+          docker build --label "org.opencontainers.image.checksum=${SOURCE_CHECKSUM}" --label "org.opencontainers.image.software_version=${REL_TAG}" -t hpc-resource-provisioner:${REL_TAG} .
           docker login -u bbpbuildbot -p ${BBPBUILDBOT_DOCKERHUB_PASSWORD}
           docker push hpc-resource-provisioner:${REL_TAG} docker.io/bluebrain/hpc-resource-provisioner:${REL_TAG}
           docker push hpc-resource-provisioner:${REL_TAG} docker.io/bluebrain/hpc-resource-provisioner:latest
