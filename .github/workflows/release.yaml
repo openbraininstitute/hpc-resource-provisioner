@@ -26,17 +26,17 @@ jobs:
           git config user.email github-actions@github.com
           git tag -a $REL_TAG -m "${REL_TAG}"
           git push origin $REL_TAG
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BBPBUILDBOT_DOCKERHUB_PASSWORD: ${{ secrets.BBPBUILDBOT_DOCKERHUB_PASSWORD }}
         working-directory: ${{runner.workspace}}/hpc-resource-provisioner
       - name: Build and push container
+        env:
+          BBPBUILDBOT_DOCKERHUB_PASSWORD: ${{ secrets.BBPBUILDBOT_DOCKERHUB_PASSWORD }}
         run: |
           SOURCE_CHECKSUM=$(find hpc_provisioner -type f -exec sha256sum {} \; | sha256sum | awk '{print $1}')
-          docker build --label "org.opencontainers.image.checksum=${SOURCE_CHECKSUM}" --label "org.opencontainers.image.software_version=${REL_TAG}" -t hpc-resource-provisioner:${REL_TAG} .
-          docker login -u bbpbuildbot -p ${BBPBUILDBOT_DOCKERHUB_PASSWORD}
-          docker push hpc-resource-provisioner:${REL_TAG} docker.io/bluebrain/hpc-resource-provisioner:${REL_TAG}
+          docker build --label "org.opencontainers.image.checksum=${SOURCE_CHECKSUM}" --label "org.opencontainers.image.software_version=${REL_TAG}" -t bluebrain/hpc-resource-provisioner:${REL_TAG} .
+          docker login -u bbpbuildbot -p "${BBPBUILDBOT_DOCKERHUB_PASSWORD}"
+          docker push bluebrain/hpc-resource-provisioner:${REL_TAG}
           docker push hpc-resource-provisioner:${REL_TAG} docker.io/bluebrain/hpc-resource-provisioner:latest
+        working-directory: ${{runner.workspace}}/hpc-resource-provisioner
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
@@ -44,4 +44,4 @@ jobs:
           make_latest: true
           body: |-
             Latest container image will always be: `docker pull bluebrain/hpc-resource-provisioner:latest`
-            This particular version is `docker pull bluebrain/hpc-resource-provisioner:${REL_TAG}`
+            This particular version is `docker pull bluebrain/hpc-resource-provisioner:${{ env.REL_TAG }}`

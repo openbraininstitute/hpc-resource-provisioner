@@ -10,8 +10,10 @@ dependencies = [
     "boto3",
     "PyYAML"
 ]
-authors = [{"name" = "Fernando Pereira", "email" = "fernando.pereira@epfl.ch"}]
-maintainers = [{"name" = "Fernando Pereira", "email" = "fernando.pereira@epfl.ch"}]
+authors = [{"name" = "Fernando Pereira", "email" = "fernando.pereira@epfl.ch"},
+           {"name" = "Erik Heeren", "email" = "erik.heeren@epfl.ch"}]
+maintainers = [{"name" = "Fernando Pereira", "email" = "fernando.pereira@epfl.ch"},
+               {"name" = "Erik Heeren", "email" = "erik.heeren@epfl.ch"}]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Programming Language :: Python",
