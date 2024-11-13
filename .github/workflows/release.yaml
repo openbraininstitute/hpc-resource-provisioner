@@ -44,4 +44,4 @@ jobs:
           make_latest: true
           body: |-
             Latest container image will always be: `docker pull bluebrain/hpc-resource-provisioner:latest`
-            This particular version is `docker pull bluebrain/hpc-resource-provisioner:${REL_TAG}`
+            This particular version is `docker pull bluebrain/hpc-resource-provisioner:${{ env.REL_TAG }}`
