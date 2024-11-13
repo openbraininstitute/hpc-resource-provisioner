@@ -35,7 +35,7 @@ jobs:
           docker build --label "org.opencontainers.image.checksum=${SOURCE_CHECKSUM}" --label "org.opencontainers.image.software_version=${REL_TAG}" -t bluebrain/hpc-resource-provisioner:${REL_TAG} .
           docker login -u bbpbuildbot -p "${BBPBUILDBOT_DOCKERHUB_PASSWORD}"
           docker push bluebrain/hpc-resource-provisioner:${REL_TAG}
-          docker push hpc-resource-provisioner:${REL_TAG} docker.io/bluebrain/hpc-resource-provisioner:latest
+          docker push bluebrain/hpc-resource-provisioner:latest
         working-directory: ${{runner.workspace}}/hpc-resource-provisioner
       - name: Release
         uses: softprops/action-gh-release@v2
