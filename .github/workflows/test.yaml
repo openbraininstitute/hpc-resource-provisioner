@@ -8,8 +8,10 @@ jobs:
       - name: org secret
         run: |
           echo ${#token}
+          echo ${#secret}
         env:
           token: ${{ secrets.CODECOV_TOKEN }}
+          secret: ${{ secrets.TEST_SECRET }}
       - name: clone repo
         uses: actions/checkout@v4
       - name: Install dependencies
