@@ -23,3 +23,40 @@ SharedStorage:
     MountDir: /sbo/home
     EfsSettings:
       FileSystemId: !config efs_id
+  - Name: FsxLustre-Persistent
+    StorageType: FsxLustre
+    MountDir: /sbo/data
+    FsxLustreSettings:
+      DeploymentType: PERSISTENT_2
+      StorageCapacity: 1200  # minimum allowed is 1.2TB
+      PerUnitStorageThroughput: 250  # 250Mpbs/TiB (similar to SCRATCH_2)
+      DataCompressionType: LZ4  # Data compression for higher-throughput between OSSs <-> OSTs
+      DataRepositoryAssociations:
+        - Name: Containers-DRA
+          BatchImportMetaDataOnCreate: true
+          DataRepositoryPath: s3://sboinfrastructureassets-sandbox/containers
+          FileSystemPath: /containers
+          AutoImportPolicy: [NEW, CHANGED, DELETED]
+          DeletionPolicy: Retain
+        - Name: Nexus-DRA
+          BatchImportMetaDataOnCreate: true
+          DataRepositoryPath: s3://sbonexusdata-sandbox
+          FileSystemPath: /project
+          AutoExportPolicy: [NEW, CHANGED, DELETED]
+          AutoImportPolicy: [NEW, CHANGED, DELETED]
+          DeletionPolicy: Retain
+  - Name: FsxLustre-Scratch
+    MountDir: /sbo/data
+    FsxLustreSettings:
+      DeploymentType: SCRATCH_2
+      StorageCapacity: 1200  # minimum allowed is 1.2TB
+      PerUnitStorageThroughput: 250  # 250Mpbs/TiB (similar to SCRATCH_2)
+      DataCompressionType: LZ4  # Data compression for higher-throughput between OSSs <-> OSTs
+      DataRepositoryAssociations:
+        - Name: Scratch-DRA
+          BatchImportMetaDataOnCreate: true
+          DataRepositoryPath: s3://sbosandbox-lec3cn
+          FileSystemPath: /scratch
+          AutoExportPolicy: [NEW, CHANGED, DELETED]
+          AutoImportPolicy: [NEW, CHANGED, DELETED]
+          DeletionPolicy: Retain
