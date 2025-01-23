@@ -3,20 +3,21 @@ name: Build and Release HPC Resource Provisioner
 on:
   workflow_dispatch:
     inputs:
-      rel_branch:
-        description: Release branch/commit
-        default: main
+      environment:
+        description: Which environment to push the image to
+        type: choice
+        options: [aws-sandbox-hpc]
         required: true
-env:
-  REL_BRANCH: ${{ github.event.inputs.rel_branch }}
+        default: aws-sandbox-hpc
 jobs:
   tag-and-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    environment: ${{ inputs.environment }}
     steps:
       - name: clone repo
         uses: actions/checkout@v4
-        with:
-          ref: ${{ env.REL_BRANCH }}
       - name: Determine version
         run: |
           echo REL_TAG=$(awk '/version =/ {print $3}' hpc_provisioner/pyproject.toml | tr -d '"') >> $GITHUB_ENV
@@ -27,22 +28,49 @@ jobs:
           git tag -a $REL_TAG -m "${REL_TAG}"
           git push origin $REL_TAG
         working-directory: ${{runner.workspace}}/hpc-resource-provisioner
+      - name: Authenticate with ghcr
+        uses: docker/login-action@v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+      - name: Authenticate with docker-hub
+        uses: docker/login-action@v3.3.0
+        with:
+          username: ${{ secrets.BBPBUILDBOT_DOCKERHUB_USER }}
+          password: ${{ secrets.BBPBUILDBOT_DOCKERHUB_PASSWORD }}
+      - name: Authenticate with AWS ECR
+        uses: docker/login-action@v3.3.0
+        with:
+          registry: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+          username: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          password: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       - name: Build and push container
-        env:
-          BBPBUILDBOT_DOCKERHUB_PASSWORD: ${{ secrets.BBPBUILDBOT_DOCKERHUB_PASSWORD }}
         run: |
           SOURCE_CHECKSUM=$(find hpc_provisioner -type f -exec sha256sum {} \; | sha256sum | awk '{print $1}')
-          docker build --label "org.opencontainers.image.checksum=${SOURCE_CHECKSUM}" --label "org.opencontainers.image.software_version=${REL_TAG}" -t bluebrain/hpc-resource-provisioner:${REL_TAG} .
-          docker image tag bluebrain/hpc-resource-provisioner:${REL_TAG} bluebrain/hpc-resource-provisioner:latest
-          docker login -u bbpbuildbot -p "${BBPBUILDBOT_DOCKERHUB_PASSWORD}"
-          docker push bluebrain/hpc-resource-provisioner:${REL_TAG}
-          docker push bluebrain/hpc-resource-provisioner:latest
+          GHCR_PATH=openbraininstitute/hpc-resource-provisioner
+          AWS_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+          AWS_PATH=hpc/resource-provisioner
+          docker build --label "org.opencontainers.image.checksum=${SOURCE_CHECKSUM}" --label "org.opencontainers.image.software_version=${REL_TAG}" -t ${GHCR_PATH}:${REL_TAG} .
+          echo "Setting tags for ghcr"
+          docker image tag ${GHCR_PATH}:${REL_TAG} ghcr.io/${GHCR_PATH}:${REL_TAG}
+          docker image tag ${GHCR_PATH}:${REL_TAG} ghcr.io/${GHCR_PATH}:latest
+          echo "Setting tags for aws ecr"
+          docker image tag ${GHCR_PATH}:${REL_TAG} ${AWS_URI}/${AWS_PATH}:${REL_TAG}
+          docker image tag ${GHCR_PATH}:${REL_TAG} ${AWS_URI}/${AWS_PATH}:latest
+          echo "Pushing to ghcr"
+          docker push ghcr.io/${GHCR_PATH}:${REL_TAG}
+          docker push ghcr.io/${GHCR_PATH}:latest
+          echo "Pushing to aws ecr"
+          docker push ${AWS_URI}/${AWS_PATH}:${REL_TAG}
+          docker push ${AWS_URI}/${AWS_PATH}:latest
         working-directory: ${{runner.workspace}}/hpc-resource-provisioner
       - name: Release
         uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
         with:
           tag_name: ${{ env.REL_TAG }}
           make_latest: true
           body: |-
-            Latest container image will always be: `docker pull bluebrain/hpc-resource-provisioner:latest`
-            This particular version is `docker pull bluebrain/hpc-resource-provisioner:${{ env.REL_TAG }}`
+            Latest container image will always be: `docker pull ghcr.io/openbraininstitute/hpc-resource-provisioner:latest`
+            This particular version is `docker pull ghcr.io/openbraininstitute/hpc-resource-provisioner:${{ env.REL_TAG }}`
