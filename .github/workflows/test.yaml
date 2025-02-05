@@ -4,6 +4,8 @@ on: pull_request
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - name: clone repo
         uses: actions/checkout@v4
@@ -23,7 +25,7 @@ jobs:
           badge: true
           fail_below_min: true
           format: markdown
-          thresholds: '80 90'
+          thresholds: 80 90
           output: both
       - name: Code Coverage as PR comment
         uses: marocchino/sticky-pull-request-comment@v2
@@ -31,4 +33,3 @@ jobs:
         with:
           recreate: true
           path: code-coverage-results.md
-
