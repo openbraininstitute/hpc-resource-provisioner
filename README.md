@@ -109,5 +109,11 @@ The development of this software was supported by funding to the Blue Brain Proj
 a research center of the École polytechnique fédérale de Lausanne (EPFL),
 from the Swiss government's ETH Board of the Swiss Federal Institutes of Technology.
 
+Copyright
+=========
+
 Copyright (c) 2024-2024 Blue Brain Project/EPFL
 
+Copyright (c) 2025 Open Brain Institute
+
+This work is licensed under `Apache 2.0 <https://www.apache.org/licenses/LICENSE-2.0.html>`_
