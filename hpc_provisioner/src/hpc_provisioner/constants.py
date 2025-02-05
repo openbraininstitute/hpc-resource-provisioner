@@ -1,6 +1,7 @@
 from pathlib import Path
 
 PCLUSTER_CONFIG_TPL = str(Path(__file__).parent / "config" / "compute_cluster.tpl.yaml")
+PCLUSTER_DEV_CONFIG_TPL = str(Path(__file__).parent / "config-dev" / "compute_cluster.tpl.yaml")
 VLAB_TAG_KEY = "obp:costcenter:vlabid"
 PROJECT_TAG_KEY = "obp:costcenter:project"
 BILLING_TAG_KEY = "SBO_Billing"
@@ -12,6 +13,7 @@ DEFAULTS = {
     "tier": "lite",
     "fs_type": "efs",
     "project_id": "-",
+    "dev": "false",
 }
 
 CONFIG_VALUES = {}

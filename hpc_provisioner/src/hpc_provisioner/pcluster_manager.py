@@ -26,6 +26,7 @@ from hpc_provisioner.constants import (
     CONFIG_VALUES,
     DEFAULTS,
     PCLUSTER_CONFIG_TPL,
+    PCLUSTER_DEV_CONFIG_TPL,
     PROJECT_TAG_KEY,
     REGION,
     VLAB_TAG_KEY,
@@ -82,7 +83,11 @@ def pcluster_create(vlab_id: str, project_id: str, keyname: str, options: dict =
     CONFIG_VALUES["efs_id"] = get_efs(efs_client)
     CONFIG_VALUES["ssh_key"] = keyname
     logger.debug(f"Config values: {CONFIG_VALUES}")
-    with open(PCLUSTER_CONFIG_TPL, "r") as f:
+    if options["dev"].lower() == "true":
+        pcluster_config_path = PCLUSTER_DEV_CONFIG_TPL
+    else:
+        pcluster_config_path = PCLUSTER_CONFIG_TPL
+    with open(pcluster_config_path, "r") as f:
         pcluster_config = load_yaml_extended(f, CONFIG_VALUES)
 
     logger.debug("Adding tags")

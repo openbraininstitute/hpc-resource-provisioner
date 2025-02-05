@@ -1,0 +1,62 @@
+---
+Region: us-east-1
+Image:
+  Os: alinux2
+  # CustomAmi: ami-08e31a824b0e1ec59  # alinux2-x86-sbo-pcluster-v5
+Monitoring:
+  Logs:
+    CloudWatch:
+      RetentionInDays: 90
+      DeletionPolicy: Delete
+HeadNode: !include _head_node.tpl.yaml
+Scheduling:
+  Scheduler: slurm
+  SlurmSettings:
+    EnableMemoryBasedScheduling: true
+    # CustomSlurmSettingsIncludeFile: s3://sboinfrastructureassets/config/slurm_extras.conf
+  SlurmQueues: !include _slurm_queues.tpl.yaml
+Imds:
+  ImdsSupport: v2.0
+SharedStorage:
+  - Name: Efs-Home
+    StorageType: Efs
+    MountDir: /sbo/home
+    EfsSettings:
+      FileSystemId: !config efs_id
+  - Name: FsxLustre-Persistent
+    StorageType: FsxLustre
+    MountDir: /sbo/data
+    FsxLustreSettings:
+      DeploymentType: PERSISTENT_2
+      StorageCapacity: 1200  # minimum allowed is 1.2TB
+      PerUnitStorageThroughput: 250  # 250Mpbs/TiB (similar to SCRATCH_2)
+      DataCompressionType: LZ4  # Data compression for higher-throughput between OSSs <-> OSTs
+      DataRepositoryAssociations:
+        - Name: Containers-DRA
+          BatchImportMetaDataOnCreate: true
+          DataRepositoryPath: s3://sboinfrastructureassets-sandbox/containers
+          FileSystemPath: /containers
+          AutoImportPolicy: [NEW, CHANGED, DELETED]
+          DeletionPolicy: Retain
+        - Name: Nexus-DRA
+          BatchImportMetaDataOnCreate: true
+          DataRepositoryPath: s3://sbonexusdata-sandbox
+          FileSystemPath: /project
+          AutoExportPolicy: [NEW, CHANGED, DELETED]
+          AutoImportPolicy: [NEW, CHANGED, DELETED]
+          DeletionPolicy: Retain
+  # - Name: FsxLustre-Scratch
+  #   MountDir: /sbo/data
+  #   FsxLustreSettings:
+  #     DeploymentType: SCRATCH_2
+  #     StorageCapacity: 1200  # minimum allowed is 1.2TB
+  #     PerUnitStorageThroughput: 250  # 250Mpbs/TiB (similar to SCRATCH_2)
+  #     DataCompressionType: LZ4  # Data compression for higher-throughput between OSSs <-> OSTs
+  #     DataRepositoryAssociations:
+  #       - Name: Scratch-DRA
+  #         BatchImportMetaDataOnCreate: true
+  #         DataRepositoryPath: s3://sbosandbox-lec3cn
+  #         FileSystemPath: /scratch
+  #         AutoExportPolicy: [NEW, CHANGED, DELETED]
+  #         AutoImportPolicy: [NEW, CHANGED, DELETED]
+  #         DeletionPolicy: Retain
