@@ -1,10 +1,9 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=64", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "hpc_provisioner"
-version = "0.5.9.0"
 dependencies = [
     "aws-parallelcluster",
     "boto3",
@@ -21,6 +20,13 @@ classifiers = [
     "Topic :: Scientific/Engineering",
     "License :: OSI Approved :: Apache Software License",
 ]
+dynamic = ["version"]
+
+[tool.setuptools_scm]
+version_file = "_version.py"
+local_scheme = "no-local-version"
+relative_to = "pyproject.toml"
+root = ".."
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov"]
