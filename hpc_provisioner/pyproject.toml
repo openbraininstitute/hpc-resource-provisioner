@@ -23,8 +23,10 @@ classifiers = [
 dynamic = ["version"]
 
 [tool.setuptools_scm]
-version_file = "hpc_provisioner/_version.py"
+version_file = "_version.py"
 local_scheme = "no-local-version"
+relative_to = "pyproject.toml"
+root = ".."
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov"]

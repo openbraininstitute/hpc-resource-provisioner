@@ -25,7 +25,7 @@ jobs:
           install-cmd: pip install ./hpc_provisioner
       - name: Determine version
         run: |
-          echo REL_TAG=$(awk '/version =/ {print $3}' hpc_provisioner/_version.py | tr -d '"') >> $GITHUB_ENV
+          echo REL_TAG=$(awk '/^__version__ = version =/ {print $5}' hpc_provisioner/_version.py | tr -d "'") >> $GITHUB_ENV
       - name: Create and upload tag ${{ env.REL_TAG }}
         run: |
           git config user.name github-actions
