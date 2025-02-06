@@ -20,6 +20,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-tags: true
+      - name: debug output
+        run: |
+          git tag
+          git log --graph --all --decorate
       - name: Install virtualenv
         uses: getsentry/action-setup-venv@v2.0.0
         with:
