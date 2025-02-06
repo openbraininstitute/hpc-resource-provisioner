@@ -49,8 +49,8 @@ jobs:
           AWS_PATH=hpc/resource-provisioner
           docker build --build-arg SETUPTOOLS_SCM_PRETEND_VERSION=${REL_TAG} --label "org.opencontainers.image.checksum=${SOURCE_CHECKSUM}" --label "org.opencontainers.image.software_version=${REL_TAG}" -t ${AWS_PATH}:${REL_TAG} .
           echo "Setting tags for aws ecr"
-          docker image tag ${GHCR_PATH}:${REL_TAG} ${AWS_URI}/${AWS_PATH}:${REL_TAG}
-          docker image tag ${GHCR_PATH}:${REL_TAG} ${AWS_URI}/${AWS_PATH}:latest
+          docker image tag ${AWS_PATH}:${REL_TAG} ${AWS_URI}/${AWS_PATH}:${REL_TAG}
+          docker image tag ${AWS_PATH}:${REL_TAG} ${AWS_URI}/${AWS_PATH}:latest
           echo "Pushing to aws ecr"
           docker push ${AWS_URI}/${AWS_PATH}:${REL_TAG}
           docker push ${AWS_URI}/${AWS_PATH}:latest
