@@ -21,10 +21,6 @@ jobs:
         with:
           fetch-tags: true
           fetch-depth: 0
-      - name: debug output
-        run: |
-          git tag
-          git log --graph --all --decorate
       - name: Install virtualenv
         uses: getsentry/action-setup-venv@v2.0.0
         with:
@@ -51,7 +47,7 @@ jobs:
           SOURCE_CHECKSUM=$(find hpc_provisioner -type f -exec sha256sum {} \; | sha256sum | awk '{print $1}')
           AWS_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
           AWS_PATH=hpc/resource-provisioner
-          docker build --label "org.opencontainers.image.checksum=${SOURCE_CHECKSUM}" --label "org.opencontainers.image.software_version=${REL_TAG}" -t ${AWS_PATH}:${REL_TAG} .
+          docker build --build-arg SETUPTOOLS_SCM_PRETEND_VERSION=${REL_TAG} --label "org.opencontainers.image.checksum=${SOURCE_CHECKSUM}" --label "org.opencontainers.image.software_version=${REL_TAG}" -t ${AWS_PATH}:${REL_TAG} .
           echo "Setting tags for aws ecr"
           docker image tag ${GHCR_PATH}:${REL_TAG} ${AWS_URI}/${AWS_PATH}:${REL_TAG}
           docker image tag ${GHCR_PATH}:${REL_TAG} ${AWS_URI}/${AWS_PATH}:latest
