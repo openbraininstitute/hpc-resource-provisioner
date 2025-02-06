@@ -28,17 +28,6 @@ jobs:
           git tag -a $REL_TAG -m "${REL_TAG}"
           git push origin $REL_TAG
         working-directory: ${{runner.workspace}}/hpc-resource-provisioner
-      - name: Authenticate with ghcr
-        uses: docker/login-action@v3.3.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN }}
-      - name: Authenticate with docker-hub
-        uses: docker/login-action@v3.3.0
-        with:
-          username: ${{ secrets.BBPBUILDBOT_DOCKERHUB_USER }}
-          password: ${{ secrets.BBPBUILDBOT_DOCKERHUB_PASSWORD }}
       - name: Authenticate with AWS ECR
         uses: docker/login-action@v3.3.0
         with:
@@ -48,19 +37,12 @@ jobs:
       - name: Build and push container
         run: |
           SOURCE_CHECKSUM=$(find hpc_provisioner -type f -exec sha256sum {} \; | sha256sum | awk '{print $1}')
-          GHCR_PATH=openbraininstitute/hpc-resource-provisioner
           AWS_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
           AWS_PATH=hpc/resource-provisioner
-          docker build --label "org.opencontainers.image.checksum=${SOURCE_CHECKSUM}" --label "org.opencontainers.image.software_version=${REL_TAG}" -t ${GHCR_PATH}:${REL_TAG} .
-          echo "Setting tags for ghcr"
-          docker image tag ${GHCR_PATH}:${REL_TAG} ghcr.io/${GHCR_PATH}:${REL_TAG}
-          docker image tag ${GHCR_PATH}:${REL_TAG} ghcr.io/${GHCR_PATH}:latest
+          docker build --label "org.opencontainers.image.checksum=${SOURCE_CHECKSUM}" --label "org.opencontainers.image.software_version=${REL_TAG}" -t ${AWS_PATH}:${REL_TAG} .
           echo "Setting tags for aws ecr"
           docker image tag ${GHCR_PATH}:${REL_TAG} ${AWS_URI}/${AWS_PATH}:${REL_TAG}
           docker image tag ${GHCR_PATH}:${REL_TAG} ${AWS_URI}/${AWS_PATH}:latest
-          echo "Pushing to ghcr"
-          docker push ghcr.io/${GHCR_PATH}:${REL_TAG}
-          docker push ghcr.io/${GHCR_PATH}:latest
           echo "Pushing to aws ecr"
           docker push ${AWS_URI}/${AWS_PATH}:${REL_TAG}
           docker push ${AWS_URI}/${AWS_PATH}:latest
