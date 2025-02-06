@@ -30,6 +30,7 @@ jobs:
         run: |
           echo REL_TAG=$(awk '/^__version__ = version =/ {print $5}' hpc_provisioner/_version.py | tr -d "'") >> $GITHUB_ENV
       - name: Create and upload tag ${{ env.REL_TAG }}
+        if: ${{ ! contains(env.REL_TAG, 'dev*') }}
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
