@@ -18,6 +18,11 @@ jobs:
     steps:
       - name: clone repo
         uses: actions/checkout@v4
+      - name: Install virtualenv
+        uses: getsentry/action-setup-venv@v2.0.0
+        with:
+          python-version: 3.12
+          install-cmd: pip install ./hpc_provisioner
       - name: Determine version
         run: |
           echo REL_TAG=$(awk '/version =/ {print $3}' hpc_provisioner/_version.py | tr -d '"') >> $GITHUB_ENV
