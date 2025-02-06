@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: clone repo
         uses: actions/checkout@v4
+        with:
+          fetch-tags: true
       - name: Install virtualenv
         uses: getsentry/action-setup-venv@v2.0.0
         with:
