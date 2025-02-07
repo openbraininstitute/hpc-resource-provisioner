@@ -118,6 +118,9 @@ def pcluster_create(vlab_id: str, project_id: str, keyname: str, options: dict =
     except CreateClusterBadRequestException as e:
         logger.critical(f"Exception: {e.content}")
         raise
+    except Exception as e:
+        logger.critical(f"Exception: {e}")
+        raise
     finally:
         logger.debug("Cleaning up temporary config file")
         pathlib.Path(output_file.name).unlink()
