@@ -158,6 +158,8 @@ def _get_vlab_query_params(event):
         if keyname is None:
             logger.debug(f"getting keyname from {options}")
             keyname = options.pop("keyname", None)
+    else:
+        options = event.get("options", {})
 
     if vlab_id is None:
         raise InvalidRequest("missing required 'vlab_id' query param")
