@@ -56,7 +56,7 @@ def pcluster_create(vlab_id: str, project_id: str, keyname: str, options: dict =
             All possible options can be seen in DEFAULTS.
 
     """
-    logger.info(f"Creating pcluster: {vlab_id}-{project_id}")
+    logger.info(f"Creating pcluster: {vlab_id}-{project_id} with options {options}")
     if not options:
         options = {}
     for k, default in DEFAULTS.items():
