@@ -46,6 +46,7 @@ SharedStorage:
           AutoImportPolicy: [NEW, CHANGED, DELETED]
           # DeletionPolicy: Retain
   - Name: FsxLustre-Scratch
+    StorageType: FsxLustre
     MountDir: /sbo/data
     FsxLustreSettings:
       DeploymentType: SCRATCH_2
@@ -59,4 +60,4 @@ SharedStorage:
           FileSystemPath: /scratch
           AutoExportPolicy: [NEW, CHANGED, DELETED]
           AutoImportPolicy: [NEW, CHANGED, DELETED]
-          DeletionPolicy: Retain
+          # DeletionPolicy: Retain
