@@ -11,7 +11,7 @@ import boto3
 import yaml
 from botocore.client import ClientError
 from pcluster import lib as pc
-from pcluster.api.errors import CreateClusterBadRequestException
+from pcluster.api.errors import CreateClusterBadRequestException, InternalServiceException
 
 from hpc_provisioner.aws_queries import (
     get_available_subnet,
@@ -118,8 +118,8 @@ def pcluster_create(vlab_id: str, project_id: str, keyname: str, options: dict =
     except CreateClusterBadRequestException as e:
         logger.critical(f"Exception: {e.content}")
         raise
-    except Exception as e:
-        logger.critical(f"Exception: {e}")
+    except InternalServiceException as e:
+        logger.critical(f"Exception: {e.content}")
         raise
     finally:
         logger.debug("Cleaning up temporary config file")
