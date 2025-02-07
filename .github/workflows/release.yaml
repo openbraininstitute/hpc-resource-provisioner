@@ -21,12 +21,11 @@ jobs:
         with:
           fetch-tags: true
           fetch-depth: 0
-      - name: Install virtualenv
-        uses: getsentry/action-setup-venv@v2.0.0
-        with:
-          python-version: 3.12
-          venv-dir: venv
-          install-cmd: pip install ./hpc_provisioner
+      - name: Install resource provisioner
+        run: |-
+          python3 -m venv venv
+          source venv/bin/activate
+          pip install ./hpc_provisioner
       - name: Determine version
         run: |
           echo REL_TAG=$(ls -d venv/lib/python3*/site-packages/hpc_provisioner*dist-info | awk -F- '{print $3}' | sed 's/.dist//') >> $GITHUB_ENV
