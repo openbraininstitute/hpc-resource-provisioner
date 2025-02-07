@@ -9,6 +9,9 @@ ADD hpc_provisioner /opt/hpc_provisioner
 RUN python3 -m pip install /opt/hpc_provisioner
 
 COPY patches/model.py /var/lang/lib/python3.12/site-packages/pcluster/cli/model.py
+COPY patches/middleware.py /var/lang/lib/python3.12/site-packages/pcluster/cli/middleware.py
+COPY patches/entrypoint.py /var/lang/lib/python3.12/site-packages/pcluster/cli/entrypoint.py
+COPY patches/common.py /var/lang/lib/python3.12/site-packages/pcluster/api/controllers/common.py
 
 WORKDIR /opt/hpc_provisioner/src/hpc_provisioner
 
