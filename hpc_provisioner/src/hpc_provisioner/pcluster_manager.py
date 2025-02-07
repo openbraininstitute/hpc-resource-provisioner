@@ -11,6 +11,7 @@ import boto3
 import yaml
 from botocore.client import ClientError
 from pcluster import lib as pc
+from pcluster.api.errors import CreateClusterBadRequestException
 
 from hpc_provisioner.aws_queries import (
     get_available_subnet,
@@ -114,6 +115,9 @@ def pcluster_create(vlab_id: str, project_id: str, keyname: str, options: dict =
     try:
         logger.debug("Actual create_cluster command")
         return pc.create_cluster(cluster_name=cluster_name, cluster_configuration=output_file.name)
+    except CreateClusterBadRequestException as e:
+        logger.critical(f"Exception: {e}")
+        raise
     finally:
         logger.debug("Cleaning up temporary config file")
         pathlib.Path(output_file.name).unlink()
