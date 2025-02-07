@@ -65,3 +65,5 @@ jobs:
           body: |-
             Latest container image will always be: `docker pull ghcr.io/openbraininstitute/hpc-resource-provisioner:latest`
             This particular version is `docker pull ghcr.io/openbraininstitute/hpc-resource-provisioner:${{ env.REL_TAG }}`
+      - name: Version log
+        run: echo ::notice title=hpc-resource-provisioner version::${{ env.REL_TAG }}
