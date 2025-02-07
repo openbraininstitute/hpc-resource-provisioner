@@ -8,6 +8,8 @@ RUN dnf -y install nodejs findutils && python3 -m pip install aws-parallelcluste
 ADD hpc_provisioner /opt/hpc_provisioner
 RUN python3 -m pip install /opt/hpc_provisioner
 
+COPY patches/model.py /var/lang/lib/python3.12/site-packages/pcluster/cli/model.py
+
 WORKDIR /opt/hpc_provisioner/src/hpc_provisioner
 
 ENTRYPOINT ["/var/lang/bin/python3", "-m", "awslambdaric"]
