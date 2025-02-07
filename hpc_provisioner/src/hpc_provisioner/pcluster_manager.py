@@ -116,7 +116,7 @@ def pcluster_create(vlab_id: str, project_id: str, keyname: str, options: dict =
         logger.debug("Actual create_cluster command")
         return pc.create_cluster(cluster_name=cluster_name, cluster_configuration=output_file.name)
     except CreateClusterBadRequestException as e:
-        logger.critical(f"Exception: {e}")
+        logger.critical(f"Exception: {e.content}")
         raise
     finally:
         logger.debug("Cleaning up temporary config file")
