@@ -37,14 +37,14 @@ SharedStorage:
           DataRepositoryPath: s3://sboinfrastructureassets-sandbox/containers
           FileSystemPath: /containers
           AutoImportPolicy: [NEW, CHANGED, DELETED]
-          DeletionPolicy: Retain
+          # DeletionPolicy: Retain
         - Name: Nexus-DRA
           BatchImportMetaDataOnCreate: true
           DataRepositoryPath: s3://sbonexusdata-sandbox
           FileSystemPath: /project
           AutoExportPolicy: [NEW, CHANGED, DELETED]
           AutoImportPolicy: [NEW, CHANGED, DELETED]
-          DeletionPolicy: Retain
+          # DeletionPolicy: Retain
   - Name: FsxLustre-Scratch
     MountDir: /sbo/data
     FsxLustreSettings:
