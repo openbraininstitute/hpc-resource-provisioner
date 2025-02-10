@@ -6,6 +6,7 @@ import logging
 import logging.config
 import pathlib
 import tempfile
+from typing import Optional
 
 import boto3
 import yaml
@@ -47,7 +48,7 @@ class InvalidRequest(Exception):
     """When the request is invalid, likely due to invalid or missing data"""
 
 
-def pcluster_create(vlab_id: str, project_id: str, keyname: str, options: dict = None):
+def pcluster_create(vlab_id: str, project_id: str, keyname: str, options: Optional[dict] = None):
     """Create a pcluster for a given vlab
 
     Args:
@@ -99,9 +100,14 @@ def pcluster_create(vlab_id: str, project_id: str, keyname: str, options: dict =
     tags.append({"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE})
     logger.debug(f"Tags: {tags}")
 
-    if options["tier"] == "lite":
+    available_tiers = [q["Name"] for q in pcluster_config["Scheduling"]["SlurmQueues"]]
+    if options["tier"] not in available_tiers:
+        raise ValueError(
+            f"Tier {options['tier']} not available - choose from {', '.join(available_tiers)}"
+        )
+    else:
         queues = pcluster_config["Scheduling"]["SlurmQueues"]
-        del queues[1:]
+        queues = [next(q for q in queues if q["Name"] == options["tier"])]
 
     output_file = f"deployment-{cluster_name}.yaml"
     output_file = tempfile.NamedTemporaryFile(delete=False)

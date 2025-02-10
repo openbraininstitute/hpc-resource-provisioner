@@ -5,9 +5,10 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 from botocore.client import ClientError
+from pcluster.api.errors import NotFoundException
+
 from hpc_provisioner import handlers
 from hpc_provisioner.pcluster_manager import InvalidRequest
-from pcluster.api.errors import NotFoundException
 
 logger = logging.getLogger("test_logger")
 fmt = logging.Formatter("[%(asctime)s] [%(levelname)s] %(msg)s")
@@ -182,6 +183,7 @@ def test_post(patched_boto3, post_event, key_exists):
                 "vlab_id": post_event["vlab_id"],
                 "project_id": post_event["project_id"],
                 "keyname": f"pcluster-{post_event['vlab_id']}-{post_event['project_id']}",
+                "options": {},
             }
         ),
     )

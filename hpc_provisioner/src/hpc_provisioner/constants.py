@@ -10,7 +10,7 @@ AVAILABLE_IPS_IN_UNUSED_SUBNET = 251
 REGION = "us-east-1"  # TODO: don't hardcode?
 
 DEFAULTS = {
-    "tier": "lite",
+    "tier": "debug",
     "fs_type": "efs",
     "project_id": "-",
     "dev": "false",
