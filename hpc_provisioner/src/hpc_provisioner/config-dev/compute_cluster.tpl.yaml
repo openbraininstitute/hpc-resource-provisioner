@@ -37,7 +37,7 @@ SharedStorage:
           BatchImportMetaDataOnCreate: true
           DataRepositoryPath: s3://sboinfrastructureassets-sandbox/containers
           FileSystemPath: /containers
-          AutoImportPolicy: '["NEW", "CHANGED", "DELETED"]'
+          AutoImportPolicy: [NEW, CHANGED, DELETED]
       # - Name: Nexus-DRA
       #   BatchImportMetaDataOnCreate: true
       #   DataRepositoryPath: s3://sbonexusdata-sandbox
