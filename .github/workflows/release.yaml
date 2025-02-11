@@ -52,9 +52,15 @@ jobs:
           echo "Setting tags for aws ecr"
           docker image tag ${AWS_PATH}:${REL_TAG} ${AWS_URI}/${AWS_PATH}:${REL_TAG}
           docker image tag ${AWS_PATH}:${REL_TAG} ${AWS_URI}/${AWS_PATH}:latest
+          if [[ "${REL_TAG}" == *"dev"* ]]
+          then
+            docker image tag ${AWS_PATH}:${REL_TAG} ${AWS_URI}/${AWS_PATH}:latest-dev
+            docker push ${AWS_URI}/${AWS_PATH}:latest-dev
+          else
+            docker push ${AWS_URI}/${AWS_PATH}:latest
+          fi
           echo "Pushing to aws ecr"
           docker push ${AWS_URI}/${AWS_PATH}:${REL_TAG}
-          docker push ${AWS_URI}/${AWS_PATH}:latest
         working-directory: ${{runner.workspace}}/hpc-resource-provisioner
       - name: Release
         uses: softprops/action-gh-release@v2
