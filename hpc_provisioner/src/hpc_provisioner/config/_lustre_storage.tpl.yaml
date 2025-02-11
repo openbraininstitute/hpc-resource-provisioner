@@ -1,3 +1,4 @@
+---
 Name: FsxLustre-Persistent
 StorageType: FsxLustre
 MountDir: /sbo/data
@@ -11,11 +12,17 @@ FsxLustreSettings:
       BatchImportMetaDataOnCreate: true
       DataRepositoryPath: s3://sbonexusdata
       FileSystemPath: /project
-      AutoExportPolicy: [ NEW, CHANGED, DELETED ]
-      AutoImportPolicy: [ NEW, CHANGED, DELETED ]
+      AutoExportPolicy: [NEW, CHANGED, DELETED]
+      AutoImportPolicy: [NEW, CHANGED, DELETED]
     - Name: Containers-DRA
       BatchImportMetaDataOnCreate: true
       DataRepositoryPath: s3://sboinfrastructureassets/containers
       FileSystemPath: /containers
-      AutoExportPolicy: [ NEW, CHANGED, DELETED ]
-      AutoImportPolicy: [ NEW, CHANGED, DELETED ]
+      AutoExportPolicy: [NEW, CHANGED, DELETED]
+      AutoImportPolicy: [NEW]
+    - Name: Scratch-DRA
+      BatchImportMetaDataOnCreate: true
+      DataRepositoryPath: s3://sbo-scatch-wu9hk9
+      FileSystemPath: /scratch
+      AutoExportPolicy: [NEW, CHANGED, DELETED]
+      AutoImportPolicy: [NEW, CHANGED, DELETED]
