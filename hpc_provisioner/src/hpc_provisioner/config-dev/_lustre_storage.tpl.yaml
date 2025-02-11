@@ -19,7 +19,7 @@ FsxLustreSettings:
       DataRepositoryPath: s3://sboinfrastructureassets-sandbox/containers
       FileSystemPath: /containers
       AutoExportPolicy: [NEW, CHANGED, DELETED]
-      AutoImportPolicy: []
+      AutoImportPolicy: [NEW]
     - Name: Scratch-DRA
       BatchImportMetaDataOnCreate: true
       DataRepositoryPath: s3://sbosandbox-lec3cn
