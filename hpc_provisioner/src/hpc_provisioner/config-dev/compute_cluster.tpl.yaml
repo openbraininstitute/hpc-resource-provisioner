@@ -2,7 +2,7 @@
 Region: us-east-1
 Image:
   Os: alinux2
-  # CustomAmi: ami-08e31a824b0e1ec59  # alinux2-x86-sbo-pcluster-v5
+  CustomAmi: ami-08e31a824b0e1ec59  # alinux2-x86-sbo-pcluster-v5
 Monitoring:
   Logs:
     CloudWatch:
