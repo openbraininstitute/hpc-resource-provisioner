@@ -1,7 +1,7 @@
 ---
 Region: us-east-1
 Image:
-  Os: alinux2
+  Os: alinux2023
   CustomAmi: ami-003f75500cf489224  # alinux2-x86-sbo-pcluster-v5
 Monitoring:
   Logs:
