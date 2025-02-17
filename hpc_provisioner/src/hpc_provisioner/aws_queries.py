@@ -247,5 +247,5 @@ def remove_key(keypair_name: str) -> None:
     logger.debug(f"Keypair deletion response: {client_delete}")
 
     logger.debug("Deleting secret from SecretsManager")
-    secret_delete = sm_client.delete_secret(SecretId=keypair_name, RecoveryWindowInDays=7)
+    secret_delete = sm_client.delete_secret(SecretId=keypair_name, ForceDeleteWithoutRecovery=True)
     logger.debug(f"Secret deletion response: {secret_delete}")

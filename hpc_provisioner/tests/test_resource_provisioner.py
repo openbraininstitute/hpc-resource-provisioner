@@ -5,9 +5,10 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 from botocore.client import ClientError
-from hpc_provisioner import handlers
-from hpc_provisioner.pcluster_manager import InvalidRequest
 from pcluster.api.errors import NotFoundException
+
+from hpc_provisioner import handlers, pcluster_manager
+from hpc_provisioner.pcluster_manager import InvalidRequest
 
 logger = logging.getLogger("test_logger")
 fmt = logging.Formatter("[%(asctime)s] [%(levelname)s] %(msg)s")
@@ -182,6 +183,7 @@ def test_post(patched_boto3, post_event, key_exists):
                 "vlab_id": post_event["vlab_id"],
                 "project_id": post_event["project_id"],
                 "keyname": f"pcluster-{post_event['vlab_id']}-{post_event['project_id']}",
+                "options": {},
             }
         ),
     )
@@ -363,3 +365,19 @@ def test_http_method_not_specified():
         "statusCode": 400,
         "body": "Could not determine HTTP method - make sure to GET, POST or DELETE",
     }
+
+
+@pytest.mark.parametrize("tier,is_valid", [("prod-mpi", True), ("extra-expensive", False)])
+def test_load_tier(tier, is_valid):
+    pcluster_config = {
+        "Scheduling": {"SlurmQueues": [{"Name": "debug"}, {"Name": "prod-mpi"}, {"Name": "lite"}]}
+    }
+    options = {"tier": tier}
+    if is_valid:
+        queues = pcluster_manager.choose_tier(pcluster_config, options)
+        logger.debug(pcluster_config)
+        assert len(queues) == 1
+        assert queues[0]["Name"] == tier
+    else:
+        with pytest.raises(ValueError):
+            pcluster_manager.choose_tier(pcluster_config, options)

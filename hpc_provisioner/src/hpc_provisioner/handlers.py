@@ -65,7 +65,7 @@ def pcluster_handler(event, _context=None):
 def pcluster_create_request_handler(event, _context=None):
     """Request the creation of an HPC cluster for a given vlab_id and project_id"""
 
-    vlab_id, project_id, _, _ = _get_vlab_query_params(event)
+    vlab_id, project_id, _, options = _get_vlab_query_params(event)
     ec2_client = boto3.client("ec2")
     sm_client = boto3.client("secretsmanager")
     ssh_keypair = create_keypair(
@@ -85,7 +85,12 @@ def pcluster_create_request_handler(event, _context=None):
     boto3.client("lambda").invoke_async(
         FunctionName="hpc-resource-provisioner-creator",
         InvokeArgs=json.dumps(
-            {"vlab_id": vlab_id, "project_id": project_id, "keyname": ssh_keypair["KeyName"]}
+            {
+                "vlab_id": vlab_id,
+                "project_id": project_id,
+                "keyname": ssh_keypair["KeyName"],
+                "options": options,
+            }
         ),
     )
     logger.debug("called create lambda async")
@@ -153,6 +158,8 @@ def _get_vlab_query_params(event):
         if keyname is None:
             logger.debug(f"getting keyname from {options}")
             keyname = options.pop("keyname", None)
+    else:
+        options = event.get("options", {})
 
     if vlab_id is None:
         raise InvalidRequest("missing required 'vlab_id' query param")
