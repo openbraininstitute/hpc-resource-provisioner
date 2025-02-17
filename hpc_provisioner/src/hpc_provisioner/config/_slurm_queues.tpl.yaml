@@ -16,14 +16,14 @@
     - !config base_security_group_id
   # Iam:
   #   S3Access:
-  #     - BucketName: sboinfrastructureassets
+  #     - BucketName: sboinfrastructureassets-sandbox
   # CustomActions:
   #   OnNodeConfigured:
   #     Sequence:
-  #       - Script: s3://sboinfrastructureassets/scripts/create_users.py
+  #       - Script: s3://sboinfrastructureassets-sandbox/scripts/create_users.py
   #         Args:
   #           - /sbo/home/resources/users.json
-  #       - Script: s3://sboinfrastructureassets/scripts/setup_environment_compute.sh
+  #       - Script: s3://sboinfrastructureassets-sandbox/scripts/setup_environment_compute.sh
   CustomSlurmSettings:
     MaxNodes: 8
     MaxTime: 1-00:00:00
@@ -61,14 +61,14 @@
     MaxTime: 720
   Iam:
     S3Access:
-      - BucketName: sboinfrastructureassets
-  CustomActions:
-    OnNodeConfigured:
-      Sequence:
-        - Script: s3://sboinfrastructureassets/scripts/create_users.py
-          Args:
-            - /sbo/home/resources/users.json
-        - Script: s3://sboinfrastructureassets/scripts/setup_environment_compute.sh
+      - BucketName: sboinfrastructureassets-sandbox
+  # CustomActions:
+  #   OnNodeConfigured:
+  #     Sequence:
+  #       - Script: s3://sboinfrastructureassets-sandbox/scripts/create_users.py
+  #         Args:
+  #           - /sbo/home/resources/users.json
+  #       - Script: s3://sboinfrastructureassets-sandbox/scripts/setup_environment_compute.sh
 
 # ====================================
 # prod-batch queue, for benchmarking
@@ -104,11 +104,11 @@
     MaxTime: 120
   Iam:
     S3Access:
-      - BucketName: sboinfrastructureassets
-  CustomActions:
-    OnNodeConfigured:
-      Sequence:
-        - Script: s3://sboinfrastructureassets/scripts/create_users.py
-          Args:
-            - /sbo/home/resources/users.json
-        - Script: s3://sboinfrastructureassets/scripts/setup_environment_compute.sh
+      - BucketName: sboinfrastructureassets-sandbox
+  # CustomActions:
+  #   OnNodeConfigured:
+  #     Sequence:
+  #       - Script: s3://sboinfrastructureassets-sandbox/scripts/create_users.py
+  #         Args:
+  #           - /sbo/home/resources/users.json
+  #       - Script: s3://sboinfrastructureassets-sandbox/scripts/setup_environment_compute.sh
