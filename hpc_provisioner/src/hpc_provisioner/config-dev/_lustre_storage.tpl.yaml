@@ -11,19 +11,19 @@ FsxLustreSettings:
   DataRepositoryAssociations:
     - Name: Nexus-DRA
       BatchImportMetaDataOnCreate: true
-      DataRepositoryPath: s3://sbonexusdata-sandbox
+      DataRepositoryPath: !config sbonexusdata_bucket
       FileSystemPath: /project
       AutoExportPolicy: [NEW]
       AutoImportPolicy: [NEW, CHANGED, DELETED]
     - Name: Containers-DRA
       BatchImportMetaDataOnCreate: true
-      DataRepositoryPath: s3://sboinfrastructureassets-sandbox/containers
+      DataRepositoryPath: !config containers_bucket
       FileSystemPath: /containers
       AutoExportPolicy: [NEW]
       AutoImportPolicy: [NEW, CHANGED, DELETED]
     - Name: Scratch-DRA
       BatchImportMetaDataOnCreate: true
-      DataRepositoryPath: s3://sbosandbox-lec3cn
+      DataRepositoryPath: !config scratch_bucket
       FileSystemPath: /scratch
       AutoExportPolicy: [NEW, CHANGED, DELETED]
       AutoImportPolicy: [NEW, CHANGED, DELETED]

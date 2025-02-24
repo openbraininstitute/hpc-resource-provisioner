@@ -34,6 +34,7 @@ from hpc_provisioner.constants import (
     VLAB_TAG_KEY,
 )
 from hpc_provisioner.logging_config import LOGGING_CONFIG
+from hpc_provisioner.utils import get_containers_bucket, get_sbonexusdata_bucket, get_scratch_bucket
 from hpc_provisioner.yaml_loader import load_yaml_extended
 
 logging.config.dictConfig(LOGGING_CONFIG)
@@ -58,6 +59,9 @@ def populate_config(cluster_name: str, keyname: str) -> None:
     CONFIG_VALUES["base_security_group_id"] = get_security_group(ec2_client)
     CONFIG_VALUES["efs_id"] = get_efs(efs_client)
     CONFIG_VALUES["ssh_key"] = keyname
+    CONFIG_VALUES["sbonexusdata_bucket"] = get_sbonexusdata_bucket()
+    CONFIG_VALUES["containers_bucket"] = get_containers_bucket()
+    CONFIG_VALUES["scratch_bucket"] = get_scratch_bucket()
     logger.debug(f"Config values: {CONFIG_VALUES}")
 
 
