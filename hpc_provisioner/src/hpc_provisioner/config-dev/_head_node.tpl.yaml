@@ -1,21 +1,22 @@
+---
 InstanceType: t3.medium
 Networking:
-  SubnetId: !config base_subnet_id # compute
+  SubnetId: !config base_subnet_id  # compute
   SecurityGroups:
-  - !config base_security_group_id # sbo-poc-compute / hpc
+    - !config base_security_group_id  # sbo-poc-compute / hpc
 Ssh:
   KeyName: !config ssh_key  # for PoC, taken from parallel-cluster repo
   # KeyName: compute-cluster-key  # for sandbox
 # Iam:
 #   S3Access:
 #     - BucketName: sboinfrastructureassets
-#       EnableWriteAccess: True
-# CustomActions:
-#   OnNodeConfigured:
-#     Sequence:
-#       - Script: s3://sboinfrastructureassets/scripts/create_users.py
-#         Args:
-#           - /sbo/home/resources/users.json
+#       EnableWriteAccess: true
+CustomActions:
+  OnNodeConfigured:
+    Sequence:
+      - Script: s3://sboinfrastructureassets-sandbox/scripts/create_users.py
+        Args:
+          - /sbo/home/resources/users.json
 #       - Script: s3://sboinfrastructureassets/scripts/all_or_nothing_allocation.sh
 #       - Script: s3://sboinfrastructureassets/scripts/setup_lustre_directories.py
 #         Args:
