@@ -14,6 +14,9 @@ Scheduling:
   SlurmSettings:
     EnableMemoryBasedScheduling: true
     # CustomSlurmSettingsIncludeFile: s3://sboinfrastructureassets/config/slurm_extras.conf
+    Dns:
+      DisableManagedDns: true
+      UseEc2Hostnames: true
   SlurmQueues: !include _slurm_queues.tpl.yaml
 Imds:
   ImdsSupport: v2.0
