@@ -149,6 +149,8 @@ def pcluster_create(vlab_id: str, project_id: str, keyname: str, options: Option
     pcluster_config = load_pcluster_config(options["dev"].lower() == "true")
     pcluster_config["Tags"] = populate_tags(pcluster_config, vlab_id, project_id)
     pcluster_config["Scheduling"]["SlurmQueues"] = choose_tier(pcluster_config, options)
+    if options["include_lustre"].lower() != "true":
+        pcluster_config["SharedStorage"].pop(1)
     output_file_name = write_config(cluster_name, pcluster_config)
 
     try:
