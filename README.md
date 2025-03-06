@@ -2,70 +2,56 @@
 
 The HPC Resource Provisioner is a small application that offers an API to manage the creation and deletion of parallel-clusters in AWS. When creating a parallel-cluster, consumers are expected to poll regularly to check the progress.
 
-## Uploading the container image to the POC
+## Releasing and uploading the container image
 
-By default, the `upload to ecr` job will upload the resource provisioner container images to the sandbox account. If you want to upload to the PoC account, you'll need to run the job manually and set the `ENVIRONMENT` variable to "production".
-
-Before running the job, however, you'll need to modify the AWS_CREDENTIALS variable. The reason for this is that it unfortunately includes a session token that expires and we haven't invested time into investigating why yet.
-
-To get the credentials, go to https://bbp-sbo-poc.awsapps.com/start/#/?tab=accounts and log in. On the access portal, click the `Access keys` link for the `FullECSContainersAccess` account and copy the contents of the AWS credentials file.
-Next, go to https://bbpgitlab.epfl.ch/hpc/hpc-resource-provisioner/-/settings/ci_cd and expand the Variables section, then edit the `AWS_CREDENTIALS` variable. Replace the value with the value you just copied and save the variable.
-
-## Manually uploading an image to the PoC ECR
-
-To get the credentials, go to https://bbp-sbo-poc.awsapps.com/start/#/?tab=accounts and log in. On the access portal, click the `Access keys` link for the `FullECSContainersAccess` account and copy the contents of the AWS credentials file. Put these in `~/.aws/credentials` (this can be a symlink if you're juggling multiple credential sets).
-Keep in mind that there's a session token included with these credentials, so they will become invalid after some time. At that point you'll have to perform this step again.
-
-Now you can log in (if you use docker, replace `podman` with `docker` and everything should work the same):
-
-```bash
-aws ecr get-login-password --profile 671250183987_FullECSContainersAccess --region us-east-1 | podman login --username AWS --password-stdin 671250183987.dkr.ecr.us-east-1.amazonaws.com
-```
-
-With all of this done, you can finally push:
-
-```bash
-podman push prov:$PROV_VERSION 671250183987.dkr.ecr.us-east-1.amazonaws.com/hpc-resource-provisioner:latest
-```
-
-## Installing locally
-
-Create a virtualenv and run `pip install .` in the repository root:
-
-```bash
-python3.12 -m venv venv
-pip install hpc_provisioner
-```
-
-You now have the `hpc-provisioner` entrypoint available in your virtualenv.
-
+There's a GitHub workflow called `Build and Release HPC Resource Provisioner` that allows for very easy releasing of new versions. Select the branch you want to create a release from, and an AWS environment to push the image to, and run the workflow.
 
 ## Manual Usage
 
-Using the HPC provisioner is fairly straightforward:
+If you have awscli configured to connect to the sandbox environment, it's fairly easy to get the necessary variables in your shell. Make sure the keypair for sandbox is the first entry in `~/.aws/credentials`
+
+`source ./sandbox.sh`
+
+Deploying a new cluster. You can run this command multiple times, as long as you specify the same `vlab_id` and `project_id` it will not deploy additional clusters.
+
+Parameters (specify them in alphabetical order!):
+* dev: optional: dev mode, when you need features that are currently still in development
+* include_lustre: optional: defaults to true: set to false if you don't need lustre, it speeds up deployment and is a lot cheaper
+* project_id: required: string to identify your project. Will be part of the cluster name.
+* tier: optional: which pcluster configuration you want to deploy. Default: debug (really tiny nodes). See ./hpc_provisioner/src/hpc_provisioner/config/_slurm_queues.tpl.yaml for possible values
+* vlab_id: required: string to identify your vlab. Will be part of the cluster name
 
 ```bash
-hpc-provisioner create my-pcluster
-hpc-provisioner describe my-pcluster
-hpc-provisioner delete my-pcluster
-hpc-provisioner list
+curl -X POST --user "${AWS_ACCESS_KEY_ID}:${AWS_SECRET_ACCESS_KEY}" --aws-sigv4 "aws:amz:${AWS_REGION}:execute-api" https://${AWS_APIGW_DEPLOY_ID}.execute-api.${AWS_REGION}.amazonaws.com/production/hpc-provisioner/pcluster\?project_id\=test1\&vlab_id\=my-pcluster | jq
 ```
 
-Manually calling the deployed API gateway is also possible. Save your AWS keypair as environment variables:
-
-```bash
-export AWS_ACCESS_KEY_ID=$(awk '/^aws_access_key_id/ {print $3}' ~/.aws/credentials)
-export AWS_SECRET_ACCESS_KEY=$(awk '/^aws_secret/ {print $3}' ~/.aws/credentials)
+This will give you a reply that looks like this:
+```json
+{
+  "cluster": {
+    "clusterName": "pcluster-my-pcluster-test1",
+    "clusterStatus": "CREATE_REQUEST_RECEIVED",
+    "private_ssh_key_arn": "arn:aws:secretsmanager:us-east-1:130659266700:secret:pcluster-my-pcluster-test1-T2Aggx"
+  }
+}
 ```
 
-You can get the URL from your API Gateway's Deployment page: in the AWS console, go to API Gateway -> hpc_resource_provisioner -> Stages -> fold out the stage you want down to the method you want and copy the Invoke URL.
-
-Now you can use curl - make sure to set the region in the `aws-sigv4` parameter to match the region in the URL:
+You can retrieve the private SSH key for accessing your cluster with the following awscli command:
 
 ```bash
-curl -X POST --user "${AWS_ACCESS_KEY_ID}:${AWS_SECRET_ACCESS_KEY}" --aws-sigv4 "aws:amz:us-east-1:execute-api" https://l1k1iw8me4.execute-api.us-east-1.amazonaws.com/production/hpc-provisioner/pcluster\?vlab_id\=my-pcluster
-curl -X GET --user "${AWS_ACCESS_KEY_ID}:${AWS_SECRET_ACCESS_KEY}" --aws-sigv4 "aws:amz:us-east-1:execute-api" https://l1k1iw8me4.execute-api.us-east-1.amazonaws.com/production/hpc-provisioner/pcluster\?vlab_id\=my-pcluster
-curl -X DELETE --user "${AWS_ACCESS_KEY_ID}:${AWS_SECRET_ACCESS_KEY}" --aws-sigv4 "aws:amz:us-east-1:execute-api" https://l1k1iw8me4.execute-api.us-east-1.amazonaws.com/production/hpc-provisioner/pcluster\?vlab_id\=my-pcluster
+aws secretsmanager get-secret-value --secret-id="arn:aws:secretsmanager:us-east-1:130659266700:secret:pcluster-my-pcluster-test1-T2Aggx" | jq -r .SecretString >| secret_key
+```
+
+Getting the status of your cluster:
+
+```bash
+curl -X GET --user "${AWS_ACCESS_KEY_ID}:${AWS_SECRET_ACCESS_KEY}" --aws-sigv4 "aws:amz:${AWS_REGION}:execute-api" https://${AWS_APIGW_DEPLOY_ID}.execute-api.${AWS_REGION}.amazonaws.com/production/hpc-provisioner/pcluster\?project_id\=test1\&vlab_id\=my-pcluster
+```
+
+Tearing down your cluster:
+
+```bash
+curl -X DELETE --user "${AWS_ACCESS_KEY_ID}:${AWS_SECRET_ACCESS_KEY}" --aws-sigv4 "aws:amz:${AWS_REGION}:execute-api" https://${AWS_APIGW_DEPLOY_ID}.execute-api.${AWS_REGION}.amazonaws.com/production/hpc-provisioner/pcluster\?project_id\=test1\&vlab_id\=my-pcluster
 ```
 
 Of course, you can also simply call the required method from the API definition n the AWS console: go to API Gateway -> hpc_resource_provisioner -> Resources -> fold out the resources down to the method you want and select the Test tab.
@@ -81,11 +67,26 @@ If you want to skip the API part and call the lambda directly, that's also possi
 
 You can replace the `httpMethod` with `POST` or `DELETE` as desired.
 
+
+## Installing locally
+
+You should probably not be doing this unless you have a good reason.
+
+Create a virtualenv and run `pip install .` in the repository root:
+
+```bash
+python3.12 -m venv venv
+pip install hpc_provisioner
+```
+
+You now have the `hpc-provisioner` entrypoint available in your virtualenv.
+
+
 ## Development
 
 ### Version
 
-When building, don't forget to bump the version number in hpc_provisioner/pyproject.toml - this is used to determine the container version!
+Versions are determined automatically by setuptools-scm.
 
 ### Tags
 
