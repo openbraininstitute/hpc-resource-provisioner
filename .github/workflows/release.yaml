@@ -6,7 +6,7 @@ on:
       environment:
         description: Which environment to push the image to
         type: choice
-        options: [aws-sandbox-hpc]
+        options: [aws-sandbox-hpc, public-ecr]
         required: true
         default: aws-sandbox-hpc
 jobs:
@@ -37,31 +37,44 @@ jobs:
           git tag -a $REL_TAG -m "${REL_TAG}"
           git push origin $REL_TAG
         working-directory: ${{runner.workspace}}/hpc-resource-provisioner
-      - name: Authenticate with AWS ECR
-        uses: docker/login-action@v3.3.0
+
+      # - name: Authenticate with AWS ECR
+      #   uses: docker/login-action@v3.3.0
+      #   with:
+      #     registry: ${{ secrets.AWS_ECR_URI }}
+      #     username: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #     password: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          registry: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
-          username: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          password: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Authenticate with AWS ECR
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: ${{ vars.AWS_REGISTRY_TYPE }}
+          registries: ${{ secrets.AWS_ACCOUNT_ID }}
       - name: Build and push container
         run: |
           SOURCE_CHECKSUM=$(find hpc_provisioner -type f -exec sha256sum {} \; | sha256sum | awk '{print $1}')
-          AWS_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
           AWS_PATH=hpc/resource-provisioner
           docker build --build-arg SETUPTOOLS_SCM_PRETEND_VERSION=${REL_TAG} --label "org.opencontainers.image.checksum=${SOURCE_CHECKSUM}" --label "org.opencontainers.image.software_version=${REL_TAG}" -t ${AWS_PATH}:${REL_TAG} .
           echo "Setting tags for aws ecr"
-          docker image tag ${AWS_PATH}:${REL_TAG} ${AWS_URI}/${AWS_PATH}:${REL_TAG}
-          docker image tag ${AWS_PATH}:${REL_TAG} ${AWS_URI}/${AWS_PATH}:latest
+          docker image tag ${AWS_PATH}:${REL_TAG} ${AWS_ECR_URI}:${REL_TAG}
+          docker image tag ${AWS_PATH}:${REL_TAG} ${AWS_ECR_URI}:latest
           if [[ "${REL_TAG}" == *"dev"* ]]
           then
-            docker image tag ${AWS_PATH}:${REL_TAG} ${AWS_URI}/${AWS_PATH}:latest-dev
-            docker push ${AWS_URI}/${AWS_PATH}:latest-dev
+            docker image tag ${AWS_PATH}:${REL_TAG} ${AWS_ECR_URI}:latest-dev
+            docker push ${AWS_ECR_URI}:latest-dev
           else
-            docker push ${AWS_URI}/${AWS_PATH}:latest
+            docker push ${AWS_ECR_URI}:latest
           fi
           echo "Pushing to aws ecr"
-          docker push ${AWS_URI}/${AWS_PATH}:${REL_TAG}
+          docker push ${AWS_ECR_URI}:${REL_TAG}
         working-directory: ${{runner.workspace}}/hpc-resource-provisioner
+        env:
+          AWS_ECR_URI: ${{ secrets.AWS_ECR_URI }}
       - name: Release
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
