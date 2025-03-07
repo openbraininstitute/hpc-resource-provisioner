@@ -145,6 +145,7 @@ def pcluster_create(vlab_id: str, project_id: str, keyname: str, options: Option
     if cluster_already_exists(cluster_name):
         return
 
+    dev = options["dev"].lower() == "true"
     populate_config(cluster_name, keyname)
     pcluster_config = load_pcluster_config(options["dev"].lower() == "true")
     pcluster_config["Tags"] = populate_tags(pcluster_config, vlab_id, project_id)
@@ -155,7 +156,11 @@ def pcluster_create(vlab_id: str, project_id: str, keyname: str, options: Option
 
     try:
         logger.debug("Actual create_cluster command")
-        return pc.create_cluster(cluster_name=cluster_name, cluster_configuration=output_file_name)
+        return pc.create_cluster(
+            cluster_name=cluster_name,
+            cluster_configuration=output_file_name,
+            rollback_on_failure=not dev,
+        )
     except CreateClusterBadRequestException as e:
         logger.critical(f"Exception: {e.content}")
         raise
