@@ -6,11 +6,10 @@ Networking:
     - !config base_security_group_id  # sbo-poc-compute / hpc
 Ssh:
   KeyName: !config ssh_key  # for PoC, taken from parallel-cluster repo
-  # KeyName: compute-cluster-key  # for sandbox
-# Iam:
-#   S3Access:
-#     - BucketName: sboinfrastructureassets
-#       EnableWriteAccess: true
+Iam:
+  S3Access:
+    - BucketName: sboinfrastructureassets-sandbox
+      EnableWriteAccess: false
 CustomActions:
   OnNodeConfigured:
     Sequence:
