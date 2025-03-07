@@ -37,13 +37,6 @@ jobs:
           git tag -a $REL_TAG -m "${REL_TAG}"
           git push origin $REL_TAG
         working-directory: ${{runner.workspace}}/hpc-resource-provisioner
-
-      # - name: Authenticate with AWS ECR
-      #   uses: docker/login-action@v3.3.0
-      #   with:
-      #     registry: ${{ secrets.AWS_ECR_URI }}
-      #     username: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      #     password: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -75,6 +68,9 @@ jobs:
         working-directory: ${{runner.workspace}}/hpc-resource-provisioner
         env:
           AWS_ECR_URI: ${{ secrets.AWS_ECR_URI }}
+      - name: Upload to S3
+        run: |
+          aws s3 cp provisioner_scripts/create_users.py s3://${{ secrets.S3_BUCKET }}/scripts/create_users.py
       - name: Release
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
