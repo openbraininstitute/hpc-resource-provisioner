@@ -21,6 +21,7 @@ def run_cmd(
     :param output_file: where to direct stdout. stderr always goes to subprocess.PIPE
     :param exit_after_error: whether to die on errors or not
     """
+    print(f"Run: {cmd}")
     try:
         subprocess.run(
             cmd.split(" "), stdout=output_file, stderr=subprocess.PIPE, check=True
