@@ -13,6 +13,7 @@ from hpc_provisioner.constants import (
     PROJECT_TAG_KEY,
     VLAB_TAG_KEY,
 )
+from hpc_provisioner.utils import generate_public_key
 
 from .logging_config import LOGGING_CONFIG
 from .pcluster_manager import (
@@ -79,31 +80,49 @@ def pcluster_create_request_handler(event, _context=None):
         ],
     )
 
-    secret = store_private_key(sm_client, vlab_id, project_id, ssh_keypair)
+    admin_user_secret = store_private_key(sm_client, vlab_id, project_id, ssh_keypair)
+
+    response = {
+        "cluster": {
+            "clusterName": f"pcluster-{vlab_id}-{project_id}",
+            "clusterStatus": "CREATE_REQUEST_RECEIVED",
+            "private_ssh_key_arn": admin_user_secret["ARN"],
+        }
+    }
+
+    create_args = {
+        "vlab_id": vlab_id,
+        "project_id": project_id,
+        "keyname": ssh_keypair["KeyName"],
+        "options": options,
+    }
+
+    if options.get("dev", False):
+        sim_user_ssh_keypair = create_keypair(
+            ec2_client,
+            vlab_id=vlab_id,
+            project_id=project_id,
+            tags=[
+                {"Key": VLAB_TAG_KEY, "Value": vlab_id},
+                {"Key": PROJECT_TAG_KEY, "Value": project_id},
+                {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+            ],
+            keypair_user="sim",
+        )
+        sim_user_secret = store_private_key(sm_client, vlab_id, project_id, sim_user_ssh_keypair)
+        response["cluster"]["ssh_user"] = "sim"
+        response["admin_user_private_ssh_key_arn"] = admin_user_secret["ARN"]
+        response["private_ssh_key_arn"] = sim_user_secret["ARN"]
+        create_args["sim_pubkey"] = generate_public_key(sim_user_ssh_keypair["KeyMaterial"])
 
     logger.debug("calling create lambda async")
     boto3.client("lambda").invoke_async(
         FunctionName="hpc-resource-provisioner-creator",
-        InvokeArgs=json.dumps(
-            {
-                "vlab_id": vlab_id,
-                "project_id": project_id,
-                "keyname": ssh_keypair["KeyName"],
-                "options": options,
-            }
-        ),
+        InvokeArgs=json.dumps(create_args),
     )
     logger.debug("called create lambda async")
 
-    return response_json(
-        {
-            "cluster": {
-                "clusterName": f"pcluster-{vlab_id}-{project_id}",
-                "clusterStatus": "CREATE_REQUEST_RECEIVED",
-                "private_ssh_key_arn": secret["ARN"],
-            }
-        }
-    )
+    return response_json(response)
 
 
 def pcluster_describe_handler(event, _context=None):
@@ -128,11 +147,11 @@ def pcluster_describe_handler(event, _context=None):
 
 def pcluster_delete_handler(event, _context=None):
     """Delete a cluster given the vlab_id and project_id"""
-    vlab_id, project_id, _, _ = _get_vlab_query_params(event)
+    vlab_id, project_id, _, options = _get_vlab_query_params(event)
 
     logger.debug(f"delete pcluster {vlab_id}-{project_id}")
     try:
-        pc_output = pcluster_delete(vlab_id, project_id)
+        pc_output = pcluster_delete(vlab_id, project_id, options.get("dev", False))
         logger.debug(f"deleted pcluster {vlab_id}-{project_id}")
     except NotFoundException as e:
         return {"statusCode": 404, "body": e.content.message}

@@ -34,27 +34,8 @@ def run_cmd(
     print(f"{msg_prefix} succeeded.")
 
 
-# Helper method to create a directory for a given user
-def create_directory(prefix: str, user: str, group: str) -> None:
-    """
-    Create a directory for a given user (/{prefix}/scratch/{user})
-
-    :param prefix: under which path the user directory should be created
-    :param user: the username
-    :param group: group to which the directory should belong
-    """
-    path = f"{prefix}/scratch/{user}"
-
-    # Create folder with correct permissions and set ownership
-    run_cmd(f"mkdir -m 755 -p {path}", f"Creation of Lustre path for '{user}'")
-    run_cmd(
-        f"chown {user}:{group} {path}",
-        f"Setting Lustre path permissions for '{user}' at '{path}'",
-    )
-
-
 # Helper method to create a user and configure sudo permissions
-def create_user(name: str, uid: int, group: str, shell: str, sudo: bool) -> None:
+def create_user(name: str, public_ssh_key: str, sudo: bool = False) -> None:
     """
     Create a user and configure sudo permissions, if necessary
 
@@ -66,7 +47,8 @@ def create_user(name: str, uid: int, group: str, shell: str, sudo: bool) -> None
     """
     # Create the user with the provided group and shell
     run_cmd(
-        f"useradd -d /sbo/home/{name} -M -s {shell} -u {uid} -U {name} -G {group}",
+        # TODO: homedir not created
+        f"useradd -d /sbo/home/{name} -m -U {name} -G obi",
         f"User '{name}' creation",
     )
 
@@ -81,16 +63,18 @@ def create_user(name: str, uid: int, group: str, shell: str, sudo: bool) -> None
     else:
         run_cmd(f"rm -f {sudoers_file}", f"Disabling sudo configuration for '{name}'")
 
+    # Set the SSH key
+    run_cmd(f"mkdir /home/{name}/.ssh", f"Make .ssh dir for {name}")
+    run_cmd(f"chmod 700 /home/{name}/.ssh", f"Set permissions on .ssh dir for {name}")
+    with open(f"/home/{name}/.ssh/authorized_keys", "w") as fp:
+        fp.write(public_ssh_key)
+
 
 def main(argv):
-    if len(argv) < 2 or len(argv) > 3:
-        print(
-            "Please, supply user database and/or Lustre FSx mount point, if required."
-        )
-        exit(1)
+    if len(argv) != 2:
+        print("No users to create - exiting")
+        exit(0)
 
-    user_filename = argv[1]
-    fsx_path = argv[2] if len(argv) == 3 else None
     group = {"id": 2000, "name": "obi"}
 
     # First, configure the OBI group for the users
@@ -100,22 +84,9 @@ def main(argv):
     )
 
     # Create users within the OBI group and configure Lustre FSx 'scratch' directory, if required
-    with open(user_filename, "r") as f:
-        users = json.load(f)
+    users = json.loads(argv[1])
     for user in users:
-        create_user(
-            user["name"], user["uid"], group["name"], user["shell"], user["sudo"]
-        )
-        if fsx_path is not None:
-            create_directory(fsx_path, user["name"], group["name"])
-
-    # Configure the SLURM directory and set global permissions of Lustre FSx, if required
-    if fsx_path is not None:
-        create_directory(fsx_path, "slurm", "slurm")
-        run_cmd(
-            f"chmod 755 {fsx_path} {fsx_path}/scratch",
-            f"Setting Lustre path permissions for '{fsx_path}'",
-        )
+        create_user(user["name"], user["public_ssh_key"], user.get("sudo", False))
 
 
 if __name__ == "__main__":

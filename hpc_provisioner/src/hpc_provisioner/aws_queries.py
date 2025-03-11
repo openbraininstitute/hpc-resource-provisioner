@@ -46,8 +46,16 @@ def get_cluster_name(vlab_id: str, project_id: str) -> str:
     return f"pcluster-{vlab_id}-{project_id}"
 
 
-def create_keypair(ec2_client, vlab_id, project_id, tags) -> dict:
+def get_keypair_name(vlab_id, project_id, keypair_user=None) -> str:
     keypair_name = get_cluster_name(vlab_id, project_id)
+    if keypair_user:
+        keypair_name = "_".join([keypair_name, keypair_user])
+
+    return keypair_name
+
+
+def create_keypair(ec2_client, vlab_id, project_id, tags, keypair_user=None) -> dict:
+    keypair_name = get_keypair_name(vlab_id, project_id, keypair_user)
     try:
         existing_key = ec2_client.describe_key_pairs(KeyNames=[keypair_name])
         return existing_key["KeyPairs"][0]
