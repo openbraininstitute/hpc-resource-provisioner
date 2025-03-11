@@ -6,7 +6,7 @@ from importlib.metadata import version
 import boto3
 from pcluster.api.errors import NotFoundException
 
-from hpc_provisioner.aws_queries import create_keypair, store_private_key
+from hpc_provisioner.aws_queries import create_keypair, list_existing_stacks, store_private_key
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
     BILLING_TAG_VALUE,
@@ -69,6 +69,12 @@ def pcluster_create_request_handler(event, _context=None):
     vlab_id, project_id, _, options = _get_vlab_query_params(event)
     ec2_client = boto3.client("ec2")
     sm_client = boto3.client("secretsmanager")
+    cf_client = boto3.client("cloudformation")
+
+    if f"pcluster-{vlab_id}-{project_id}" in list_existing_stacks(cf_client):
+        print(f"Stack pcluster-{vlab_id}-{project_id} already exists - exiting")
+        return
+
     ssh_keypair = create_keypair(
         ec2_client,
         vlab_id=vlab_id,
@@ -113,7 +119,8 @@ def pcluster_create_request_handler(event, _context=None):
         response["cluster"]["ssh_user"] = "sim"
         response["admin_user_private_ssh_key_arn"] = admin_user_secret["ARN"]
         response["private_ssh_key_arn"] = sim_user_secret["ARN"]
-        create_args["sim_pubkey"] = generate_public_key(sim_user_ssh_keypair["KeyMaterial"])
+        if key_material := sim_user_ssh_keypair.get("KeyMaterial"):
+            create_args["sim_pubkey"] = generate_public_key(key_material)
 
     logger.debug("calling create lambda async")
     boto3.client("lambda").invoke_async(

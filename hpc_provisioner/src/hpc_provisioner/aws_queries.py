@@ -257,3 +257,52 @@ def remove_key(keypair_name: str) -> None:
     logger.debug("Deleting secret from SecretsManager")
     secret_delete = sm_client.delete_secret(SecretId=keypair_name, ForceDeleteWithoutRecovery=True)
     logger.debug(f"Secret deletion response: {secret_delete}")
+
+
+def list_existing_stacks(cf_client):
+    statuses = [
+        "CREATE_IN_PROGRESS",
+        "CREATE_FAILED",
+        "CREATE_COMPLETE",
+        "ROLLBACK_IN_PROGRESS",
+        "ROLLBACK_FAILED",
+        "ROLLBACK_COMPLETE",
+        "DELETE_IN_PROGRESS",
+        "DELETE_FAILED",
+        "UPDATE_IN_PROGRESS",
+        "UPDATE_COMPLETE_CLEANUP_IN_PROGRESS",
+        "UPDATE_COMPLETE",
+        "UPDATE_FAILED",
+        "UPDATE_ROLLBACK_IN_PROGRESS",
+        "UPDATE_ROLLBACK_FAILED",
+        "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS",
+        "UPDATE_ROLLBACK_COMPLETE",
+        "REVIEW_IN_PROGRESS",
+        "IMPORT_IN_PROGRESS",
+        "IMPORT_COMPLETE",
+        "IMPORT_ROLLBACK_IN_PROGRESS",
+        "IMPORT_ROLLBACK_FAILED",
+        "IMPORT_ROLLBACK_COMPLETE",
+    ]
+    stacks = cf_client.list_stacks(StackStatusFilter=statuses)
+    existing_stack_names = [
+        stack["StackName"] for stack in stacks["StackSummaries"] if "ParentId" not in stack
+    ]
+
+    return existing_stack_names
+
+
+"""
+[{'StackId': 'arn:aws:cloudformation:us-east-1:130659266700:stack/pcluster-erik-tiny-03-11-04-ComputeFleetQueuesNestedStackQueuesNestedStackResource4C14-ZCS91VP4DQC1/f8657420-fe72-11ef-bdaa-0afff1e5562d',
+  'StackName': 'pcluster-erik-tiny-03-11-04-ComputeFleetQueuesNestedStackQueuesNestedStackResource4C14-ZCS91VP4DQC1',
+  'CreationTime': datetime.datetime(2025, 3, 11, 12, 18, 42, 146000, tzinfo=tzutc()),
+  'StackStatus': 'CREATE_COMPLETE',
+  'ParentId': 'arn:aws:cloudformation:us-east-1:130659266700:stack/pcluster-erik-tiny-03-11-04/efe9c810-fe71-11ef-88c9-1267852d1129',
+  'RootId': 'arn:aws:cloudformation:us-east-1:130659266700:stack/pcluster-erik-tiny-03-11-04/efe9c810-fe71-11ef-88c9-1267852d1129',
+  'DriftInformation': {'StackDriftStatus': 'NOT_CHECKED'}},
+ {'StackId': 'arn:aws:cloudformation:us-east-1:130659266700:stack/pcluster-erik-tiny-03-11-04/efe9c810-fe71-11ef-88c9-1267852d1129',
+  'StackName': 'pcluster-erik-tiny-03-11-04',
+  'CreationTime': datetime.datetime(2025, 3, 11, 12, 11, 18, 298000, tzinfo=tzutc()),
+  'StackStatus': 'CREATE_IN_PROGRESS',
+  'DriftInformation': {'StackDriftStatus': 'NOT_CHECKED'}}]
+"""
