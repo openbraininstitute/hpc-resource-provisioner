@@ -139,7 +139,6 @@ def pcluster_create(
     vlab_id: str,
     project_id: str,
     keyname: str,
-    sim_user_ssh_key: str,
     options: Optional[dict] = None,
 ):
     """Create a pcluster for a given vlab
