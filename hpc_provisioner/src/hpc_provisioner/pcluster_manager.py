@@ -138,8 +138,7 @@ def write_config(cluster_name: str, pcluster_config: dict) -> str:
 def pcluster_create(
     vlab_id: str,
     project_id: str,
-    keyname: str,
-    options: Optional[dict] = None,
+    options: dict,
 ):
     """Create a pcluster for a given vlab
 
@@ -166,7 +165,7 @@ def pcluster_create(
         cluster_users = json.dumps({"name": "sim", "public_key": options["sim_pubkey"]})
     else:
         cluster_users = None
-    populate_config(cluster_name, keyname, cluster_users)
+    populate_config(cluster_name, options["keyname"], cluster_users)
     pcluster_config = load_pcluster_config(options["dev"].lower() == "true")
     pcluster_config["Tags"] = populate_tags(pcluster_config, vlab_id, project_id)
     pcluster_config["Scheduling"]["SlurmQueues"] = choose_tier(pcluster_config, options)

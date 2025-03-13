@@ -30,9 +30,11 @@ logger = logging.getLogger("hpc-resource-provisioner")
 
 def pcluster_do_create_handler(event, _context=None):
     logger.debug(f"event: {event}, _context: {_context}")
-    vlab_id, project_id, keyname, options = _get_vlab_query_params(event)
+    options = _new_get_vlab_query_params(event)
+    vlab_id = options["vlab_id"]
+    project_id = options["project_id"]
     logger.debug(f"handler: create pcluster {vlab_id}-{project_id} with options: {options}")
-    pcluster_create(vlab_id, project_id, keyname, options)
+    pcluster_create(vlab_id, project_id, options)
     logger.debug(f"created pcluster {vlab_id}-{project_id}")
 
 
@@ -66,7 +68,9 @@ def pcluster_handler(event, _context=None):
 def pcluster_create_request_handler(event, _context=None):
     """Request the creation of an HPC cluster for a given vlab_id and project_id"""
 
-    vlab_id, project_id, _, options = _get_vlab_query_params(event)
+    options = _new_get_vlab_query_params(event)
+    vlab_id = options["vlab_id"]
+    project_id = options["project_id"]
     ec2_client = boto3.client("ec2")
     sm_client = boto3.client("secretsmanager")
     cf_client = boto3.client("cloudformation")
@@ -135,7 +139,9 @@ def pcluster_create_request_handler(event, _context=None):
 def pcluster_describe_handler(event, _context=None):
     """Describe a cluster given the vlab_id and project_id"""
     try:
-        vlab_id, project_id, _, _ = _get_vlab_query_params(event)
+        options = _new_get_vlab_query_params(event)
+        vlab_id = options["vlab_id"]
+        project_id = options["project_id"]
     except InvalidRequest:
         logger.debug("No vlab_id specified - listing pclusters")
         pc_output = pcluster_list()
@@ -154,7 +160,9 @@ def pcluster_describe_handler(event, _context=None):
 
 def pcluster_delete_handler(event, _context=None):
     """Delete a cluster given the vlab_id and project_id"""
-    vlab_id, project_id, _, options = _get_vlab_query_params(event)
+    options = _new_get_vlab_query_params(event)
+    vlab_id = options["vlab_id"]
+    project_id = options["project_id"]
 
     logger.debug(f"delete pcluster {vlab_id}-{project_id}")
     try:
@@ -168,36 +176,82 @@ def pcluster_delete_handler(event, _context=None):
     return response_json(pc_output)
 
 
-def _get_vlab_query_params(event):
-    vlab_id = event.get("vlab_id")
-    project_id = event.get("project_id")
-    keyname = event.get("keyname")
-    sim_pubkey = event.get("sim_pubkey")
+def _new_get_vlab_query_params(event):
+    logger.debug(f"Getting query params from event {event}")
 
-    logger.debug(f"Event: {event}")
-    if options := event.get("queryStringParameters", {}):
-        if vlab_id is None:
-            logger.debug(f"getting vlab id from {options}")
-            vlab_id = options.pop("vlab_id", None)
-        if project_id is None:
-            logger.debug(f"getting project id from {options}")
-            project_id = options.pop("project_id", None)
-        if keyname is None:
-            logger.debug(f"getting keyname from {options}")
-            keyname = options.pop("keyname", None)
-        if sim_pubkey is None:
-            logger.debug(f"getting sim_pubkey from {options}")
-            sim_pubkey = options.pop("sim_pubkey", None)
+    params = {
+        "dev": event.get("dev", None),
+        "include_lustre": event.get("include_lustre"),
+        "tier": event.get("tier"),
+        "project_id": event.get("project_id"),
+        "vlab_id": event.get("vlab_id"),
+        "keyname": event.get("keyname"),
+        "sim_pubkey": event.get("sim_pubkey"),
+    }
 
-    else:
-        options = event.get("options", {})
+    logger.debug(f"Params: {params}")
 
-    if vlab_id is None:
+    if query_string_parameters := event.get("queryStringParameters", event.get("options", {})):
+        logger.debug(
+            "Trying to get unset values from query string parameters or options: "
+            f"{query_string_parameters}"
+        )
+        for param, value in params.items():
+            if value is None:
+                logger.debug(
+                    f"Parameter {param} not defined yet - "
+                    "checking queryStringParameters {queryStringParameters}"
+                )
+                if param in ["dev"]:
+                    params[param] = query_string_parameters.pop(param, False)
+                else:
+                    params[param] = query_string_parameters.pop(param, None)
+
+    if isinstance(params["dev"], str):
+        params["dev"] = params["dev"].lower() == "true"
+    elif not isinstance(params["dev"], bool):
+        params["dev"] = False
+
+    if params["vlab_id"] is None:
         raise InvalidRequest("missing required 'vlab_id' query param")
-    if project_id is None:
+    if params["project_id"] is None:
         raise InvalidRequest("missing required 'project_id' query param")
 
-    return vlab_id, project_id, keyname, options
+    logger.debug(f"Parameters: {params}")
+    return params
+
+
+# def _get_vlab_query_params(event):
+#     vlab_id = event.get("vlab_id")
+#     project_id = event.get("project_id")
+#     keyname = event.get("keyname")
+#     dev = event.get("dev", "").lower() == "true"
+#     sim_pubkey = event.get("sim_pubkey")
+#
+#     logger.debug(f"Event: {event}")
+#     if options := event.get("queryStringParameters", {}):
+#         if vlab_id is None:
+#             logger.debug(f"getting vlab id from {options}")
+#             vlab_id = options.pop("vlab_id", None)
+#         if project_id is None:
+#             logger.debug(f"getting project id from {options}")
+#             project_id = options.pop("project_id", None)
+#         if keyname is None:
+#             logger.debug(f"getting keyname from {options}")
+#             keyname = options.pop("keyname", None)
+#         if sim_pubkey is None:
+#             logger.debug(f"getting sim_pubkey from {options}")
+#             sim_pubkey = options.pop("sim_pubkey", None)
+#
+#     else:
+#         options = event.get("options", {})
+#
+#     if vlab_id is None:
+#         raise InvalidRequest("missing required 'vlab_id' query param")
+#     if project_id is None:
+#         raise InvalidRequest("missing required 'project_id' query param")
+#
+#     return vlab_id, project_id, keyname, options
 
 
 def response_text(text: str, code: int = 200):
