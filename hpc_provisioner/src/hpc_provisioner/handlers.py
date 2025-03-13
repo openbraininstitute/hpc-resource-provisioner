@@ -172,6 +172,7 @@ def _get_vlab_query_params(event):
     vlab_id = event.get("vlab_id")
     project_id = event.get("project_id")
     keyname = event.get("keyname")
+    sim_pubkey = event.get("sim_pubkey")
 
     logger.debug(f"Event: {event}")
     if options := event.get("queryStringParameters", {}):
@@ -184,6 +185,10 @@ def _get_vlab_query_params(event):
         if keyname is None:
             logger.debug(f"getting keyname from {options}")
             keyname = options.pop("keyname", None)
+        if sim_pubkey is None:
+            logger.debug(f"getting sim_pubkey from {options}")
+            sim_pubkey = options.pop("sim_pubkey", None)
+
     else:
         options = event.get("options", {})
 
