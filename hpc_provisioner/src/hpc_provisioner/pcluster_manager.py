@@ -153,6 +153,8 @@ def pcluster_create(
     if not options:
         options = {}
     for k, default in DEFAULTS.items():
+        if k in options and options[k] is None:
+            options.pop(k)
         options.setdefault(k, default)
 
     logger.info(f"Creating pcluster: {vlab_id}-{project_id} with default-filled options {options}")
