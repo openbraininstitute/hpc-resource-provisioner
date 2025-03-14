@@ -75,10 +75,6 @@ def pcluster_create_request_handler(event, _context=None):
     sm_client = boto3.client("secretsmanager")
     cf_client = boto3.client("cloudformation")
 
-    if f"pcluster-{vlab_id}-{project_id}" in list_existing_stacks(cf_client):
-        print(f"Stack pcluster-{vlab_id}-{project_id} already exists - exiting")
-        return
-
     ssh_keypair = create_keypair(
         ec2_client,
         vlab_id=vlab_id,
@@ -125,6 +121,10 @@ def pcluster_create_request_handler(event, _context=None):
         response["private_ssh_key_arn"] = sim_user_secret["ARN"]
         if key_material := sim_user_ssh_keypair.get("KeyMaterial"):
             create_args["sim_pubkey"] = generate_public_key(key_material)
+
+    if f"pcluster-{vlab_id}-{project_id}" in list_existing_stacks(cf_client):
+        print(f"Stack pcluster-{vlab_id}-{project_id} already exists - exiting")
+        return response_json(response)
 
     logger.debug("calling create lambda async")
     boto3.client("lambda").invoke_async(
@@ -180,7 +180,7 @@ def _new_get_vlab_query_params(event):
     logger.debug(f"Getting query params from event {event}")
 
     params = {
-        "dev": event.get("dev", None),
+        "dev": event.get("dev"),
         "include_lustre": event.get("include_lustre"),
         "tier": event.get("tier"),
         "project_id": event.get("project_id"),
