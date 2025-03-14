@@ -155,18 +155,19 @@ def pcluster_create(
     for k, default in DEFAULTS.items():
         options.setdefault(k, default)
 
+    logger.info(f"Creating pcluster: {vlab_id}-{project_id} with default-filled options {options}")
     cluster_name = get_cluster_name(vlab_id, project_id)
 
     if cluster_already_exists(cluster_name):
         return
 
-    dev = options["dev"].lower() == "true"
+    dev = options["dev"]
     if dev:
         cluster_users = json.dumps({"name": "sim", "public_key": options["sim_pubkey"]})
     else:
         cluster_users = None
     populate_config(cluster_name, options["keyname"], cluster_users)
-    pcluster_config = load_pcluster_config(options["dev"].lower() == "true")
+    pcluster_config = load_pcluster_config(dev)
     pcluster_config["Tags"] = populate_tags(pcluster_config, vlab_id, project_id)
     pcluster_config["Scheduling"]["SlurmQueues"] = choose_tier(pcluster_config, options)
     if options["include_lustre"].lower() != "true":
