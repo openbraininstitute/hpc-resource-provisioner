@@ -181,7 +181,7 @@ def pcluster_create(
         return pc.create_cluster(
             cluster_name=cluster_name,
             cluster_configuration=output_file_name,
-            rollback_on_failure=not dev,
+            rollback_on_failure=False,
         )
     except CreateClusterBadRequestException as e:
         logger.critical(f"Exception: {e.content}")
