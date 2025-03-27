@@ -112,3 +112,31 @@
   #         Args:
   #           - /sbo/home/resources/users.json
   #       - Script: s3://sboinfrastructureassets-sandbox/scripts/setup_environment_compute.sh
+
+# ==========================================
+# prod-hpc16x queue, for HPC jobs (64 vCPUs)
+# ==========================================
+- Name: prod-hpc16x
+  AllocationStrategy: lowest-price
+  ComputeResources:
+  - Name: cpu-hpc7g
+    Instances:
+    - InstanceType: hpc7g.16xlarge # HPC compute nodes
+    MinCount: 0
+    MaxCount: 20 # temporary, may need to be increased to simulate larger circuits
+    Efa: # low-latency, high BW network
+      Enabled: true # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/efa-start.html#efa-start-security
+  Networking:
+    PlacementGroup: # try to place nodes close to each other
+      Enabled: true
+    SubnetIds:
+    - !config base_subnet_id
+    SecurityGroups:
+    - !config base_security_group_id
+    # - sg-06556c57796520f86  # Efa
+  CustomSlurmSettings:
+    MaxNodes: 20
+    MaxTime: 720
+  Iam:
+    S3Access:
+      - BucketName: sboinfrastructureassets-sandbox
