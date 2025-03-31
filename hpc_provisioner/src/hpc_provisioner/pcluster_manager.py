@@ -36,7 +36,12 @@ from hpc_provisioner.constants import (
     VLAB_TAG_KEY,
 )
 from hpc_provisioner.logging_config import LOGGING_CONFIG
-from hpc_provisioner.utils import get_containers_bucket, get_sbonexusdata_bucket, get_scratch_bucket
+from hpc_provisioner.utils import (
+    get_containers_bucket,
+    get_efa_security_group_id,
+    get_sbonexusdata_bucket,
+    get_scratch_bucket,
+)
 from hpc_provisioner.yaml_loader import load_yaml_extended
 
 logging.config.dictConfig(LOGGING_CONFIG)
