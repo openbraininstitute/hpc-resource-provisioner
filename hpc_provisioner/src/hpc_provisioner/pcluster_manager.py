@@ -71,6 +71,7 @@ def populate_config(cluster_name: str, keyname: str, cluster_users: Optional[str
     CONFIG_VALUES["sbonexusdata_bucket"] = get_sbonexusdata_bucket()
     CONFIG_VALUES["containers_bucket"] = get_containers_bucket()
     CONFIG_VALUES["scratch_bucket"] = get_scratch_bucket()
+    CONFIG_VALUES["efa_security_group_id"] = get_efa_security_group_id()
     if cluster_users:
         CONFIG_VALUES["cluster_users"] = cluster_users
     logger.debug(f"Config values: {CONFIG_VALUES}")
