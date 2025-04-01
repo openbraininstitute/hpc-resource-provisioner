@@ -89,7 +89,7 @@ def main(argv):
     print(f"Users: {users}")
     for user in users:
         print(f"Creating user {user}")
-        create_user(user["name"], user["public_ssh_key"], user.get("sudo", False))
+        create_user(user["name"], user["public_key"], user.get("sudo", False))
 
 
 if __name__ == "__main__":
