@@ -171,7 +171,7 @@ def pcluster_create(
 
     dev = options["dev"]
     if dev:
-        cluster_users = json.dumps({"name": "sim", "public_key": options["sim_pubkey"]})
+        cluster_users = json.dumps([{"name": "sim", "public_key": options["sim_pubkey"]}])
     else:
         cluster_users = None
     populate_config(cluster_name, options["keyname"], cluster_users)
