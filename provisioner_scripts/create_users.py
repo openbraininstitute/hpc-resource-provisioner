@@ -48,7 +48,7 @@ def create_user(name: str, public_ssh_key: str, sudo: bool = False) -> None:
     # Create the user with the provided group and shell
     run_cmd(
         # TODO: homedir not created
-        f"useradd -d /sbo/home/{name} -m -U {name} -G obi",
+        f"useradd -m -U {name} -G obi",
         f"User '{name}' creation",
     )
 
