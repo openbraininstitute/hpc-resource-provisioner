@@ -22,9 +22,6 @@ def get_efa_security_group_id():
 def generate_public_key(key_material):
     private_key = serialization.load_pem_private_key(key_material.encode(), password=None)
     public_key = private_key.public_key()
-    public_key.public_bytes(
-        encoding=serialization.Encoding.OpenSSH, format=serialization.PublicFormat.OpenSSH
-    )
     public_bytes = public_key.public_bytes(
         encoding=serialization.Encoding.OpenSSH, format=serialization.PublicFormat.OpenSSH
     )
