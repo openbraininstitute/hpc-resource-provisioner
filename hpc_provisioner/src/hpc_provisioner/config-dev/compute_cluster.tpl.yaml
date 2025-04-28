@@ -2,7 +2,8 @@
 Region: us-east-1
 Image:
   Os: alinux2023
-  CustomAmi: ami-0988f47f6f587d603  # obi-parallelcluster-neurodamus-ami-al2023-v1 2025-04-16T08-55-19.842Z
+  CustomAmi: ami-027ff2490377d3048  # obi-parallelcluster-neurodamus-ami-al2023-v2 2025-04-28T07-55-04.338Z
+  # CustomAmi: ami-0988f47f6f587d603  # obi-parallelcluster-neurodamus-ami-al2023-v1 2025-04-16T08-55-19.842Z
   # CustomAmi: ami-003f75500cf489224  # obi-parallelcluster-ami-al2023-v2
 Monitoring:
   Logs:
