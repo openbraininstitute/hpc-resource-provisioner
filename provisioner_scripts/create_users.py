@@ -69,6 +69,14 @@ def create_user(name: str, public_ssh_key: str, sudo: bool = False) -> None:
     if public_ssh_key:
         with open(f"/home/{name}/.ssh/authorized_keys", "w") as fp:
             fp.write(public_ssh_key)
+        run_cmd(
+            f"chmod 600 /home/{name}/ssh/authorized_keys",
+            f"Set permissions on authorized_keys file for {name}",
+        )
+    run_cmd(
+        f"chown -R {name}:{name} /home/{name}/.ssh",
+        f"Set ownership for {name} .ssh dir",
+    )
 
 
 def main(argv):
