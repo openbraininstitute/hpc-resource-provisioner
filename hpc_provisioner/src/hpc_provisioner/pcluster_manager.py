@@ -170,10 +170,7 @@ def pcluster_create(
         return
 
     dev = options["dev"]
-    if dev:
-        cluster_users = json.dumps([{"name": "sim", "public_key": options["sim_pubkey"]}])
-    else:
-        cluster_users = None
+    cluster_users = json.dumps([{"name": "sim", "public_key": options["sim_pubkey"]}])
     populate_config(cluster_name, options["keyname"], cluster_users)
     pcluster_config = load_pcluster_config(dev)
     pcluster_config["Tags"] = populate_tags(pcluster_config, vlab_id, project_id)
@@ -212,11 +209,10 @@ def pcluster_describe(vlab_id: str, project_id: str):
     return pc.describe_cluster(cluster_name=cluster_name, region=REGION)
 
 
-def pcluster_delete(vlab_id: str, project_id: str, dev: bool = False):
+def pcluster_delete(vlab_id: str, project_id: str):
     """Destroy a cluster, given the vlab_id and project_id"""
     cluster_name = get_cluster_name(vlab_id, project_id)
     release_subnets(cluster_name)
     remove_key(get_keypair_name(vlab_id, project_id))
-    if dev:
-        remove_key(get_keypair_name(vlab_id, project_id, "sim"))
+    remove_key(get_keypair_name(vlab_id, project_id, "sim"))
     return pc.delete_cluster(cluster_name=cluster_name, region=REGION)

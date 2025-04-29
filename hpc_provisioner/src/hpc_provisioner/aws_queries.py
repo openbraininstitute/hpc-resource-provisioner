@@ -290,19 +290,3 @@ def list_existing_stacks(cf_client):
     ]
 
     return existing_stack_names
-
-
-"""
-[{'StackId': 'arn:aws:cloudformation:us-east-1:130659266700:stack/pcluster-erik-tiny-03-11-04-ComputeFleetQueuesNestedStackQueuesNestedStackResource4C14-ZCS91VP4DQC1/f8657420-fe72-11ef-bdaa-0afff1e5562d',
-  'StackName': 'pcluster-erik-tiny-03-11-04-ComputeFleetQueuesNestedStackQueuesNestedStackResource4C14-ZCS91VP4DQC1',
-  'CreationTime': datetime.datetime(2025, 3, 11, 12, 18, 42, 146000, tzinfo=tzutc()),
-  'StackStatus': 'CREATE_COMPLETE',
-  'ParentId': 'arn:aws:cloudformation:us-east-1:130659266700:stack/pcluster-erik-tiny-03-11-04/efe9c810-fe71-11ef-88c9-1267852d1129',
-  'RootId': 'arn:aws:cloudformation:us-east-1:130659266700:stack/pcluster-erik-tiny-03-11-04/efe9c810-fe71-11ef-88c9-1267852d1129',
-  'DriftInformation': {'StackDriftStatus': 'NOT_CHECKED'}},
- {'StackId': 'arn:aws:cloudformation:us-east-1:130659266700:stack/pcluster-erik-tiny-03-11-04/efe9c810-fe71-11ef-88c9-1267852d1129',
-  'StackName': 'pcluster-erik-tiny-03-11-04',
-  'CreationTime': datetime.datetime(2025, 3, 11, 12, 11, 18, 298000, tzinfo=tzutc()),
-  'StackStatus': 'CREATE_IN_PROGRESS',
-  'DriftInformation': {'StackDriftStatus': 'NOT_CHECKED'}}]
-"""

@@ -30,7 +30,7 @@ logger = logging.getLogger("hpc-resource-provisioner")
 
 def pcluster_do_create_handler(event, _context=None):
     logger.debug(f"event: {event}, _context: {_context}")
-    options = _new_get_vlab_query_params(event)
+    options = _get_vlab_query_params(event)
     vlab_id = options["vlab_id"]
     project_id = options["project_id"]
     logger.debug(f"handler: create pcluster {vlab_id}-{project_id} with options: {options}")
@@ -68,7 +68,7 @@ def pcluster_handler(event, _context=None):
 def pcluster_create_request_handler(event, _context=None):
     """Request the creation of an HPC cluster for a given vlab_id and project_id"""
 
-    options = _new_get_vlab_query_params(event)
+    options = _get_vlab_query_params(event)
     vlab_id = options["vlab_id"]
     project_id = options["project_id"]
     ec2_client = boto3.client("ec2")
@@ -103,26 +103,27 @@ def pcluster_create_request_handler(event, _context=None):
         "options": options,
     }
 
-    if options.get("dev", False):
-        sim_user_ssh_keypair = create_keypair(
-            ec2_client,
-            vlab_id=vlab_id,
-            project_id=project_id,
-            tags=[
-                {"Key": VLAB_TAG_KEY, "Value": vlab_id},
-                {"Key": PROJECT_TAG_KEY, "Value": project_id},
-                {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
-            ],
-            keypair_user="sim",
-        )
-        sim_user_secret = store_private_key(sm_client, vlab_id, project_id, sim_user_ssh_keypair)
-        response["cluster"]["ssh_user"] = "sim"
-        response["admin_user_private_ssh_key_arn"] = admin_user_secret["ARN"]
-        response["private_ssh_key_arn"] = sim_user_secret["ARN"]
-        logger.debug(f"Created sim user keypair: {sim_user_ssh_keypair}")
-        if key_material := sim_user_ssh_keypair.get("KeyMaterial"):
-            create_args["sim_pubkey"] = generate_public_key(key_material)
-        logger.debug(f"Create args: {create_args}")
+    sim_user_ssh_keypair = create_keypair(
+        ec2_client,
+        vlab_id=vlab_id,
+        project_id=project_id,
+        tags=[
+            {"Key": VLAB_TAG_KEY, "Value": vlab_id},
+            {"Key": PROJECT_TAG_KEY, "Value": project_id},
+            {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+        ],
+        keypair_user="sim",
+    )
+
+    sim_user_secret = store_private_key(sm_client, vlab_id, project_id, sim_user_ssh_keypair)
+    response["cluster"]["ssh_user"] = "sim"
+    response["admin_user_private_ssh_key_arn"] = admin_user_secret["ARN"]
+    response["private_ssh_key_arn"] = sim_user_secret["ARN"]
+    logger.debug(f"Created sim user keypair: {sim_user_ssh_keypair}")
+
+    if key_material := sim_user_ssh_keypair.get("KeyMaterial"):
+        create_args["sim_pubkey"] = generate_public_key(key_material)
+    logger.debug(f"Create args: {create_args}")
 
     if f"pcluster-{vlab_id}-{project_id}" in list_existing_stacks(cf_client):
         print(f"Stack pcluster-{vlab_id}-{project_id} already exists - exiting")
@@ -141,7 +142,7 @@ def pcluster_create_request_handler(event, _context=None):
 def pcluster_describe_handler(event, _context=None):
     """Describe a cluster given the vlab_id and project_id"""
     try:
-        options = _new_get_vlab_query_params(event)
+        options = _get_vlab_query_params(event)
         vlab_id = options["vlab_id"]
         project_id = options["project_id"]
     except InvalidRequest:
@@ -162,13 +163,13 @@ def pcluster_describe_handler(event, _context=None):
 
 def pcluster_delete_handler(event, _context=None):
     """Delete a cluster given the vlab_id and project_id"""
-    options = _new_get_vlab_query_params(event)
+    options = _get_vlab_query_params(event)
     vlab_id = options["vlab_id"]
     project_id = options["project_id"]
 
     logger.debug(f"delete pcluster {vlab_id}-{project_id}")
     try:
-        pc_output = pcluster_delete(vlab_id, project_id, options.get("dev", False))
+        pc_output = pcluster_delete(vlab_id, project_id)
         logger.debug(f"deleted pcluster {vlab_id}-{project_id}")
     except NotFoundException as e:
         return {"statusCode": 404, "body": e.content.message}
@@ -178,7 +179,7 @@ def pcluster_delete_handler(event, _context=None):
     return response_json(pc_output)
 
 
-def _new_get_vlab_query_params(event):
+def _get_vlab_query_params(event):
     logger.debug(f"Getting query params from event {event}")
 
     params = {
@@ -221,39 +222,6 @@ def _new_get_vlab_query_params(event):
 
     logger.debug(f"Parameters: {params}")
     return params
-
-
-# def _get_vlab_query_params(event):
-#     vlab_id = event.get("vlab_id")
-#     project_id = event.get("project_id")
-#     keyname = event.get("keyname")
-#     dev = event.get("dev", "").lower() == "true"
-#     sim_pubkey = event.get("sim_pubkey")
-#
-#     logger.debug(f"Event: {event}")
-#     if options := event.get("queryStringParameters", {}):
-#         if vlab_id is None:
-#             logger.debug(f"getting vlab id from {options}")
-#             vlab_id = options.pop("vlab_id", None)
-#         if project_id is None:
-#             logger.debug(f"getting project id from {options}")
-#             project_id = options.pop("project_id", None)
-#         if keyname is None:
-#             logger.debug(f"getting keyname from {options}")
-#             keyname = options.pop("keyname", None)
-#         if sim_pubkey is None:
-#             logger.debug(f"getting sim_pubkey from {options}")
-#             sim_pubkey = options.pop("sim_pubkey", None)
-#
-#     else:
-#         options = event.get("options", {})
-#
-#     if vlab_id is None:
-#         raise InvalidRequest("missing required 'vlab_id' query param")
-#     if project_id is None:
-#         raise InvalidRequest("missing required 'project_id' query param")
-#
-#     return vlab_id, project_id, keyname, options
 
 
 def response_text(text: str, code: int = 200):
