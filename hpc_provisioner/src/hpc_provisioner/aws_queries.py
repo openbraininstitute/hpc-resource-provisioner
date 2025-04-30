@@ -46,8 +46,16 @@ def get_cluster_name(vlab_id: str, project_id: str) -> str:
     return f"pcluster-{vlab_id}-{project_id}"
 
 
-def create_keypair(ec2_client, vlab_id, project_id, tags) -> dict:
+def get_keypair_name(vlab_id, project_id, keypair_user=None) -> str:
     keypair_name = get_cluster_name(vlab_id, project_id)
+    if keypair_user:
+        keypair_name = "_".join([keypair_name, keypair_user])
+
+    return keypair_name
+
+
+def create_keypair(ec2_client, vlab_id, project_id, tags, keypair_user=None) -> dict:
+    keypair_name = get_keypair_name(vlab_id, project_id, keypair_user)
     try:
         existing_key = ec2_client.describe_key_pairs(KeyNames=[keypair_name])
         return existing_key["KeyPairs"][0]
@@ -249,3 +257,36 @@ def remove_key(keypair_name: str) -> None:
     logger.debug("Deleting secret from SecretsManager")
     secret_delete = sm_client.delete_secret(SecretId=keypair_name, ForceDeleteWithoutRecovery=True)
     logger.debug(f"Secret deletion response: {secret_delete}")
+
+
+def list_existing_stacks(cf_client):
+    statuses = [
+        "CREATE_IN_PROGRESS",
+        "CREATE_FAILED",
+        "CREATE_COMPLETE",
+        "ROLLBACK_IN_PROGRESS",
+        "ROLLBACK_FAILED",
+        "ROLLBACK_COMPLETE",
+        "DELETE_IN_PROGRESS",
+        "DELETE_FAILED",
+        "UPDATE_IN_PROGRESS",
+        "UPDATE_COMPLETE_CLEANUP_IN_PROGRESS",
+        "UPDATE_COMPLETE",
+        "UPDATE_FAILED",
+        "UPDATE_ROLLBACK_IN_PROGRESS",
+        "UPDATE_ROLLBACK_FAILED",
+        "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS",
+        "UPDATE_ROLLBACK_COMPLETE",
+        "REVIEW_IN_PROGRESS",
+        "IMPORT_IN_PROGRESS",
+        "IMPORT_COMPLETE",
+        "IMPORT_ROLLBACK_IN_PROGRESS",
+        "IMPORT_ROLLBACK_FAILED",
+        "IMPORT_ROLLBACK_COMPLETE",
+    ]
+    stacks = cf_client.list_stacks(StackStatusFilter=statuses)
+    existing_stack_names = [
+        stack["StackName"] for stack in stacks["StackSummaries"] if "ParentId" not in stack
+    ]
+
+    return existing_stack_names

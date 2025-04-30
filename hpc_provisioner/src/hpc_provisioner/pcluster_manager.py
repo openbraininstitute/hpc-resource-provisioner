@@ -2,6 +2,7 @@
 # This is the top-level script to create a Parallel Cluster
 # It requires the `base_system` terraform to have been applied. If not it will error out.
 
+import json
 import logging
 import logging.config
 import pathlib
@@ -18,6 +19,7 @@ from hpc_provisioner.aws_queries import (
     get_available_subnet,
     get_cluster_name,
     get_efs,
+    get_keypair_name,
     get_security_group,
     release_subnets,
     remove_key,
@@ -34,7 +36,12 @@ from hpc_provisioner.constants import (
     VLAB_TAG_KEY,
 )
 from hpc_provisioner.logging_config import LOGGING_CONFIG
-from hpc_provisioner.utils import get_containers_bucket, get_sbonexusdata_bucket, get_scratch_bucket
+from hpc_provisioner.utils import (
+    get_containers_bucket,
+    get_efa_security_group_id,
+    get_sbonexusdata_bucket,
+    get_scratch_bucket,
+)
 from hpc_provisioner.yaml_loader import load_yaml_extended
 
 logging.config.dictConfig(LOGGING_CONFIG)
@@ -49,7 +56,14 @@ class InvalidRequest(Exception):
     """When the request is invalid, likely due to invalid or missing data"""
 
 
-def populate_config(cluster_name: str, keyname: str) -> None:
+def populate_config(cluster_name: str, keyname: str, cluster_users: Optional[str] = None) -> None:
+    """
+    populate config values for loading cluster config yaml
+
+    :param cluster_name: name of the cluster
+    :param keyname: ssh key name
+    :param cluster_users: users to create on the cluster, arg to create_users.py
+    """
     ec2_client = boto3.client("ec2")
     efs_client = boto3.client("efs")
     # base_security_group_id and efs_id should be fairly static and change only if
@@ -62,6 +76,9 @@ def populate_config(cluster_name: str, keyname: str) -> None:
     CONFIG_VALUES["sbonexusdata_bucket"] = get_sbonexusdata_bucket()
     CONFIG_VALUES["containers_bucket"] = get_containers_bucket()
     CONFIG_VALUES["scratch_bucket"] = get_scratch_bucket()
+    CONFIG_VALUES["efa_security_group_id"] = get_efa_security_group_id()
+    if cluster_users:
+        CONFIG_VALUES["cluster_users"] = cluster_users
     logger.debug(f"Config values: {CONFIG_VALUES}")
 
 
@@ -124,7 +141,11 @@ def write_config(cluster_name: str, pcluster_config: dict) -> str:
     return output_file.name
 
 
-def pcluster_create(vlab_id: str, project_id: str, keyname: str, options: Optional[dict] = None):
+def pcluster_create(
+    vlab_id: str,
+    project_id: str,
+    options: dict,
+):
     """Create a pcluster for a given vlab
 
     Args:
@@ -138,15 +159,20 @@ def pcluster_create(vlab_id: str, project_id: str, keyname: str, options: Option
     if not options:
         options = {}
     for k, default in DEFAULTS.items():
+        if k in options and options[k] is None:
+            options.pop(k)
         options.setdefault(k, default)
 
+    logger.info(f"Creating pcluster: {vlab_id}-{project_id} with default-filled options {options}")
     cluster_name = get_cluster_name(vlab_id, project_id)
 
     if cluster_already_exists(cluster_name):
         return
 
-    populate_config(cluster_name, keyname)
-    pcluster_config = load_pcluster_config(options["dev"].lower() == "true")
+    dev = options["dev"]
+    cluster_users = json.dumps([{"name": "sim", "public_key": options["sim_pubkey"]}])
+    populate_config(cluster_name, options["keyname"], cluster_users)
+    pcluster_config = load_pcluster_config(dev)
     pcluster_config["Tags"] = populate_tags(pcluster_config, vlab_id, project_id)
     pcluster_config["Scheduling"]["SlurmQueues"] = choose_tier(pcluster_config, options)
     if options["include_lustre"].lower() != "true":
@@ -155,7 +181,11 @@ def pcluster_create(vlab_id: str, project_id: str, keyname: str, options: Option
 
     try:
         logger.debug("Actual create_cluster command")
-        return pc.create_cluster(cluster_name=cluster_name, cluster_configuration=output_file_name)
+        return pc.create_cluster(
+            cluster_name=cluster_name,
+            cluster_configuration=output_file_name,
+            rollback_on_failure=False,
+        )
     except CreateClusterBadRequestException as e:
         logger.critical(f"Exception: {e.content}")
         raise
@@ -183,5 +213,6 @@ def pcluster_delete(vlab_id: str, project_id: str):
     """Destroy a cluster, given the vlab_id and project_id"""
     cluster_name = get_cluster_name(vlab_id, project_id)
     release_subnets(cluster_name)
-    remove_key(cluster_name)
+    remove_key(get_keypair_name(vlab_id, project_id))
+    remove_key(get_keypair_name(vlab_id, project_id, "sim"))
     return pc.delete_cluster(cluster_name=cluster_name, region=REGION)

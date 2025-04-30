@@ -7,6 +7,7 @@ name = "hpc_provisioner"
 dependencies = [
     "aws-parallelcluster",
     "boto3",
+    "cryptography",
     "PyYAML"
 ]
 authors = [{"name" = "Fernando Pereira", "email" = "fernando.pereira@epfl.ch"},
