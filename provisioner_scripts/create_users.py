@@ -4,7 +4,7 @@ from io import TextIOWrapper
 import json
 import subprocess
 import sys
-from typing import Union
+from typing import List, Optional, Union
 
 
 def run_cmd(
@@ -35,7 +35,12 @@ def run_cmd(
 
 
 # Helper method to create a user and configure sudo permissions
-def create_user(name: str, public_ssh_key: str, sudo: bool = False) -> None:
+def create_user(
+    name: str,
+    public_ssh_key: str,
+    sudo: bool = False,
+    folder_ownership: List[Optional[str]] = [],
+) -> None:
     """
     Create a user and configure sudo permissions, if necessary
 
@@ -77,6 +82,11 @@ def create_user(name: str, public_ssh_key: str, sudo: bool = False) -> None:
         f"chown -R {name}:{name} /home/{name}/.ssh",
         f"Set ownership for {name} .ssh dir",
     )
+    for folder in folder_ownership:
+        run_cmd(
+            f"chown -R {name}:{name} {folder}",
+            f"Assign ownership of {folder} to {name}",
+        )
 
 
 def main(argv):
@@ -98,7 +108,12 @@ def main(argv):
     print(f"Users: {users}")
     for user in users:
         print(f"Creating user {user}")
-        create_user(user["name"], user["public_key"], user.get("sudo", False))
+        create_user(
+            user["name"],
+            user["public_key"],
+            user.get("sudo", False),
+            user.get("folder_ownership", []),
+        )
 
 
 if __name__ == "__main__":

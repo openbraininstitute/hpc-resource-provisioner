@@ -170,7 +170,16 @@ def pcluster_create(
         return
 
     dev = options["dev"]
-    cluster_users = json.dumps([{"name": "sim", "public_key": options["sim_pubkey"]}])
+    cluster_users = json.dumps(
+        [
+            {
+                "name": "sim",
+                "public_key": options["sim_pubkey"],
+                "sudo": False,
+                "folder_ownership": ["/sbo/data/scratch"],
+            }
+        ]
+    )
     populate_config(cluster_name, options["keyname"], cluster_users)
     pcluster_config = load_pcluster_config(dev)
     pcluster_config["Tags"] = populate_tags(pcluster_config, vlab_id, project_id)
