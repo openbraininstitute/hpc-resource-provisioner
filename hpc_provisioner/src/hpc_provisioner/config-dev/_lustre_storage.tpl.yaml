@@ -19,7 +19,6 @@ FsxLustreSettings:
       BatchImportMetaDataOnCreate: true
       DataRepositoryPath: !config containers_bucket
       FileSystemPath: /containers
-      AutoExportPolicy: [NEW]
       AutoImportPolicy: [NEW, CHANGED, DELETED]
     - Name: Scratch-DRA
       BatchImportMetaDataOnCreate: true
