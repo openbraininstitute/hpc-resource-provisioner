@@ -9,8 +9,19 @@ FsxLustreSettings:
   DataCompressionType: LZ4  # Data compression for higher-throughput between OSSs <-> OSTs
   DeletionPolicy: Delete
   DataRepositoryAssociations:
+    - Name: Nexus-DRA
+      BatchImportMetaDataOnCreate: true
+      DataRepositoryPath: !config sbonexusdata_bucket
+      FileSystemPath: /project
+      AutoImportPolicy: [NEW, CHANGED, DELETED]
     - Name: Containers-DRA
       BatchImportMetaDataOnCreate: true
       DataRepositoryPath: !config containers_bucket
       FileSystemPath: /containers
+      AutoImportPolicy: [NEW, CHANGED, DELETED]
+    - Name: Scratch-DRA
+      BatchImportMetaDataOnCreate: true
+      DataRepositoryPath: !config scratch_bucket
+      FileSystemPath: /scratch
+      AutoExportPolicy: [NEW, CHANGED, DELETED]
       AutoImportPolicy: [NEW, CHANGED, DELETED]
