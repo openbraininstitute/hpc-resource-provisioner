@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import time
-import os
 
 from io import TextIOWrapper
 import json
@@ -88,18 +87,18 @@ def create_user(
         f"Set ownership for {name} .ssh dir",
     )
     timeout = time.time() + TIMEOUT
-    for folder in folder_ownership:
-        while not os.path.exists(folder) and time.time() < timeout:
-            print(f"Waiting for {folder} to appear")
-            time.sleep(10)
-        if not os.path.exists(folder):
-            raise RuntimeError(
-                f"Path {folder} did not appear within {TIMEOUT} seconds."
-            )
-        run_cmd(
-            f"chown -R {name}:{name} {folder}",
-            f"Assign ownership of {folder} to {name}",
-        )
+    # for folder in folder_ownership:
+    #     while not os.path.exists(folder) and time.time() < timeout:
+    #         print(f"Waiting for {folder} to appear")
+    #         time.sleep(10)
+    #     if not os.path.exists(folder):
+    #         raise RuntimeError(
+    #             f"Path {folder} did not appear within {TIMEOUT} seconds."
+    #         )
+    #     run_cmd(
+    #         f"chown -R {name}:{name} {folder}",
+    #         f"Assign ownership of {folder} to {name}",
+    #     )
 
 
 def main(argv):
