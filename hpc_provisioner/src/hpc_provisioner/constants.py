@@ -14,6 +14,7 @@ DEFAULTS = {
     "fs_type": "efs",
     "project_id": "-",
     "dev": "false",
+    "benchmark": "false",
     "include_lustre": "true",
 }
 

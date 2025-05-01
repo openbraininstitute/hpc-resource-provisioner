@@ -183,6 +183,7 @@ def _get_vlab_query_params(event):
     logger.debug(f"Getting query params from event {event}")
 
     params = {
+        "benchmark": event.get("benchmark"),
         "dev": event.get("dev"),
         "include_lustre": event.get("include_lustre"),
         "tier": event.get("tier"),
@@ -205,15 +206,16 @@ def _get_vlab_query_params(event):
                     f"Parameter {param} not defined yet - "
                     "checking queryStringParameters {queryStringParameters}"
                 )
-                if param in ["dev"]:
+                if param in ["benchmark", "dev"]:
                     params[param] = query_string_parameters.pop(param, False)
                 else:
                     params[param] = query_string_parameters.pop(param, None)
 
-    if isinstance(params["dev"], str):
-        params["dev"] = params["dev"].lower() == "true"
-    elif not isinstance(params["dev"], bool):
-        params["dev"] = False
+    for bool_param in ["benchmark", "dev"]:
+        if isinstance(params[bool_param], str):
+            params[bool_param] = params[bool_param].lower() == "true"
+        elif not isinstance(params[bool_param], bool):
+            params[bool_param] = False
 
     if params["vlab_id"] is None:
         raise InvalidRequest("missing required 'vlab_id' query param")

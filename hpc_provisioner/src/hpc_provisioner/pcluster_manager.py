@@ -63,6 +63,7 @@ def populate_config(
     project_id: str,
     cluster_users: Optional[str] = None,
     dev: Optional[bool] = False,
+    benchmark: Optional[bool] = False,
 ) -> None:
     """
     populate config values for loading cluster config yaml
@@ -84,6 +85,8 @@ def populate_config(
     CONFIG_VALUES["containers_bucket"] = get_containers_bucket()
     if dev:
         CONFIG_VALUES["scratch_bucket"] = "/".join([get_scratch_bucket(), vlab_id, project_id])
+    elif benchmark:
+        CONFIG_VALUES["scratch_bucket"] = get_scratch_bucket()
     else:
         CONFIG_VALUES["scratch_bucket"] = get_scratch_bucket()
     CONFIG_VALUES["efa_security_group_id"] = get_efa_security_group_id()
@@ -180,6 +183,7 @@ def pcluster_create(
         return
 
     dev = options["dev"]
+    benchmark = options["benchmark"]
     cluster_users = json.dumps(
         [
             {
@@ -190,7 +194,9 @@ def pcluster_create(
             }
         ]
     )
-    populate_config(cluster_name, options["keyname"], vlab_id, project_id, cluster_users, dev)
+    populate_config(
+        cluster_name, options["keyname"], vlab_id, project_id, cluster_users, dev, benchmark
+    )
     pcluster_config = load_pcluster_config(dev)
     pcluster_config["Tags"] = populate_tags(pcluster_config, vlab_id, project_id)
     pcluster_config["Scheduling"]["SlurmQueues"] = choose_tier(pcluster_config, options)
