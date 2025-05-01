@@ -211,7 +211,7 @@ def _get_vlab_query_params(event):
                 else:
                     params[param] = query_string_parameters.pop(param, None)
 
-    for bool_param in ["benchmark", "dev"]:
+    for bool_param in ["benchmark", "dev", "include_lustre"]:
         if isinstance(params[bool_param], str):
             params[bool_param] = params[bool_param].lower() == "true"
         elif not isinstance(params[bool_param], bool):

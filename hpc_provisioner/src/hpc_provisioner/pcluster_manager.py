@@ -62,7 +62,6 @@ def populate_config(
     vlab_id: str,
     project_id: str,
     cluster_users: Optional[str] = None,
-    dev: Optional[bool] = False,
     benchmark: Optional[bool] = False,
 ) -> None:
     """
@@ -83,12 +82,10 @@ def populate_config(
     CONFIG_VALUES["ssh_key"] = keyname
     CONFIG_VALUES["sbonexusdata_bucket"] = get_sbonexusdata_bucket()
     CONFIG_VALUES["containers_bucket"] = get_containers_bucket()
-    if dev:
-        CONFIG_VALUES["scratch_bucket"] = "/".join([get_scratch_bucket(), vlab_id, project_id])
-    elif benchmark:
+    if benchmark:
         CONFIG_VALUES["scratch_bucket"] = get_scratch_bucket()
     else:
-        CONFIG_VALUES["scratch_bucket"] = get_scratch_bucket()
+        CONFIG_VALUES["scratch_bucket"] = "/".join([get_scratch_bucket(), vlab_id, project_id])
     CONFIG_VALUES["efa_security_group_id"] = get_efa_security_group_id()
     if cluster_users:
         CONFIG_VALUES["cluster_users"] = cluster_users
@@ -194,13 +191,11 @@ def pcluster_create(
             }
         ]
     )
-    populate_config(
-        cluster_name, options["keyname"], vlab_id, project_id, cluster_users, dev, benchmark
-    )
+    populate_config(cluster_name, options["keyname"], vlab_id, project_id, cluster_users, benchmark)
     pcluster_config = load_pcluster_config(dev)
     pcluster_config["Tags"] = populate_tags(pcluster_config, vlab_id, project_id)
     pcluster_config["Scheduling"]["SlurmQueues"] = choose_tier(pcluster_config, options)
-    if options["include_lustre"].lower() != "true":
+    if not options["include_lustre"]:
         pcluster_config["SharedStorage"].pop(1)
     output_file_name = write_config(cluster_name, pcluster_config)
 
