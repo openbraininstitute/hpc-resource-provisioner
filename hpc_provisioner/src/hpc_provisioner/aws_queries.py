@@ -290,3 +290,10 @@ def list_existing_stacks(cf_client):
     ]
 
     return existing_stack_names
+
+
+def create_bucket_path(s3_client, bucket: str, path: str) -> None:
+    bucket = bucket.replace("s3://", "")
+    if not path.endswith("/"):
+        path += "/"
+    s3_client.put_object(bucket, path)

@@ -16,6 +16,7 @@ from pcluster import lib as pc
 from pcluster.api.errors import CreateClusterBadRequestException, InternalServiceException
 
 from hpc_provisioner.aws_queries import (
+    create_bucket_path,
     get_available_subnet,
     get_cluster_name,
     get_efs,
@@ -190,6 +191,9 @@ def pcluster_create(
         ]
     )
     populate_config(cluster_name, options["keyname"], project_id, cluster_users, dev)
+    if dev:
+        s3_client = boto3.client("s3")
+        create_bucket_path(s3_client, get_scratch_bucket(), project_id)
     pcluster_config = load_pcluster_config(dev)
     pcluster_config["Tags"] = populate_tags(pcluster_config, vlab_id, project_id)
     pcluster_config["Scheduling"]["SlurmQueues"] = choose_tier(pcluster_config, options)
