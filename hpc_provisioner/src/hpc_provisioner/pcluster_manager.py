@@ -16,7 +16,6 @@ from pcluster import lib as pc
 from pcluster.api.errors import CreateClusterBadRequestException, InternalServiceException
 
 from hpc_provisioner.aws_queries import (
-    create_bucket_path,
     get_available_subnet,
     get_cluster_name,
     get_efs,
@@ -60,6 +59,7 @@ class InvalidRequest(Exception):
 def populate_config(
     cluster_name: str,
     keyname: str,
+    vlab_id: str,
     project_id: str,
     cluster_users: Optional[str] = None,
     dev: Optional[bool] = False,
@@ -83,7 +83,7 @@ def populate_config(
     CONFIG_VALUES["sbonexusdata_bucket"] = get_sbonexusdata_bucket()
     CONFIG_VALUES["containers_bucket"] = get_containers_bucket()
     if dev:
-        CONFIG_VALUES["scratch_bucket"] = "/".join([get_scratch_bucket(), project_id])
+        CONFIG_VALUES["scratch_bucket"] = "/".join([get_scratch_bucket(), vlab_id, project_id])
     else:
         CONFIG_VALUES["scratch_bucket"] = get_scratch_bucket()
     CONFIG_VALUES["efa_security_group_id"] = get_efa_security_group_id()
@@ -190,10 +190,7 @@ def pcluster_create(
             }
         ]
     )
-    populate_config(cluster_name, options["keyname"], project_id, cluster_users, dev)
-    if dev:
-        s3_client = boto3.client("s3")
-        create_bucket_path(s3_client, get_scratch_bucket(), project_id)
+    populate_config(cluster_name, options["keyname"], vlab_id, project_id, cluster_users, dev)
     pcluster_config = load_pcluster_config(dev)
     pcluster_config["Tags"] = populate_tags(pcluster_config, vlab_id, project_id)
     pcluster_config["Scheduling"]["SlurmQueues"] = choose_tier(pcluster_config, options)
