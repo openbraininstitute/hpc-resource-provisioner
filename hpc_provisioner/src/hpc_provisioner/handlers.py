@@ -211,11 +211,17 @@ def _get_vlab_query_params(event):
                 else:
                     params[param] = query_string_parameters.pop(param, None)
 
-    for bool_param in ["benchmark", "dev", "include_lustre"]:
-        if isinstance(params[bool_param], str):
-            params[bool_param] = params[bool_param].lower() == "true"
-        elif not isinstance(params[bool_param], bool):
-            params[bool_param] = False
+    for default_false_bool_param in ["benchmark", "dev"]:
+        if isinstance(params[default_false_bool_param], str):
+            params[default_false_bool_param] = params[default_false_bool_param].lower() == "true"
+        elif not isinstance(params[default_false_bool_param], bool):
+            params[default_false_bool_param] = False
+
+    for default_true_bool_param in ["include_lustre"]:
+        if isinstance(params[default_true_bool_param], str):
+            params[default_true_bool_param] = params[default_true_bool_param].lower() == "true"
+        elif not isinstance(params[default_true_bool_param], bool):
+            params[default_true_bool_param] = True
 
     if params["vlab_id"] is None:
         raise InvalidRequest("missing required 'vlab_id' query param")
