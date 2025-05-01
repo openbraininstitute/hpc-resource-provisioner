@@ -216,6 +216,7 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
         "project_id": post_event["project_id"],
         "keyname": f"pcluster-{post_event['vlab_id']}-{post_event['project_id']}",
         "options": {
+            "benchmark": False,
             "dev": False,
             "include_lustre": None,
             "tier": None,
