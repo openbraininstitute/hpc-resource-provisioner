@@ -42,13 +42,6 @@
       MaxCount: 20  # least number of nodes needed to simulate the full O1 circuit x2
       Efa:  # low-latency, high BW network
         Enabled: true  # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/efa-start.html#efa-start-security
-    # - Name: nvme
-    #   Instances:
-    #   - InstanceType: c5d.24xlarge  # provides additionally nvme support
-    #   MinCount: 0
-    #   MaxCount: 2  # upper limit for functionalizer use-case defined in cost estimation sheet
-    #   Efa:
-    #     Enabled: false
   Networking:
     PlacementGroup:  # try to place nodes close to each other
       Enabled: true
@@ -112,30 +105,3 @@
   #         Args:
   #           - /sbo/home/resources/users.json
   #       - Script: s3://sboinfrastructureassets-sandbox/scripts/setup_environment_compute.sh
-
-# ==========================================
-# prod-hpc16x queue, for HPC jobs (64 vCPUs)
-# ==========================================
-- Name: prod-hpc16x
-  AllocationStrategy: lowest-price
-  ComputeResources:
-    - Name: cpu-hpc7g
-      Instances:
-        - InstanceType: hpc7g.16xlarge  # HPC compute nodes
-      MinCount: 0
-      MaxCount: 20  # temporary, may need to be increased to simulate larger circuits
-      Efa:  # low-latency, high BW network
-        Enabled: true  # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/efa-start.html#efa-start-security
-  Networking:
-    PlacementGroup:  # try to place nodes close to each other
-      Enabled: true
-    SubnetIds: [!config base_subnet_id]
-    SecurityGroups:
-      - !config base_security_group_id
-      - !config efa_security_group_id  # Efa
-  CustomSlurmSettings:
-    MaxNodes: 20
-    MaxTime: 720
-  Iam:
-    S3Access:
-      - BucketName: sboinfrastructureassets-sandbox

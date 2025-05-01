@@ -183,6 +183,7 @@ def _get_vlab_query_params(event):
     logger.debug(f"Getting query params from event {event}")
 
     params = {
+        "benchmark": event.get("benchmark"),
         "dev": event.get("dev"),
         "include_lustre": event.get("include_lustre"),
         "tier": event.get("tier"),
@@ -205,15 +206,22 @@ def _get_vlab_query_params(event):
                     f"Parameter {param} not defined yet - "
                     "checking queryStringParameters {queryStringParameters}"
                 )
-                if param in ["dev"]:
+                if param in ["benchmark", "dev"]:
                     params[param] = query_string_parameters.pop(param, False)
                 else:
                     params[param] = query_string_parameters.pop(param, None)
 
-    if isinstance(params["dev"], str):
-        params["dev"] = params["dev"].lower() == "true"
-    elif not isinstance(params["dev"], bool):
-        params["dev"] = False
+    for default_false_bool_param in ["benchmark", "dev"]:
+        if isinstance(params[default_false_bool_param], str):
+            params[default_false_bool_param] = params[default_false_bool_param].lower() == "true"
+        elif not isinstance(params[default_false_bool_param], bool):
+            params[default_false_bool_param] = False
+
+    for default_true_bool_param in ["include_lustre"]:
+        if isinstance(params[default_true_bool_param], str):
+            params[default_true_bool_param] = params[default_true_bool_param].lower() == "true"
+        elif not isinstance(params[default_true_bool_param], bool):
+            params[default_true_bool_param] = True
 
     if params["vlab_id"] is None:
         raise InvalidRequest("missing required 'vlab_id' query param")
