@@ -10,6 +10,8 @@ Iam:
   S3Access:
     - BucketName: sboinfrastructureassets-sandbox
       EnableWriteAccess: false
+    - BucketName: sbosandbox-le3cn
+      EnableWriteAccess: false
 CustomActions:
   OnNodeConfigured:
     Sequence:
