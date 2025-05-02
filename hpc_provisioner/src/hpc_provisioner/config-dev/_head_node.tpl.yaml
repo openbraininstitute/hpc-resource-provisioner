@@ -7,13 +7,15 @@ Networking:
 Ssh:
   KeyName: !config ssh_key  # for PoC, taken from parallel-cluster repo
 Iam:
+  AdditionalIamPolicies:
+    - Policy: !config fsx_policy_arn
   S3Access:
     - BucketName: sboinfrastructureassets-sandbox
       EnableWriteAccess: false
 CustomActions:
   OnNodeConfigured:
     Sequence:
-      - Script: s3://sboinfrastructureassets-sandbox/scripts/create_users.py
+      - Script: s3://sboinfrastructureassets-sandbox/scripts/dev_create_users.py
         Args:
           - !config cluster_users
 #       - Script: s3://sboinfrastructureassets/scripts/all_or_nothing_allocation.sh

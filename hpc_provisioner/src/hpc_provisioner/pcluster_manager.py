@@ -39,6 +39,7 @@ from hpc_provisioner.logging_config import LOGGING_CONFIG
 from hpc_provisioner.utils import (
     get_containers_bucket,
     get_efa_security_group_id,
+    get_fsx_policy_arn,
     get_sbonexusdata_bucket,
     get_scratch_bucket,
 )
@@ -82,6 +83,7 @@ def populate_config(
     CONFIG_VALUES["ssh_key"] = keyname
     CONFIG_VALUES["sbonexusdata_bucket"] = get_sbonexusdata_bucket()
     CONFIG_VALUES["containers_bucket"] = get_containers_bucket()
+    CONFIG_VALUES["fsx_policy_arn"] = get_fsx_policy_arn()
     if benchmark:
         CONFIG_VALUES["scratch_bucket"] = get_scratch_bucket()
     else:
