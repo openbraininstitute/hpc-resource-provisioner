@@ -91,8 +91,6 @@ def populate_config(
         CONFIG_VALUES["scratch_bucket"] = "/".join([get_scratch_bucket(), vlab_id, project_id])
     CONFIG_VALUES["efa_security_group_id"] = get_efa_security_group_id()
     if create_users_args:
-        if dev:
-            create_users_args = " ".join(create_users_args)
         CONFIG_VALUES["create_users_args"] = create_users_args
     logger.debug(f"Config values: {CONFIG_VALUES}")
 
@@ -200,7 +198,7 @@ def pcluster_create(
         create_users_args = [
             f"--vlab-id={vlab_id}",
             f"--project-id={project_id}",
-            f"--users='{cluster_users}'",
+            f"--users={cluster_users}",
         ]
 
     else:
