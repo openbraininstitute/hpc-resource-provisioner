@@ -141,8 +141,8 @@ def create_user(
         if not os.path.exists(folder):
             raise RuntimeError(f"Path {folder} does not exist")
         run_cmd(
-            f"chown -R {name}:{name} {folder}",
-            f"Assign ownership of {folder} to {name}",
+            f"sudo setfacl -Rm d:u:{name}:rwX,u:{name}:rwX {folder}",
+            f"setfacl on {folder} for {name}",
         )
 
 
