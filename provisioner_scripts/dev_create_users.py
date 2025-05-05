@@ -75,7 +75,7 @@ def wait_for_dra(vlab_id: str, project_id: str) -> None:
                 return
             else:
                 print(
-                    f"All DRAs present, but not all in final state yet: {[association['Lifecycle'] for association in associations]}"
+                    f"All DRAs present, but not all in final state yet: {[association['Lifecycle'] for association in associations['Associations']]}"
                 )
         else:
             print("Not all associations found yet - waiting")
