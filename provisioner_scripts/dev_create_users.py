@@ -79,7 +79,7 @@ def wait_for_dra(vlab_id: str, project_id: str) -> None:
                 )
         else:
             print("Not all associations found yet - waiting")
-        time.sleep(10)
+        time.sleep(60)
     raise TimeoutError("Timed out waiting for DRAs to become available")
 
 
