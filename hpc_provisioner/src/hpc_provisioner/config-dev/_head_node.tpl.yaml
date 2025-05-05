@@ -19,7 +19,7 @@ CustomActions:
     Sequence:
       - Script: s3://sboinfrastructureassets-sandbox/scripts/dev_create_users.py
         Args:
-          - !config cluster_users
+          - !config create_users_args
 #       - Script: s3://sboinfrastructureassets/scripts/all_or_nothing_allocation.sh
 #       - Script: s3://sboinfrastructureassets/scripts/setup_lustre_directories.py
 #         Args:

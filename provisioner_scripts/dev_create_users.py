@@ -2,6 +2,7 @@
 import os
 import time
 
+from argparse import ArgumentParser
 from io import TextIOWrapper
 import json
 import subprocess
@@ -17,7 +18,7 @@ def run_cmd(
     msg_prefix: str,
     output_file: Union[int, TextIOWrapper] = subprocess.PIPE,
     exit_after_error: bool = True,
-) -> None:
+) -> Optional[bytes]:
     """
     Run a command, exit after an error
 
@@ -28,9 +29,11 @@ def run_cmd(
     """
     print(f"Run: {cmd}")
     try:
-        subprocess.run(
+        result = subprocess.run(
             cmd.split(" "), stdout=output_file, stderr=subprocess.PIPE, check=True
         )
+        if output_file == subprocess.PIPE:
+            return result.stdout
     except subprocess.CalledProcessError as ret:
         error_msg = ret.stderr.decode().replace("\n", "")
         print(f'{msg_prefix} failed:\n\t"{error_msg}"')
@@ -39,8 +42,45 @@ def run_cmd(
     print(f"{msg_prefix} succeeded.")
 
 
+def wait_for_dra(vlab_id: str, project_id: str) -> None:
+    timed_out = time.time() + 1800
+    while time.time() < timed_out:
+        output = run_cmd(
+            "aws fsx describe-data-repository-associations", "Getting DRA status"
+        )
+        associations = json.loads(output)
+        for association in associations["Associations"][::-1]:
+            keep = False
+            for tag in association["Tags"]:
+                if (
+                    tag["Key"] == "parallelcluster:cluster-name"
+                    and tag["Value"] == f"pcluster-{vlab_id}-{project_id}"
+                ):
+                    keep = True
+
+            if keep is False:
+                associations["Associations"].remove(association)
+        if len(associations["Associations"]) == 3:
+            print("All associations found!")
+            if any(
+                association["Lifecycle"] == "FAILED"
+                for association in associations["Associations"]
+            ):
+                raise RuntimeError(f"DRA failure: {associations}")
+            elif all(
+                association["Lifecycle"] == "AVAILABLE"
+                for association in associations["Associations"]
+            ):
+                print("All DRA's available")
+                return
+        # time.sleep(10)
+    raise TimeoutError("Timed out waiting for DRAs to become available")
+
+
 # Helper method to create a user and configure sudo permissions
 def create_user(
+    vlab_id: str,
+    project_id: str,
     name: str,
     public_ssh_key: str,
     sudo: bool = False,
@@ -88,14 +128,12 @@ def create_user(
         f"Set ownership for {name} .ssh dir",
     )
     timeout = time.time() + TIMEOUT
+
+    wait_for_dra(vlab_id, project_id)
+
     for folder in folder_ownership:
-        while not os.path.exists(folder) and time.time() < timeout:
-            print(f"Waiting for {folder} to appear")
-            time.sleep(10)
         if not os.path.exists(folder):
-            raise RuntimeError(
-                f"Path {folder} did not appear within {TIMEOUT} seconds."
-            )
+            raise RuntimeError(f"Path {folder} does not exist")
         run_cmd(
             f"chown -R {name}:{name} {folder}",
             f"Assign ownership of {folder} to {name}",
@@ -103,9 +141,17 @@ def create_user(
 
 
 def main(argv):
-    if len(argv) != 2:
+    parser = ArgumentParser()
+    parser.add_argument("--users", help="Users to create")
+    parser.add_argument("--vlab-id", required=True, help="Vlab ID")
+    parser.add_argument("--project-id", required=True, help="Project ID")
+    args = parser.parse_args()
+
+    if not args.users:
         print("No users to create - exiting")
         exit(0)
+    print("Loading users")
+    users = json.loads(args.users)
 
     group = {"id": 2000, "name": "obi"}
 
@@ -116,12 +162,12 @@ def main(argv):
     )
 
     # Create users within the OBI group and configure Lustre FSx 'scratch' directory, if required
-    print("Loading users")
-    users = json.loads(argv[1])
     print(f"Users: {users}")
     for user in users:
         print(f"Creating user {user}")
         create_user(
+            args.vlab_id,
+            args.project_id,
             user["name"],
             user["public_key"],
             user.get("sudo", False),

@@ -7,7 +7,7 @@ import logging
 import logging.config
 import pathlib
 import tempfile
-from typing import Optional
+from typing import List, Optional
 
 import boto3
 import yaml
@@ -62,7 +62,7 @@ def populate_config(
     keyname: str,
     vlab_id: str,
     project_id: str,
-    cluster_users: Optional[str] = None,
+    create_users_args: Optional[List[str] | str] = None,
     benchmark: Optional[bool] = False,
 ) -> None:
     """
@@ -70,7 +70,7 @@ def populate_config(
 
     :param cluster_name: name of the cluster
     :param keyname: ssh key name
-    :param cluster_users: users to create on the cluster, arg to create_users.py
+    :param create_users_args: arguments to create_users.py
     """
     ec2_client = boto3.client("ec2")
     efs_client = boto3.client("efs")
@@ -89,8 +89,8 @@ def populate_config(
     else:
         CONFIG_VALUES["scratch_bucket"] = "/".join([get_scratch_bucket(), vlab_id, project_id])
     CONFIG_VALUES["efa_security_group_id"] = get_efa_security_group_id()
-    if cluster_users:
-        CONFIG_VALUES["cluster_users"] = cluster_users
+    if create_users_args:
+        CONFIG_VALUES["create_users_args"] = create_users_args
     logger.debug(f"Config values: {CONFIG_VALUES}")
 
 
@@ -183,17 +183,38 @@ def pcluster_create(
 
     dev = options["dev"]
     benchmark = options["benchmark"]
-    cluster_users = json.dumps(
-        [
-            {
-                "name": "sim",
-                "public_key": options["sim_pubkey"],
-                "sudo": False,
-                "folder_ownership": ["/sbo/data/scratch"],
-            }
+    if dev:
+        cluster_users = json.dumps(
+            [
+                {
+                    "name": "sim",
+                    "public_key": options["sim_pubkey"],
+                    "sudo": False,
+                    "folder_ownership": ["/sbo/data/scratch"],
+                }
+            ]
+        )
+        create_users_args = [
+            f"--vlab-id={vlab_id}",
+            f"--project-id={project_id}",
+            f"--users={cluster_users}",
         ]
+
+    else:
+        create_users_args = json.dumps(
+            [
+                {
+                    "name": "sim",
+                    "public_key": options["sim_pubkey"],
+                    "sudo": False,
+                    "folder_ownership": ["/sbo/data/scratch"],
+                }
+            ]
+        )
+
+    populate_config(
+        cluster_name, options["keyname"], vlab_id, project_id, create_users_args, benchmark
     )
-    populate_config(cluster_name, options["keyname"], vlab_id, project_id, cluster_users, benchmark)
     pcluster_config = load_pcluster_config(dev)
     pcluster_config["Tags"] = populate_tags(pcluster_config, vlab_id, project_id)
     pcluster_config["Scheduling"]["SlurmQueues"] = choose_tier(pcluster_config, options)
