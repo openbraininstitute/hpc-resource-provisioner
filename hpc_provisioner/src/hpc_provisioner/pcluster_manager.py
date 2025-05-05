@@ -200,7 +200,7 @@ def pcluster_create(
         create_users_args = [
             f"--vlab-id={vlab_id}",
             f"--project-id={project_id}",
-            f"--users={cluster_users}",
+            f"--users='{cluster_users}'",
         ]
 
     else:
