@@ -63,6 +63,7 @@ def populate_config(
     vlab_id: str,
     project_id: str,
     create_users_args: Optional[List[str] | str] = None,
+    dev: Optional[bool] = False,
     benchmark: Optional[bool] = False,
 ) -> None:
     """
@@ -90,6 +91,8 @@ def populate_config(
         CONFIG_VALUES["scratch_bucket"] = "/".join([get_scratch_bucket(), vlab_id, project_id])
     CONFIG_VALUES["efa_security_group_id"] = get_efa_security_group_id()
     if create_users_args:
+        if dev:
+            create_users_args = " ".join(create_users_args)
         CONFIG_VALUES["create_users_args"] = create_users_args
     logger.debug(f"Config values: {CONFIG_VALUES}")
 
@@ -213,7 +216,7 @@ def pcluster_create(
         )
 
     populate_config(
-        cluster_name, options["keyname"], vlab_id, project_id, create_users_args, benchmark
+        cluster_name, options["keyname"], vlab_id, project_id, create_users_args, dev, benchmark
     )
     pcluster_config = load_pcluster_config(dev)
     pcluster_config["Tags"] = populate_tags(pcluster_config, vlab_id, project_id)

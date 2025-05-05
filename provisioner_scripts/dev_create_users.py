@@ -61,7 +61,7 @@ def wait_for_dra(vlab_id: str, project_id: str) -> None:
             if keep is False:
                 associations["Associations"].remove(association)
         if len(associations["Associations"]) == 3:
-            print("All associations found!")
+            print("All DRAs found!")
             if any(
                 association["Lifecycle"] == "FAILED"
                 for association in associations["Associations"]
@@ -73,7 +73,13 @@ def wait_for_dra(vlab_id: str, project_id: str) -> None:
             ):
                 print("All DRA's available")
                 return
-        # time.sleep(10)
+            else:
+                print(
+                    f"All DRAs present, but not all in final state yet: {[association['Lifecycle'] for association in associations]}"
+                )
+        else:
+            print("Not all associations found yet - waiting")
+        time.sleep(10)
     raise TimeoutError("Timed out waiting for DRAs to become available")
 
 
