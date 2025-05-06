@@ -31,5 +31,5 @@ SharedStorage:
   - !include _lustre_storage.tpl.yaml
 DevSettings:
   Timeouts:
-    HeadNodeBootstrapTimeout: 3600  # timeout in seconds - needs to be long enough to give FSX time
-    ComputeNodeBootstrapTimeout: 3600
+    HeadNodeBootstrapTimeout: 14400  # timeout in seconds - needs to be long enough to give FSX time
+    ComputeNodeBootstrapTimeout: 14400
