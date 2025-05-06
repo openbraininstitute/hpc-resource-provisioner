@@ -66,6 +66,7 @@ def wait_for_dra(vlab_id: str, project_id: str) -> None:
                 association["Lifecycle"] == "FAILED"
                 for association in associations["Associations"]
             ):
+                print(f"DRA failure: {associations}")
                 raise RuntimeError(f"DRA failure: {associations}")
             elif all(
                 association["Lifecycle"] == "AVAILABLE"
