@@ -43,7 +43,7 @@ def run_cmd(
 
 
 def wait_for_dra(vlab_id: str, project_id: str) -> None:
-    timed_out = time.time() + 1800
+    timed_out = time.time() + 14400
     while time.time() < timed_out:
         output = run_cmd(
             "aws fsx describe-data-repository-associations", "Getting DRA status"
@@ -80,6 +80,7 @@ def wait_for_dra(vlab_id: str, project_id: str) -> None:
         else:
             print("Not all associations found yet - waiting")
         time.sleep(60)
+    print("Timed out waiting for DRAs to become available")
     raise TimeoutError("Timed out waiting for DRAs to become available")
 
 
