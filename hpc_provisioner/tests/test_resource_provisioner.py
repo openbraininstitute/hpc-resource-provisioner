@@ -160,21 +160,17 @@ def test_get_all_clusters(data):
 @pytest.mark.parametrize("key_exists", [True, False])
 def test_post(patched_boto3, post_event, key_exists):
     test_cluster_name = cluster_name(post_event["vlab_id"], post_event["project_id"])
-    mock_client = MagicMock()
-    patched_boto3.client.return_value = mock_client
-    with patch("hpc_provisioner.handlers.create_keypair") as patched_create_keypair:
-        if key_exists:
-            patched_create_keypair.side_effect = [
-                {
-                    "KeyName": test_cluster_name,
-                },
-                {"KeyName": f"{test_cluster_name}_sim"},
-            ]
-        else:
-            patched_create_keypair.side_effect = [
-                {"KeyMaterial": "secret-stuff", "KeyName": test_cluster_name},
-                {
-                    "KeyMaterial": """-----BEGIN RSA PRIVATE KEY-----
+    mock_ec2_client = MagicMock()
+    mock_sm_client = MagicMock()
+    mock_cf_client = MagicMock()
+    mock_lambda_client = MagicMock()
+    patched_boto3.client.side_effect = [
+        mock_ec2_client,
+        mock_sm_client,
+        mock_cf_client,
+        mock_lambda_client,
+    ]
+    sim_private_key = """-----BEGIN RSA PRIVATE KEY-----
 MIIEogIBAAKCAQEAvfvswsbNBM05kutLby0DZEl+tWx62yqMU0IgKqEoPamtgS3s
 V6S5xOLqYItd5UAMLf4pAGbvqXNy8BbVNmiKfPEXRfBq1hC4t/FmILIh5uyTRqEe
 ocB9s/RIR/bkAdrhK60ZzwPD4RHqfShGE6FuB3VPHbxWVsfrYjjsC66n675qSdnk
@@ -200,17 +196,43 @@ QFZjkQSjmdHod94JeMrIyF4S7SmhjrUdhkNvMqeaqkkdDNBRvWDoMIqhmchIhzfA
 TNFxAoGATB6ReLKjX8kudSzGKQEYiMN9afFCYt4UsoED/FPoOTu7K9kuZ7Sbh/Q3
 WoeXwwyBA7QuulZo9ACvHw6PqHbqQqD8IqJVocYisq9EmGFSnAmUYIX7hBwWr7pP
 e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
------END RSA PRIVATE KEY-----""",
+-----END RSA PRIVATE KEY-----"""
+    sim_pubkey = """ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC9++zCxs0EzTmS60tvLQNkSX61bHrbKoxTQiAqoSg9qa2BLexXpLnE4upgi13lQAwt/ikAZu+pc3LwFtU2aIp88RdF8GrWELi38WYgsiHm7JNGoR6hwH2z9EhH9uQB2uErrRnPA8PhEep9KEYToW4HdU8dvFZWx+tiOOwLrqfrvmpJ2eT/g3r1pRFRffEH5FyjaLVFbdVRvKU9edsqUbUq0hganpy2/e9B/fNdHuyenjnzSa7VPoMFKZ2E1juv8hQZxBN482j5Hz0VorQ4Q5U248lSxPwicSKGZPFHwdORLrHfWR05b25bIKNSFnzomBgwhYic64Pp1WOJV85LeXPj"""
+
+    sim_key_secret = {
+        "ARN": "secret ARN sim",
+        "SecretString": sim_private_key,
+    }
+    mock_sm_client.get_secret_value.return_value = sim_key_secret
+
+    with patch("hpc_provisioner.handlers.create_keypair") as patched_create_keypair:
+        if key_exists:
+            patched_create_keypair.side_effect = [
+                {
+                    "KeyName": test_cluster_name,
+                },
+                {"KeyName": f"{test_cluster_name}_sim"},
+            ]
+        else:
+            patched_create_keypair.side_effect = [
+                {"KeyMaterial": "secret-stuff", "KeyName": test_cluster_name},
+                {
+                    "KeyMaterial": sim_private_key,
                     "KeyName": f"{test_cluster_name}_sim",
                 },
             ]
 
         with patch("hpc_provisioner.handlers.store_private_key") as patched_store_private_key:
-            patched_store_private_key.side_effect = [
-                {"ARN": "secret ARN"},
-                {"ARN": "secret ARN sim"},
-            ]
-            actual_response = handlers.pcluster_create_request_handler(post_event)
+            with patch(
+                "hpc_provisioner.handlers.generate_public_key"
+            ) as patched_generate_public_key:
+                patched_store_private_key.side_effect = [
+                    {"ARN": "secret ARN"},
+                    {"ARN": "secret ARN sim"},
+                ]
+                patched_generate_public_key.return_value = sim_pubkey
+                actual_response = handlers.pcluster_create_request_handler(post_event)
+                patched_generate_public_key.assert_called_once_with(sim_key_secret)
     expected_args = {
         "vlab_id": post_event["vlab_id"],
         "project_id": post_event["project_id"],
@@ -225,12 +247,11 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
             "keyname": None,
             "sim_pubkey": None,
         },
+        "sim_pubkey": sim_pubkey,
     }
     if not key_exists:
-        expected_args["sim_pubkey"] = (
-            """ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC9++zCxs0EzTmS60tvLQNkSX61bHrbKoxTQiAqoSg9qa2BLexXpLnE4upgi13lQAwt/ikAZu+pc3LwFtU2aIp88RdF8GrWELi38WYgsiHm7JNGoR6hwH2z9EhH9uQB2uErrRnPA8PhEep9KEYToW4HdU8dvFZWx+tiOOwLrqfrvmpJ2eT/g3r1pRFRffEH5FyjaLVFbdVRvKU9edsqUbUq0hganpy2/e9B/fNdHuyenjnzSa7VPoMFKZ2E1juv8hQZxBN482j5Hz0VorQ4Q5U248lSxPwicSKGZPFHwdORLrHfWR05b25bIKNSFnzomBgwhYic64Pp1WOJV85LeXPj"""
-        )
-    mock_client.invoke_async.assert_called_with(
+        expected_args["sim_pubkey"] = sim_pubkey
+    mock_lambda_client.invoke_async.assert_called_with(
         FunctionName="hpc-resource-provisioner-creator",
         InvokeArgs=json.dumps(expected_args),
     )
