@@ -232,7 +232,7 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
                 ]
                 patched_generate_public_key.return_value = sim_pubkey
                 actual_response = handlers.pcluster_create_request_handler(post_event)
-                patched_generate_public_key.assert_called_once_with(sim_key_secret)
+                patched_generate_public_key.assert_called_once_with(sim_private_key)
     expected_args = {
         "vlab_id": post_event["vlab_id"],
         "project_id": post_event["project_id"],
