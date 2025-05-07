@@ -62,8 +62,7 @@ def populate_config(
     keyname: str,
     vlab_id: str,
     project_id: str,
-    create_users_args: Optional[List[str] | str] = None,
-    dev: Optional[bool] = False,
+    create_users_args: Optional[List[str]] = None,
     benchmark: Optional[bool] = False,
 ) -> None:
     """
@@ -184,37 +183,24 @@ def pcluster_create(
 
     dev = options["dev"]
     benchmark = options["benchmark"]
-    if dev:
-        cluster_users = json.dumps(
-            [
-                {
-                    "name": "sim",
-                    "public_key": options["sim_pubkey"],
-                    "sudo": False,
-                    "folder_ownership": ["/sbo/data/scratch"],
-                }
-            ]
-        )
-        create_users_args = [
-            f"--vlab-id={vlab_id}",
-            f"--project-id={project_id}",
-            f"--users={cluster_users}",
+    cluster_users = json.dumps(
+        [
+            {
+                "name": "sim",
+                "public_key": options["sim_pubkey"],
+                "sudo": False,
+                "folder_ownership": ["/sbo/data/scratch"],
+            }
         ]
-
-    else:
-        create_users_args = json.dumps(
-            [
-                {
-                    "name": "sim",
-                    "public_key": options["sim_pubkey"],
-                    "sudo": False,
-                    "folder_ownership": ["/sbo/data/scratch"],
-                }
-            ]
-        )
+    )
+    create_users_args = [
+        f"--vlab-id={vlab_id}",
+        f"--project-id={project_id}",
+        f"--users={cluster_users}",
+    ]
 
     populate_config(
-        cluster_name, options["keyname"], vlab_id, project_id, create_users_args, dev, benchmark
+        cluster_name, options["keyname"], vlab_id, project_id, create_users_args, benchmark
     )
     pcluster_config = load_pcluster_config(dev)
     pcluster_config["Tags"] = populate_tags(pcluster_config, vlab_id, project_id)
