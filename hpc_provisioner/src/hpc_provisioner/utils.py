@@ -3,27 +3,31 @@ import os
 from cryptography.hazmat.primitives import serialization
 
 
-def _get_bucket_from_env(var_name: str) -> str:
-    if bucket := os.environ.get(var_name):
-        return bucket
+def _get_env_var(var_name: str) -> str:
+    if value := os.environ.get(var_name):
+        return value
     else:
         raise ValueError(f"{var_name} not set")
 
 
 def get_sbonexusdata_bucket() -> str:
-    return _get_bucket_from_env("SBO_NEXUSDATA_BUCKET")
+    return _get_env_var("SBO_NEXUSDATA_BUCKET")
 
 
 def get_containers_bucket() -> str:
-    return _get_bucket_from_env("CONTAINERS_BUCKET")
+    return _get_env_var("CONTAINERS_BUCKET")
 
 
 def get_scratch_bucket() -> str:
-    return _get_bucket_from_env("SCRATCH_BUCKET")
+    return _get_env_var("SCRATCH_BUCKET")
 
 
 def get_efa_security_group_id() -> str:
-    return _get_bucket_from_env("EFA_SG_ID")
+    return _get_env_var("EFA_SG_ID")
+
+
+def get_fsx_policy_arn() -> str:
+    return _get_env_var("FSX_POLICY_ARN")
 
 
 def generate_public_key(key_material):

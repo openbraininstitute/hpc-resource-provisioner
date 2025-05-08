@@ -7,7 +7,7 @@ import logging
 import logging.config
 import pathlib
 import tempfile
-from typing import Optional
+from typing import List, Optional
 
 import boto3
 import yaml
@@ -39,6 +39,7 @@ from hpc_provisioner.logging_config import LOGGING_CONFIG
 from hpc_provisioner.utils import (
     get_containers_bucket,
     get_efa_security_group_id,
+    get_fsx_policy_arn,
     get_sbonexusdata_bucket,
     get_scratch_bucket,
 )
@@ -61,7 +62,7 @@ def populate_config(
     keyname: str,
     vlab_id: str,
     project_id: str,
-    cluster_users: Optional[str] = None,
+    create_users_args: Optional[List[str]] = None,
     benchmark: Optional[bool] = False,
 ) -> None:
     """
@@ -69,7 +70,7 @@ def populate_config(
 
     :param cluster_name: name of the cluster
     :param keyname: ssh key name
-    :param cluster_users: users to create on the cluster, arg to create_users.py
+    :param create_users_args: arguments to create_users.py
     """
     ec2_client = boto3.client("ec2")
     efs_client = boto3.client("efs")
@@ -82,13 +83,14 @@ def populate_config(
     CONFIG_VALUES["ssh_key"] = keyname
     CONFIG_VALUES["sbonexusdata_bucket"] = get_sbonexusdata_bucket()
     CONFIG_VALUES["containers_bucket"] = get_containers_bucket()
+    CONFIG_VALUES["fsx_policy_arn"] = get_fsx_policy_arn()
     if benchmark:
         CONFIG_VALUES["scratch_bucket"] = get_scratch_bucket()
     else:
         CONFIG_VALUES["scratch_bucket"] = "/".join([get_scratch_bucket(), vlab_id, project_id])
     CONFIG_VALUES["efa_security_group_id"] = get_efa_security_group_id()
-    if cluster_users:
-        CONFIG_VALUES["cluster_users"] = cluster_users
+    if create_users_args:
+        CONFIG_VALUES["create_users_args"] = create_users_args
     logger.debug(f"Config values: {CONFIG_VALUES}")
 
 
@@ -191,7 +193,15 @@ def pcluster_create(
             }
         ]
     )
-    populate_config(cluster_name, options["keyname"], vlab_id, project_id, cluster_users, benchmark)
+    create_users_args = [
+        f"--vlab-id={vlab_id}",
+        f"--project-id={project_id}",
+        f"--users={cluster_users}",
+    ]
+
+    populate_config(
+        cluster_name, options["keyname"], vlab_id, project_id, create_users_args, benchmark
+    )
     pcluster_config = load_pcluster_config(dev)
     pcluster_config["Tags"] = populate_tags(pcluster_config, vlab_id, project_id)
     pcluster_config["Scheduling"]["SlurmQueues"] = choose_tier(pcluster_config, options)

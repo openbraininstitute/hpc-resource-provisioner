@@ -121,8 +121,8 @@ def pcluster_create_request_handler(event, _context=None):
     response["private_ssh_key_arn"] = sim_user_secret["ARN"]
     logger.debug(f"Created sim user keypair: {sim_user_ssh_keypair}")
 
-    if key_material := sim_user_ssh_keypair.get("KeyMaterial"):
-        create_args["sim_pubkey"] = generate_public_key(key_material)
+    if key_material := sm_client.get_secret_value(SecretId=sim_user_secret["ARN"]):
+        create_args["sim_pubkey"] = generate_public_key(key_material["SecretString"])
     logger.debug(f"Create args: {create_args}")
 
     if f"pcluster-{vlab_id}-{project_id}" in list_existing_stacks(cf_client):
