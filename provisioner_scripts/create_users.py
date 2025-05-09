@@ -42,49 +42,6 @@ def run_cmd(
     print(f"{msg_prefix} succeeded.")
 
 
-def wait_for_dra(vlab_id: str, project_id: str) -> None:
-    timed_out = time.time() + 14400
-    while time.time() < timed_out:
-        output = run_cmd(
-            "aws fsx describe-data-repository-associations", "Getting DRA status"
-        )
-        associations = json.loads(output)
-        for association in associations["Associations"][::-1]:
-            keep = False
-            for tag in association["Tags"]:
-                if (
-                    tag["Key"] == "parallelcluster:cluster-name"
-                    and tag["Value"] == f"pcluster-{vlab_id}-{project_id}"
-                ):
-                    keep = True
-
-            if keep is False:
-                associations["Associations"].remove(association)
-        if len(associations["Associations"]) == 3:
-            print("All DRAs found!")
-            if any(
-                association["Lifecycle"] == "FAILED"
-                for association in associations["Associations"]
-            ):
-                print(f"DRA failure: {associations}")
-                raise RuntimeError(f"DRA failure: {associations}")
-            elif all(
-                association["Lifecycle"] == "AVAILABLE"
-                for association in associations["Associations"]
-            ):
-                print("All DRA's available")
-                return
-            else:
-                print(
-                    f"All DRAs present, but not all in final state yet: {[association['Lifecycle'] for association in associations['Associations']]}"
-                )
-        else:
-            print("Not all associations found yet - waiting")
-        time.sleep(60)
-    print("Timed out waiting for DRAs to become available")
-    raise TimeoutError("Timed out waiting for DRAs to become available")
-
-
 # Helper method to create a user and configure sudo permissions
 def create_user(
     vlab_id: str,
@@ -137,11 +94,9 @@ def create_user(
     )
     timeout = time.time() + TIMEOUT
 
-    wait_for_dra(vlab_id, project_id)
-
     for folder in folder_ownership:
         if not os.path.exists(folder):
-            raise RuntimeError(f"Path {folder} does not exist")
+            run_cmd(f"mkdir -p {folder}", f"Create {folder}")
         run_cmd(
             f"sudo setfacl -Rm d:u:{name}:rwX,u:{name}:rwX {folder}",
             f"setfacl on {folder} for {name}",
