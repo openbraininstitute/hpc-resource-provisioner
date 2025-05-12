@@ -71,7 +71,6 @@ jobs:
       - name: Upload to S3
         run: |
           aws s3 cp provisioner_scripts/create_users.py s3://${{ secrets.S3_BUCKET }}/scripts/create_users.py
-          aws s3 cp provisioner_scripts/dev_create_users.py s3://${{ secrets.S3_BUCKET }}/scripts/dev_create_users.py
       - name: Release
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
