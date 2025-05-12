@@ -63,6 +63,47 @@
   #           - /sbo/home/resources/users.json
   #       - Script: s3://sboinfrastructureassets-sandbox/scripts/setup_environment_compute.sh
 
+# =======================================================================
+# mixed prod-mpi queue, for tightly coupled jobs with multiple node types
+# =======================================================================
+- Name: mixed-prod-mpi
+  AllocationStrategy: lowest-price  # usually spot
+  ComputeResources:
+    - Name: cpu-c7a
+      Instances:
+        - InstanceType: c7a.48xlarge  # compute optimized nodes
+      MinCount: 0
+      MaxCount: 20  # least number of nodes needed to simulate the full O1 circuit x2
+      Efa:  # low-latency, high BW network
+        Enabled: true  # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/efa-start.html#efa-start-security
+    - Name: cpu-c6a
+      Instances:
+        - InstanceType: c6a.48xlarge  # compute optimized nodes
+      MinCount: 0
+      MaxCount: 20  # least number of nodes needed to simulate the full O1 circuit x2
+      Efa:  # low-latency, high BW network
+        Enabled: true  # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/efa-start.html#efa-start-security
+  Networking:
+    PlacementGroup:  # try to place nodes close to each other
+      Enabled: true
+    SubnetIds: [!config base_subnet_id]
+    SecurityGroups:
+      - !config base_security_group_id
+      - !config efa_security_group_id  # Efa
+  CustomSlurmSettings:
+    MaxNodes: 20
+    MaxTime: 720
+  Iam:
+    S3Access:
+      - BucketName: sboinfrastructureassets-sandbox
+  # CustomActions:
+  #   OnNodeConfigured:
+  #     Sequence:
+  #       - Script: s3://sboinfrastructureassets-sandbox/scripts/create_users.py
+  #         Args:
+  #           - /sbo/home/resources/users.json
+  #       - Script: s3://sboinfrastructureassets-sandbox/scripts/setup_environment_compute.sh
+
 # ====================================
 # prod-batch queue, for benchmarking
 # ====================================
