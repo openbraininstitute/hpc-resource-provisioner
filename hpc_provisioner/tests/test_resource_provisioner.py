@@ -261,11 +261,10 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
                 "cluster": {
                     "clusterName": test_cluster_name,
                     "clusterStatus": "CREATE_REQUEST_RECEIVED",
-                    "private_ssh_key_arn": "secret ARN",
                     "ssh_user": "sim",
+                    "private_ssh_key_arn": "secret ARN sim",
+                    "admin_user_private_ssh_key_arn": "secret ARN",
                 },
-                "admin_user_private_ssh_key_arn": "secret ARN",
-                "private_ssh_key_arn": "secret ARN sim",
             }
         )
     )
