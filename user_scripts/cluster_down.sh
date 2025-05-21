@@ -38,7 +38,8 @@ echo "${CLUSTER}" | jq
 if ssh -i ~/.ssh/id_rsa_aws ec2-user@107.22.159.90 test -f "~/.ssh/${SSH_KEY_FILE}"
 then
 	ssh -i ~/.ssh/id_rsa_aws ec2-user@107.22.159.90 "rm ~/.ssh/${SSH_KEY_FILE}"
-	echo "SSH keyfile deleted from bastion host"
+	ssh -i ~/.ssh/id_rsa_aws ec2-user@107.22.159.90 "rm ~/.ssh/${SSH_KEY_FILE}_admin"
+	echo "SSH keyfiles deleted from bastion host"
 	export IP_ADDR=$(cat ${SSH_KEY_FILE}_ip)
 	ssh -i ~/.ssh/id_rsa_aws ec2-user@107.22.159.90 "ssh-keygen -R ${IP_ADDR}"
 	rm -rf ${SSH_KEY_FILE}_ip
@@ -46,8 +47,8 @@ then
 fi
 
 # Delete the local copy of the SSH key file
-rm -f ${PROJECT_ID}
-rm -f ${PROJECT_ID}_admin
+rm -f ${SSH_KEY_FILE}
+rm -f ${SSH_KEY_FILE}_admin
 echo "SSH keyfile deleted locally" 
 
 # Check that the cluster is being deleted
