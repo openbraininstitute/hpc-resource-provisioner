@@ -14,11 +14,11 @@ FsxLustreSettings:
       DataRepositoryPath: !config sbonexusdata_bucket
       FileSystemPath: /project
       AutoImportPolicy: [NEW, CHANGED, DELETED]
-    - Name: Containers-DRA
-      BatchImportMetaDataOnCreate: true
-      DataRepositoryPath: !config containers_bucket
-      FileSystemPath: /containers
-      AutoImportPolicy: [NEW, CHANGED, DELETED]
+    # - Name: Containers-DRA
+    #   BatchImportMetaDataOnCreate: true
+    #   DataRepositoryPath: !config containers_bucket
+    #   FileSystemPath: /containers
+    #   AutoImportPolicy: [NEW, CHANGED, DELETED]
     - Name: Scratch-DRA
       BatchImportMetaDataOnCreate: true
       DataRepositoryPath: !config scratch_bucket
