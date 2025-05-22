@@ -92,7 +92,6 @@ def pcluster_create_request_handler(event, _context=None):
         "cluster": {
             "clusterName": f"pcluster-{vlab_id}-{project_id}",
             "clusterStatus": "CREATE_REQUEST_RECEIVED",
-            "private_ssh_key_arn": admin_user_secret["ARN"],
         }
     }
 
@@ -117,8 +116,8 @@ def pcluster_create_request_handler(event, _context=None):
 
     sim_user_secret = store_private_key(sm_client, vlab_id, project_id, sim_user_ssh_keypair)
     response["cluster"]["ssh_user"] = "sim"
-    response["admin_user_private_ssh_key_arn"] = admin_user_secret["ARN"]
-    response["private_ssh_key_arn"] = sim_user_secret["ARN"]
+    response["cluster"]["private_ssh_key_arn"] = sim_user_secret["ARN"]
+    response["cluster"]["admin_user_private_ssh_key_arn"] = admin_user_secret["ARN"]
     logger.debug(f"Created sim user keypair: {sim_user_ssh_keypair}")
 
     if key_material := sm_client.get_secret_value(SecretId=sim_user_secret["ARN"]):

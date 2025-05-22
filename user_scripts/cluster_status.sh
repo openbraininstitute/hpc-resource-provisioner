@@ -56,7 +56,7 @@ then
 
 	echo "You can now login to the head node:"
 	echo "ssh ec2-user@107.22.159.90"
-	echo "ssh -i ~/.ssh/${SSH_KEY_FILE} ${IP_ADDR}"
+	echo "ssh -i ~/.ssh/${SSH_KEY_FILE} sim@${IP_ADDR}"
 else
 	echo "Head node not ready yet"
 fi
