@@ -1,0 +1,6 @@
+---
+Name: Efs-Scratch
+StorageType: Efs
+MountDir: /sbo/data/scratch
+EfsSettings:
+  Encrypted: false
