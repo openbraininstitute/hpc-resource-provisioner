@@ -28,6 +28,10 @@ logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("hpc-resource-provisioner")
 
 
+def datasync_request_handler(http_method, event, _context=None):
+    pass
+
+
 def pcluster_do_create_handler(event, _context=None):
     logger.debug(f"event: {event}, _context: {_context}")
     options = _get_vlab_query_params(event)
@@ -38,31 +42,43 @@ def pcluster_do_create_handler(event, _context=None):
     logger.debug(f"created pcluster {vlab_id}-{project_id}")
 
 
-def pcluster_handler(event, _context=None):
+def main_handler(event, _context=None):
     """
     * Check whether we have a GET, a POST or a DELETE method
     * Pass on to pcluster_*_handler
     """
-    if event.get("httpMethod"):
-        if event["httpMethod"] == "GET":
-            if event["path"] == "/hpc-provisioner/pcluster":
-                logger.debug("GET pcluster")
-                return pcluster_describe_handler(event, _context)
-            elif event["path"] == "/hpc-provisioner/version":
-                logger.debug("GET version")
-                return response_text(text=version("hpc_provisioner"))
-        elif event["httpMethod"] == "POST":
-            logger.debug("POST pcluster")
-            return pcluster_create_request_handler(event, _context)
-        elif event["httpMethod"] == "DELETE":
-            logger.debug("DELETE pcluster")
-            return pcluster_delete_handler(event, _context)
+    if http_method := event.get("httpMethod"):
+        if event.get("path") == "/hpc-provisioner/pcluster":
+            logger.debug("Called pcluster endpoint")
+            return pcluster_handler(http_method, event, _context)
+        elif event.get("path") == "/hpc-provisioner/version" and http_method == "GET":
+            logger.debug("GET version")
+            return response_text(text=version("hpc_provisioner"))
+        elif event.get("path") == "/hpc-provisioner/datasync":
+            logger.debug("Called datasync endpoint with event {event}")
+            return datasync_request_handler(http_method, event, _context)
         else:
-            return response_text(f"{event['httpMethod']} not supported", code=400)
+            return response_text(
+                f"{event['httpMethod']} not supported for {event.get('path')}", code=400
+            )
 
     return response_text(
         "Could not determine HTTP method - make sure to GET, POST or DELETE", code=400
     )
+
+
+def pcluster_handler(http_method, event, _context=None):
+    if http_method == "GET":
+        logger.debug("GET pcluster")
+        return pcluster_describe_handler(event, _context)
+    elif http_method == "POST":
+        logger.debug("POST pcluster")
+        return pcluster_create_request_handler(event, _context)
+    elif http_method == "DELETE":
+        logger.debug("DELETE pcluster")
+        return pcluster_delete_handler(event, _context)
+    else:
+        return response_text(f"{http_method} not supported for {event.get('path')}", code=400)
 
 
 def pcluster_create_request_handler(event, _context=None):

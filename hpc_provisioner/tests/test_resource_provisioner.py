@@ -108,7 +108,7 @@ def test_pcluster_handler_routing(  # noqa PLR0913
         patched_delete_handler,
     ]
 
-    handlers.pcluster_handler(event_to_test)
+    handlers.main_handler(event_to_test)
     logger.debug(f"Checking {event_to_test}")
 
     for patched_handler in all_patched_handlers:
@@ -410,27 +410,29 @@ def test_do_create(
 
 
 def test_invalid_http_method(put_event):
-    actual_response = handlers.pcluster_handler(put_event)
+    actual_response = handlers.main_handler(put_event)
     assert actual_response == {
         "statusCode": 400,
-        "body": f"{put_event['httpMethod']} not supported",
+        "body": f"{put_event['httpMethod']} not supported for {put_event['path']}",
     }
 
 
 @pytest.mark.parametrize("method", ["POST", "DELETE"])
 def test_vlab_id_not_specified(method):
     with pytest.raises(InvalidRequest):
-        handlers.pcluster_handler({"httpMethod": method})
+        handlers.main_handler({"httpMethod": method, "path": "/hpc-provisioner/pcluster"})
 
 
 @pytest.mark.parametrize("method", ["POST", "DELETE"])
 def test_project_id_not_specified(method):
     with pytest.raises(InvalidRequest):
-        handlers.pcluster_handler({"httpMethod": method, "vlab_id": "test_vlab"})
+        handlers.main_handler(
+            {"httpMethod": method, "vlab_id": "test_vlab", "path": "/hpc-provisioner/pcluster"}
+        )
 
 
 def test_http_method_not_specified():
-    response = handlers.pcluster_handler({})
+    response = handlers.main_handler({})
     assert response == {
         "statusCode": 400,
         "body": "Could not determine HTTP method - make sure to GET, POST or DELETE",
