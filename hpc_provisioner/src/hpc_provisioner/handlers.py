@@ -29,7 +29,7 @@ logger = logging.getLogger("hpc-resource-provisioner")
 
 
 def datasync_request_handler(http_method, event, _context=None):
-    pass
+    return response_text(f"{http_method} with {event}")
 
 
 def pcluster_do_create_handler(event, _context=None):
@@ -55,7 +55,7 @@ def main_handler(event, _context=None):
             logger.debug("GET version")
             return response_text(text=version("hpc_provisioner"))
         elif event.get("path") == "/hpc-provisioner/datasync":
-            logger.debug("Called datasync endpoint with event {event}")
+            logger.debug(f"Called datasync endpoint with event {event}")
             return datasync_request_handler(http_method, event, _context)
         else:
             return response_text(
