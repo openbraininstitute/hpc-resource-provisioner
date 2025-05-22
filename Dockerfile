@@ -11,4 +11,4 @@ RUN python3 -m pip install /opt/hpc_provisioner
 WORKDIR /opt/hpc_provisioner/src/hpc_provisioner
 
 ENTRYPOINT ["/var/lang/bin/python3", "-m", "awslambdaric"]
-CMD [ "hpc_provisioner.handlers.pcluster_handler" ]
+CMD [ "hpc_provisioner.handlers.main_handler" ]
