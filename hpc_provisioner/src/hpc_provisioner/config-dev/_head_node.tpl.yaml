@@ -17,7 +17,7 @@ Iam:
 CustomActions:
   OnNodeConfigured:
     Sequence:
-      - Script: s3://sboinfrastructureassets-sandbox/scripts/create_users.py
+      - Script: s3://sboinfrastructureassets-sandbox/scripts/dev_create_users.py
         Args: !config create_users_args
       - Script: s3://sboinfrastructureassets-sandbox/scripts/environment.sh
         Args: !config environment_args
