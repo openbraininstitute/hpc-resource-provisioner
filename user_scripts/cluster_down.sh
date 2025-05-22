@@ -35,13 +35,13 @@ export CLUSTER=$(eval "${COMMAND}")
 echo "${CLUSTER}" | jq
 
 # Delete the SSH key file from the bastion host
-if ssh -i ~/.ssh/id_rsa_aws ec2-user@107.22.159.90 test -f "~/.ssh/${SSH_KEY_FILE}"
+if ssh ec2-user@107.22.159.90 test -f "~/.ssh/${SSH_KEY_FILE}"
 then
-	ssh -i ~/.ssh/id_rsa_aws ec2-user@107.22.159.90 "rm ~/.ssh/${SSH_KEY_FILE}"
-	ssh -i ~/.ssh/id_rsa_aws ec2-user@107.22.159.90 "rm ~/.ssh/${SSH_KEY_FILE}_admin"
+	ssh ec2-user@107.22.159.90 "rm ~/.ssh/${SSH_KEY_FILE}"
+	ssh ec2-user@107.22.159.90 "rm ~/.ssh/${SSH_KEY_FILE}_admin"
 	echo "SSH keyfiles deleted from bastion host"
 	export IP_ADDR=$(cat ${SSH_KEY_FILE}_ip)
-	ssh -i ~/.ssh/id_rsa_aws ec2-user@107.22.159.90 "ssh-keygen -R ${IP_ADDR}"
+	ssh ec2-user@107.22.159.90 "ssh-keygen -R ${IP_ADDR}"
 	rm -rf ${SSH_KEY_FILE}_ip
 	echo "Head node keys deleted from bastion host's known_hosts"
 fi

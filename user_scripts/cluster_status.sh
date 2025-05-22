@@ -43,13 +43,13 @@ export IP_ADDR=$(echo $CLUSTER_STATUS | jq -r '.headNode | .privateIpAddress')
 if [[ -n "$IP_ADDR" && "$IP_ADDR" != 'null'  ]]
 then
 	# Check if secret key already copied
-	if ssh -i ~/.ssh/id_rsa_aws ec2-user@107.22.159.90 test -f "~/.ssh/${SSH_KEY_FILE}"
+	if ssh ec2-user@107.22.159.90 test -f "~/.ssh/${SSH_KEY_FILE}"
 	then
 		echo "Head node is ready and secret key is already copied"
 	else
 		echo "Head node is ready, copying secret key..."
-		scp -i ~/.ssh/id_rsa_aws ${SSH_KEY_FILE} ec2-user@107.22.159.90:~/.ssh
-		scp -i ~/.ssh/id_rsa_aws ${SSH_KEY_FILE}_admin ec2-user@107.22.159.90:~/.ssh
+		scp ${SSH_KEY_FILE} ec2-user@107.22.159.90:~/.ssh
+		scp ${SSH_KEY_FILE}_admin ec2-user@107.22.159.90:~/.ssh
 		echo "Saving head node IP in ${SSH_KEY_FILE}_ip"
 		echo $IP_ADDR > ${SSH_KEY_FILE}_ip
 	fi
