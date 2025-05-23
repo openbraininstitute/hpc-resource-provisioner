@@ -9,7 +9,7 @@ Monitoring:
   Logs:
     CloudWatch:
       RetentionInDays: 90
-      DeletionPolicy: Delete
+      DeletionPolicy: Retain
 HeadNode: !include _head_node.tpl.yaml
 Scheduling:
   Scheduler: slurm
