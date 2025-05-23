@@ -29,6 +29,7 @@ logger = logging.getLogger("hpc-resource-provisioner")
 
 
 def datasync_request_handler(http_method, event, _context=None):
+    logger.info(f"Datasync handler called with method {http_method} and event {event}")
     return response_text(f"{http_method} with {event}")
 
 
@@ -47,6 +48,7 @@ def main_handler(event, _context=None):
     * Check whether we have a GET, a POST or a DELETE method
     * Pass on to pcluster_*_handler
     """
+    logger.info(f"Main handler called with event {event}")
     if http_method := event.get("httpMethod"):
         if event.get("path") == "/hpc-provisioner/pcluster":
             logger.debug("Called pcluster endpoint")
