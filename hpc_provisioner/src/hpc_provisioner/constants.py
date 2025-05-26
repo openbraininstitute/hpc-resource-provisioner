@@ -1,3 +1,4 @@
+from enum import Enum
 from pathlib import Path
 
 PCLUSTER_CONFIG_TPL = str(Path(__file__).parent / "config" / "compute_cluster.tpl.yaml")
@@ -19,3 +20,8 @@ DEFAULTS = {
 }
 
 CONFIG_VALUES = {}
+
+
+class DatasyncLocationTypes(Enum):
+    S3 = "s3"
+    EFS = "efs"

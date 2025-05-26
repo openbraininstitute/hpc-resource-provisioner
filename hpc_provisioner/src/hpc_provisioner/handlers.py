@@ -6,14 +6,25 @@ from importlib.metadata import version
 import boto3
 from pcluster.api.errors import NotFoundException
 
-from hpc_provisioner.aws_queries import create_keypair, list_existing_stacks, store_private_key
+from hpc_provisioner.aws_queries import (
+    create_datasync_location,
+    create_datasync_task,
+    create_keypair,
+    get_efs_info,
+    get_security_group,
+    get_stack_resources,
+    list_existing_stacks,
+    store_private_key,
+)
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
     BILLING_TAG_VALUE,
     PROJECT_TAG_KEY,
     VLAB_TAG_KEY,
+    DatasyncLocationTypes,
 )
-from hpc_provisioner.utils import generate_public_key
+from hpc_provisioner.dynamodb_actions import dynamodb_client, get_subnet_for_cluster
+from hpc_provisioner.utils import generate_public_key, get_scratch_bucket_arn
 
 from .logging_config import LOGGING_CONFIG
 from .pcluster_manager import (
@@ -30,7 +41,60 @@ logger = logging.getLogger("hpc-resource-provisioner")
 
 def datasync_request_handler(http_method, event, _context=None):
     logger.info(f"Datasync handler called with method {http_method} and event {event}")
+    body = json.loads(event["body"])
+    if body.get("detail", {}).get("stack-id", "").contains("Nested"):
+        message = f"Skipping nested stack {body['detail']['stack-id']}"
+        logger.info(message)
+        return response_json({"Status": message})
+
+    if http_method := event.get("httpMethod"):
+        if http_method == "POST":
+            return datasync_create_handler(event, _context)
+    else:
+        return response_text(
+            "Could not determine HTTP method - make sure to GET, POST or DELETE", code=400
+        )
     return response_text(f"{http_method} with {event}")
+
+
+def datasync_create_handler(event, _context=None):
+    ds_client = boto3.client("datasync")
+    cf_client = boto3.client("cloudformation")
+    efs_client = boto3.client("efs")
+    dyn_client = dynamodb_client()
+    ec2_client = boto3.client("ec2")
+
+    event_body = json.loads(event["body"])
+    stack_name = event_body["details"]["stack-id"].split(":")[-1].split("/")[1]
+    stack_resources = get_stack_resources(cf_client, stack_name)
+    logger.debug(f"Resources for stack {stack_name}: {stack_resources}")
+
+    filesystems = [res for res in stack_resources if res["ResourceType"] == "AWS::EFS::FileSystem"]
+    fs_info = {}
+    for filesystem in filesystems:
+        fs_info = get_efs_info(efs_client, filesystem)
+        if fs_info["Name"] == "Efs-Scratch":
+            logger.debug(f"Found Scratch EFS for stack {stack_name}: {fs_info}")
+            break
+    else:
+        message = f"Could not find scratch EFS for {stack_name}"
+        logger.critical(message)
+        raise RuntimeError(message)
+
+    scratch_s3 = create_datasync_location(
+        ds_client, DatasyncLocationTypes.S3, get_scratch_bucket_arn()
+    )
+    scratch_efs = create_datasync_location(
+        ds_client,
+        DatasyncLocationTypes.EFS,
+        fs_info["FileSystemArn"],
+        cluster_subnet_arn=get_subnet_for_cluster(dyn_client, stack_name),
+        cluster_security_group_arn=get_security_group(ec2_client)["SecurityGroupArn"],
+    )
+
+    create_datasync_task(ds_client, scratch_s3, scratch_efs, stack_name, "to_cluster")
+    create_datasync_task(ds_client, scratch_efs, scratch_s3, stack_name, "from_cluster")
+    return response_text("OK")
 
 
 def pcluster_do_create_handler(event, _context=None):
@@ -50,13 +114,13 @@ def main_handler(event, _context=None):
     """
     logger.info(f"Main handler called with event {event}")
     if http_method := event.get("httpMethod"):
-        if event.get("path") == "/hpc-provisioner/pcluster":
+        if event.get("path").startswith("/hpc-provisioner/pcluster"):
             logger.debug("Called pcluster endpoint")
             return pcluster_handler(http_method, event, _context)
-        elif event.get("path") == "/hpc-provisioner/version" and http_method == "GET":
+        elif event.get("path").startswith("/hpc-provisioner/version") and http_method == "GET":
             logger.debug("GET version")
             return response_text(text=version("hpc_provisioner"))
-        elif event.get("path") == "/hpc-provisioner/datasync":
+        elif event.get("path").startswith("/hpc-provisioner/datasync"):
             logger.debug(f"Called datasync endpoint with event {event}")
             return datasync_request_handler(http_method, event, _context)
         else:

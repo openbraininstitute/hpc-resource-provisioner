@@ -11,6 +11,7 @@ from hpc_provisioner.constants import (
     BILLING_TAG_VALUE,
     PROJECT_TAG_KEY,
     VLAB_TAG_KEY,
+    DatasyncLocationTypes,
 )
 from hpc_provisioner.dynamodb_actions import (
     SubnetAlreadyRegisteredException,
@@ -21,6 +22,7 @@ from hpc_provisioner.dynamodb_actions import (
     register_subnet,
 )
 from hpc_provisioner.logging_config import LOGGING_CONFIG
+from hpc_provisioner.utils import get_datasync_log_group_arn, get_datasync_policy_arn
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("hpc-resource-provisioner")
@@ -123,7 +125,7 @@ def get_efs(efs_client) -> str:
     return candidates[0]["FileSystemId"]
 
 
-def get_security_group(ec2_client) -> str:
+def get_security_group(ec2_client) -> dict:
     """
     Get the pcluster security group ID
     """
@@ -136,7 +138,7 @@ def get_security_group(ec2_client) -> str:
             f"Could not choose security group from {[sg.get('GroupId') for sg in security_groups['SecurityGroups']]}"
         )
 
-    return security_groups["SecurityGroups"][0]["GroupId"]
+    return security_groups["SecurityGroups"][0]
 
 
 def release_subnets(cluster_name: str) -> None:
@@ -290,3 +292,59 @@ def list_existing_stacks(cf_client):
     ]
 
     return existing_stack_names
+
+
+def create_datasync_location(
+    ds_client,
+    location_type: DatasyncLocationTypes,
+    location_arn: str,
+    cluster_subnet_arn: Optional[str] = None,
+    cluster_security_group_arn: Optional[str] = None,
+) -> str:
+    """
+    Create a datasync location
+
+    :param ds_client: boto3 datasync client
+    :param location_type: which type of sync location
+    :param location_arn: arn of the location (e.g. S3 bucket arn, EFS arn)
+    :param cluster_subnet_arn: arn of the cluster's subnet. Only needed for EFS
+    :param cluster_security_group_arn: arn of the cluster's security group
+    """
+
+    if location_type == DatasyncLocationTypes.S3:
+        location = ds_client.create_location_s3(
+            S3BucketArn=location_arn,
+            S3Config={"BucketAccesRoleArn": get_datasync_policy_arn()},
+            Tags=[{"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE}],
+        )
+    elif location_type == DatasyncLocationTypes.EFS:
+        location = ds_client.create_location_efs(
+            EfsFilesystemArn=location_arn,
+            Ec2Config={
+                "SubnetArn": cluster_subnet_arn,
+                "SecurityGroupArns": [cluster_security_group_arn],
+            },
+            Tags=[{"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE}],
+        )
+
+    return location["arn"]
+
+
+def create_datasync_task(ds_client, source, destination, cluster_name, suffix):
+    ds_client.create_task(
+        SourceLocationArn=source,
+        DestinationLocationArn=destination,
+        CloudWatchLogGroupArn=get_datasync_log_group_arn(),
+        Name=f"ds-{cluster_name}-{suffix}",
+        Tags=[
+            {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+        ],
+    )
+
+
+def get_stack_resources(cf_client, stack_name):
+    return cf_client.describe_stack_resources(StackName=stack_name)
+
+
+def get_efs_info(efs_client, efs_id):
+    return efs_client.describe_file_systems(FileSystemId=efs_id)["FileSystems"]
