@@ -78,7 +78,7 @@ def populate_config(
     # something changes about the deployment.
     # base_subnet_id is where the interesting stuff happens
     CONFIG_VALUES["base_subnet_id"] = get_available_subnet(ec2_client, cluster_name)
-    CONFIG_VALUES["base_security_group_id"] = get_security_group(ec2_client)
+    CONFIG_VALUES["base_security_group_id"] = get_security_group(ec2_client)["GroupId"]
     CONFIG_VALUES["efs_id"] = get_efs(efs_client)
     CONFIG_VALUES["ssh_key"] = keyname
     CONFIG_VALUES["sbonexusdata_bucket"] = get_sbonexusdata_bucket()

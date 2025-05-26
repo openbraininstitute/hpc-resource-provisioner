@@ -28,4 +28,4 @@ SharedStorage:
     MountDir: /sbo/home
     EfsSettings:
       FileSystemId: !config efs_id
-  - !include _efs_storage.tpl.yaml
+  - !include _efs_scratch.tpl.yaml

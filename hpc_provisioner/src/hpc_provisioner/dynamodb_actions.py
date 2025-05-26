@@ -72,3 +72,15 @@ def free_subnet(dynamodb_client, subnet_id: str) -> None:
     dynamodb_client.delete_item(
         TableName="sbo-parallelcluster-subnets", Key={"subnet_id": {"S": subnet_id}}
     )
+
+
+def get_subnet_for_cluster(dynamodb_client, cluster_name):
+    result = dynamodb_client.query(
+        TableName="sbo-parallelcluster-subnets",
+        IndexName="ClusterIndex",
+        KeyConditionExpression="#cluster = :cluster_val",
+        ExpressionAttributeNames={"#cluster": "cluster"},
+        ExpressionAttributeValues={":cluster_val": {"S": cluster_name}},
+        ProjectionExpression="subnet_id",
+    )
+    return result["Items"][0]["subnet_id"]["S"]
