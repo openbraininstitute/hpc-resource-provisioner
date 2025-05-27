@@ -91,6 +91,7 @@ def populate_config(
     CONFIG_VALUES["efa_security_group_id"] = get_efa_security_group_id()
     if create_users_args:
         CONFIG_VALUES["create_users_args"] = create_users_args
+    CONFIG_VALUES["environment_args"] = [get_cluster_name(vlab_id, project_id)]
     logger.debug(f"Config values: {CONFIG_VALUES}")
 
 
