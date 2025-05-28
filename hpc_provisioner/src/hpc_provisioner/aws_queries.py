@@ -347,4 +347,4 @@ def get_stack_resources(cf_client, stack_name):
 
 
 def get_efs_info(efs_client, efs_id):
-    return efs_client.describe_file_systems(FileSystemId=efs_id)["FileSystems"]
+    return efs_client.describe_file_systems(FileSystemId=efs_id)["FileSystems"][0]
