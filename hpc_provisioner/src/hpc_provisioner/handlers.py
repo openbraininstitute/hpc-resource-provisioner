@@ -42,7 +42,7 @@ logger = logging.getLogger("hpc-resource-provisioner")
 def datasync_request_handler(http_method, event, _context=None):
     logger.info(f"Datasync handler called with method {http_method} and event {event}")
     body = json.loads(event["body"])
-    if body.get("detail", {}).get("stack-id", "").contains("Nested"):
+    if "Nested" in body.get("detail", {}).get("stack-id", ""):
         message = f"Skipping nested stack {body['detail']['stack-id']}"
         logger.info(message)
         return response_json({"Status": message})
@@ -65,11 +65,15 @@ def datasync_create_handler(event, _context=None):
     ec2_client = boto3.client("ec2")
 
     event_body = json.loads(event["body"])
-    stack_name = event_body["details"]["stack-id"].split(":")[-1].split("/")[1]
+    stack_name = event_body["detail"]["stack-id"].split(":")[-1].split("/")[1]
     stack_resources = get_stack_resources(cf_client, stack_name)
     logger.debug(f"Resources for stack {stack_name}: {stack_resources}")
 
-    filesystems = [res for res in stack_resources if res["ResourceType"] == "AWS::EFS::FileSystem"]
+    filesystems = [
+        res
+        for res in stack_resources["StackResources"]
+        if res["ResourceType"] == "AWS::EFS::FileSystem"
+    ]
     fs_info = {}
     for filesystem in filesystems:
         fs_info = get_efs_info(efs_client, filesystem)
