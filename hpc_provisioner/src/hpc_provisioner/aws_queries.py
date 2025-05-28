@@ -22,7 +22,7 @@ from hpc_provisioner.dynamodb_actions import (
     register_subnet,
 )
 from hpc_provisioner.logging_config import LOGGING_CONFIG
-from hpc_provisioner.utils import get_datasync_log_group_arn, get_datasync_policy_arn
+from hpc_provisioner.utils import get_datasync_log_group_arn, get_datasync_role_arn
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("hpc-resource-provisioner")
@@ -314,7 +314,7 @@ def create_datasync_location(
     if location_type == DatasyncLocationTypes.S3:
         location = ds_client.create_location_s3(
             S3BucketArn=location_arn,
-            S3Config={"BucketAccesRoleArn": get_datasync_policy_arn()},
+            S3Config={"BucketAccessRoleArn": get_datasync_role_arn()},
             Tags=[{"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE}],
         )
     elif location_type == DatasyncLocationTypes.EFS:
