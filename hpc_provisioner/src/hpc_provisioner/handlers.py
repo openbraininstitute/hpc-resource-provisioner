@@ -76,7 +76,7 @@ def datasync_create_handler(event, _context=None):
     ]
     fs_info = {}
     for filesystem in filesystems:
-        fs_info = get_efs_info(efs_client, filesystem)
+        fs_info = get_efs_info(efs_client, filesystem["PhysicalResourceId"])
         if fs_info["Name"] == "Efs-Scratch":
             logger.debug(f"Found Scratch EFS for stack {stack_name}: {fs_info}")
             break
