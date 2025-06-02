@@ -92,6 +92,7 @@ def populate_config(
     if create_users_args:
         CONFIG_VALUES["create_users_args"] = create_users_args
     CONFIG_VALUES["environment_args"] = [get_cluster_name(vlab_id, project_id)]
+    CONFIG_VALUES["efs_scratch_name"] = f"scratch-{get_cluster_name(vlab_id, project_id)}"
     logger.debug(f"Config values: {CONFIG_VALUES}")
 
 

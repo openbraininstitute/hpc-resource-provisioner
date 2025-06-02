@@ -1,5 +1,5 @@
 ---
-Name: Efs-Scratch
+Name: !config efs_scratch_name
 StorageType: Efs
 MountDir: /sbo/data/scratch
 EfsSettings:
