@@ -16,9 +16,11 @@ from pcluster import lib as pc
 from pcluster.api.errors import CreateClusterBadRequestException, InternalServiceException
 
 from hpc_provisioner.aws_queries import (
+    create_fsx,
     get_available_subnet,
     get_cluster_name,
     get_efs,
+    get_fsx,
     get_keypair_name,
     get_security_group,
     release_subnets,
@@ -182,6 +184,7 @@ def pcluster_create(
     if cluster_already_exists(cluster_name):
         return
 
+    fsx_client = boto3.client("fsx")
     dev = options["dev"]
     benchmark = options["benchmark"]
     cluster_users = json.dumps(
@@ -203,6 +206,32 @@ def pcluster_create(
     populate_config(
         cluster_name, options["keyname"], vlab_id, project_id, create_users_args, benchmark
     )
+
+    projects_fs = get_fsx(
+        fsx_client=fsx_client,
+        shared=True,
+        fs_name="projects",
+        vlab_id=vlab_id,
+        project_id=project_id,
+    )
+    if not projects_fs:
+        projects_fs = create_fsx(
+            fsx_client=fsx_client,
+            fs_name="projects",
+            bucket=get_sbonexusdata_bucket(),
+            shared=True,
+            vlab_id=vlab_id,
+            project_id=project_id,
+        )
+    CONFIG_VALUES["projects_fsx"] = {
+        "Name": next(
+            tag["Value"] for tag in projects_fs["FileSystem"]["Tags"] if tag["Key"] == "Name"
+        ),
+        "StorageType": "FsxLustre",
+        "MountDir": "/sbo/data/scratch",
+        "FsxLustreSettings": {"FileSystemId": projects_fs["FileSystem"]["FileSystemId"]},
+    }
+
     pcluster_config = load_pcluster_config(dev)
     pcluster_config["Tags"] = populate_tags(pcluster_config, vlab_id, project_id)
     pcluster_config["Scheduling"]["SlurmQueues"] = choose_tier(pcluster_config, options)
