@@ -207,30 +207,31 @@ def pcluster_create(
         cluster_name, options["keyname"], vlab_id, project_id, create_users_args, benchmark
     )
 
-    projects_fs = get_fsx(
-        fsx_client=fsx_client,
-        shared=True,
-        fs_name="projects",
-        vlab_id=vlab_id,
-        project_id=project_id,
-    )
-    if not projects_fs:
-        projects_fs = create_fsx(
+    if dev:
+        projects_fs = get_fsx(
             fsx_client=fsx_client,
-            fs_name="projects",
-            bucket=get_sbonexusdata_bucket(),
             shared=True,
+            fs_name="projects",
             vlab_id=vlab_id,
             project_id=project_id,
         )
-    CONFIG_VALUES["projects_fsx"] = {
-        "Name": next(
-            tag["Value"] for tag in projects_fs["FileSystem"]["Tags"] if tag["Key"] == "Name"
-        ),
-        "StorageType": "FsxLustre",
-        "MountDir": "/sbo/data/scratch",
-        "FsxLustreSettings": {"FileSystemId": projects_fs["FileSystem"]["FileSystemId"]},
-    }
+        if not projects_fs:
+            projects_fs = create_fsx(
+                fsx_client=fsx_client,
+                fs_name="projects",
+                bucket=get_sbonexusdata_bucket(),
+                shared=True,
+                vlab_id=vlab_id,
+                project_id=project_id,
+            )
+        CONFIG_VALUES["projects_fsx"] = {
+            "Name": next(
+                tag["Value"] for tag in projects_fs["FileSystem"]["Tags"] if tag["Key"] == "Name"
+            ),
+            "StorageType": "FsxLustre",
+            "MountDir": "/sbo/data/scratch",
+            "FsxLustreSettings": {"FileSystemId": projects_fs["FileSystem"]["FileSystemId"]},
+        }
 
     pcluster_config = load_pcluster_config(dev)
     pcluster_config["Tags"] = populate_tags(pcluster_config, vlab_id, project_id)
