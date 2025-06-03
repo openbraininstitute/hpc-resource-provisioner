@@ -1,7 +1,7 @@
 import logging
 import logging.config
 import time
-from typing import Optional
+from typing import Dict, Optional
 
 import boto3
 from botocore.exceptions import ClientError
@@ -21,6 +21,7 @@ from hpc_provisioner.dynamodb_actions import (
     register_subnet,
 )
 from hpc_provisioner.logging_config import LOGGING_CONFIG
+from hpc_provisioner.utils import get_fs_sg_id, get_fs_subnet_id
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("hpc-resource-provisioner")
@@ -290,3 +291,85 @@ def list_existing_stacks(cf_client):
     ]
 
     return existing_stack_names
+
+
+def get_fsx_name(shared: bool, fs_name: str, vlab_id: str, project_id: str) -> str:
+    if shared:
+        return fs_name
+    else:
+        pcluster_name = get_cluster_name(vlab_id, project_id)
+        return f"{fs_name}-{pcluster_name}"
+
+
+def create_fsx(
+    fsx_client,
+    fs_name: str,
+    bucket: str,
+    shared: bool = True,
+    vlab_id: str = "",
+    project_id: str = "",
+) -> Dict:
+    """
+    Create an FSX filesystem if it doesn't exist yet
+
+    :param fs_name: name to identify the filesystem (e.g. "scratch", "projects", ...)
+    :param shared: whether the filesystem is shared among all pclusters or specific to one cluster
+    :param vlab_id: vlab of the cluster to which the filesystem will be attached.
+    :param project_id: project of the cluster to which the filesystem will be attached.
+    """
+
+    tags = [
+        {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+    ]
+    token = get_fsx_name(shared, fs_name, vlab_id, project_id)
+    tags.append({"Key": "Name", "Value": token})
+
+    if not shared:
+        tags.append({"Key": VLAB_TAG_KEY, "Value": vlab_id})
+        tags.append({"Key": PROJECT_TAG_KEY, "Value": project_id})
+
+    fs = fsx_client.create_file_system(
+        ClientRequestToken=token,
+        FileSystemType="LUSTRE",
+        StorageCapacity=19200,
+        StorageType="SSD",
+        SubnetIds=[get_fs_subnet_id()],
+        SecurityGroupIds=[get_fs_sg_id()],
+        Tags=tags,
+        LustreConfiguration={
+            "WeeklyMaintenanceStartTime": "6:05:00",  # start at 5AM on Saturdays
+            "ImportPath": bucket,  # can include prefix
+            # "ExportPath": "string",
+            "DeploymentType": "PERSISTENT_2",
+            "AutoImportPolicy": "NEW_CHANGED_DELETED",
+            "PerUnitStorageThroughput": 250,
+            "DataCompressionType": "LZ4",
+            "EfaEnabled": True,
+            # "LogConfiguration": {  # TODO do we want this?
+            #     "Level": "DISABLED" | "WARN_ONLY" | "ERROR_ONLY" | "WARN_ERROR",
+            #     "Destination": "string",
+            # },
+            "MetadataConfiguration": {"Mode": "AUTOMATIC"},
+        },
+    )
+
+    return fs
+
+
+def get_fsx(
+    fsx_client, shared: bool, fs_name: str, vlab_id: str, project_id: str
+) -> Optional[dict]:
+    full_fs_name = get_fsx_name(shared, fs_name, vlab_id, project_id)
+    go_on = True
+    next_token = None
+    while go_on:
+        if next_token:
+            file_systems = fsx_client.describe_file_systems(NextToken=next_token)
+        else:
+            file_systems = fsx_client.describe_file_systems()
+        for fs in file_systems["FileSystems"]:
+            if any([t["Value"] == full_fs_name for t in fs["Tags"] if t["Key"] == "Name"]):
+                return fs
+        next_token = file_systems.get("NextToken")
+        go_on = next_token is not None
+    return None
