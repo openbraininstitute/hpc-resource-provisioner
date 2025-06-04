@@ -223,14 +223,12 @@ def pcluster_create(
                 shared=True,
                 vlab_id=vlab_id,
                 project_id=project_id,
-            )
+            )["FileSystem"]
         CONFIG_VALUES["projects_fsx"] = {
-            "Name": next(
-                tag["Value"] for tag in projects_fs["FileSystem"]["Tags"] if tag["Key"] == "Name"
-            ),
+            "Name": next(tag["Value"] for tag in projects_fs["Tags"] if tag["Key"] == "Name"),
             "StorageType": "FsxLustre",
             "MountDir": "/sbo/data/projects",
-            "FsxLustreSettings": {"FileSystemId": projects_fs["FileSystem"]["FileSystemId"]},
+            "FsxLustreSettings": {"FileSystemId": projects_fs["FileSystemId"]},
         }
 
     pcluster_config = load_pcluster_config(dev)
