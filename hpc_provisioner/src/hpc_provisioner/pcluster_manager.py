@@ -228,7 +228,7 @@ def pcluster_create(
             "Name": next(tag["Value"] for tag in projects_fs["Tags"] if tag["Key"] == "Name"),
             "StorageType": "FsxLustre",
             "MountDir": "/sbo/data/projects",
-            "FsxLustreSettings": {"FileSystemId": projects_fs["FileSystem"]["FileSystemId"]},
+            "FsxLustreSettings": {"FileSystemId": projects_fs["FileSystemId"]},
         }
 
     pcluster_config = load_pcluster_config(dev)
