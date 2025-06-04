@@ -373,3 +373,34 @@ def get_fsx(
         next_token = file_systems.get("NextToken")
         go_on = next_token is not None
     return None
+
+
+def create_dra(
+    fsx_client, filesystem_id: str, mountpoint: str, bucket: str, vlab_id: str, project_id: str
+) -> dict:
+    dra = fsx_client.create_data_repository_association(
+        FileSystemId=filesystem_id,
+        FileSystemPath=mountpoint,
+        DataRepositoryPath=bucket,
+        BatchImportMetaDataOnCreate=True,
+        ImportedFileChunkSize=1024,
+        S3={
+            "AutoImportPolicy": {  # from S3 to FS
+                "Events": [
+                    "NEW",
+                    "CHANGED",
+                    "DELETED",
+                ]
+            },
+            "AutoExportPolicy": {"Events": []},
+        },
+        ClientRequestToken=f"{filesystem_id}-{vlab_id}-{project_id}",
+        Tags=[
+            {"Key": "Name", "Value": f"{filesystem_id}-{mountpoint}"},
+            {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+            {"Key": VLAB_TAG_KEY, "Value": vlab_id},
+            {"Key": PROJECT_TAG_KEY, "Value": project_id},
+        ],
+    )
+
+    return dra
