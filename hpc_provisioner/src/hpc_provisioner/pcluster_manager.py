@@ -229,7 +229,7 @@ def pcluster_create(
                 tag["Value"] for tag in projects_fs["FileSystem"]["Tags"] if tag["Key"] == "Name"
             ),
             "StorageType": "FsxLustre",
-            "MountDir": "/sbo/data/scratch",
+            "MountDir": "/sbo/data/projects",
             "FsxLustreSettings": {"FileSystemId": projects_fs["FileSystem"]["FileSystemId"]},
         }
 
