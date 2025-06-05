@@ -67,6 +67,7 @@ jobs:
         run: |
           aws s3 cp provisioner_scripts/create_users.py s3://${{ secrets.S3_BUCKET }}/scripts/create_users.py
           aws s3 cp provisioner_scripts/environment.sh s3://${{ secrets.S3_BUCKET }}/scripts/environment.sh
+          aws s3 cp provisioner_scripts/80_cloudwatch_agent_config_prolog.sh s3://${{ secrets.S3_BUCKET }}/scripts/80_cloudwatch_agent_config_prolog.sh
       - name: Release
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
