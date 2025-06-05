@@ -304,7 +304,6 @@ def get_fsx_name(shared: bool, fs_name: str, vlab_id: str, project_id: str) -> s
 def create_fsx(
     fsx_client,
     fs_name: str,
-    bucket: str,
     shared: bool = True,
     vlab_id: str = "",
     project_id: str = "",
@@ -338,10 +337,8 @@ def create_fsx(
         Tags=tags,
         LustreConfiguration={
             "WeeklyMaintenanceStartTime": "6:05:00",  # start at 5AM on Saturdays
-            "ImportPath": bucket,  # can include prefix
             # "ExportPath": "string",
             "DeploymentType": "PERSISTENT_2",
-            "AutoImportPolicy": "NEW_CHANGED_DELETED",
             "PerUnitStorageThroughput": 250,
             "DataCompressionType": "LZ4",
             "EfaEnabled": True,
@@ -354,6 +351,21 @@ def create_fsx(
     )
 
     return fs
+
+
+def get_fsx_by_id(fsx_client, filesystem_id: str) -> Optional[dict]:
+    go_on = True
+    next_token = None
+    while go_on:
+        if next_token:
+            file_systems = fsx_client.describe_file_systems(NextToken=next_token)
+        else:
+            file_systems = fsx_client.describe_file_systems()
+        try:
+            return next(fs for fs in file_systems if fs["FileSystemId"] == filesystem_id)
+        except StopIteration:
+            next_token = file_systems.get("NextToken")
+            go_on = next_token is not None
 
 
 def get_fsx(
@@ -376,24 +388,34 @@ def get_fsx(
 
 
 def create_dra(
-    fsx_client, filesystem_id: str, mountpoint: str, bucket: str, vlab_id: str, project_id: str
+    fsx_client,
+    filesystem_id: str,
+    mountpoint: str,
+    bucket: str,
+    vlab_id: str,
+    project_id: str,
+    writable: bool = False,
 ) -> dict:
+    s3_config = {
+        "AutoImportPolicy": {  # from S3 to FS
+            "Events": [
+                "NEW",
+                "CHANGED",
+                "DELETED",
+            ]
+        },
+    }
+
+    if writable:
+        s3_config["AutoExportPolicy"] = {"Events": ["NEW", "CHANGED", "DELETED"]}
+
     dra = fsx_client.create_data_repository_association(
         FileSystemId=filesystem_id,
         FileSystemPath=mountpoint,
         DataRepositoryPath=bucket,
         BatchImportMetaDataOnCreate=True,
         ImportedFileChunkSize=1024,
-        S3={
-            "AutoImportPolicy": {  # from S3 to FS
-                "Events": [
-                    "NEW",
-                    "CHANGED",
-                    "DELETED",
-                ]
-            },
-            "AutoExportPolicy": {"Events": []},
-        },
+        S3=s3_config,
         ClientRequestToken=f"{filesystem_id}-{vlab_id}-{project_id}",
         Tags=[
             {"Key": "Name", "Value": f"{filesystem_id}-{mountpoint}"},
@@ -404,3 +426,48 @@ def create_dra(
     )
 
     return dra
+
+
+def get_dra_by_id(fsx_client, dra_id: str) -> Optional[dict]:
+    dras = fsx_client.describe_data_repository_associations(AssociationIds=[dra_id])
+    return dras.get("Associations")
+
+
+def get_dra(fsx_client, filesystem_id: str, mountpoint: str) -> Optional[dict]:
+    dras = fsx_client.describe_data_repository_associations(
+        Filters=[{"Name": "file-system-id", "Values": [filesystem_id]}]
+    )
+
+    try:
+        dra = next(dra for dra in dras if dra["FileSystemPath"] == mountpoint)
+        return dra
+    except StopIteration:
+        return None
+
+
+def wait_for_fsx(fsx_client, filesystem_id, target_status="AVAILABLE", timeout=300) -> None:
+    fsx = {"Lifecycle": "UNKNOWN"}
+    start = time.time()
+    while fsx["Lifecycle"] != target_status and time.time() < start + timeout:
+        fsx = get_fsx_by_id(fsx_client=fsx_client, filesystem_id=filesystem_id)
+        if not fsx:
+            raise RuntimeError(f"FSx with id {filesystem_id} not found")
+
+    if fsx["Lifecycle"] != target_status:
+        raise RuntimeError(
+            f"FSx {filesystem_id} did not reach status {target_status} within {timeout} seconds"
+        )
+
+
+def wait_for_dra(fsx_client, dra_id, target_status="AVAILABLE", timeout=300) -> None:
+    dra = {"Lifecycle": "UNKNOWN"}
+    start = time.time()
+    while dra["Lifecycle"] != target_status and time.time() < start + timeout:
+        dra = get_dra_by_id(fsx_client=fsx_client, dra_id=dra_id)
+        if not dra:
+            raise RuntimeError(f"DRA with id {dra_id} not found")
+
+    if dra["Lifecycle"] != target_status:
+        raise RuntimeError(
+            f"DRA {dra_id} did not reach status {target_status} within {timeout} seconds"
+        )
