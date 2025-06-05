@@ -21,6 +21,7 @@ CustomActions:
         Args: !config create_users_args
       - Script: s3://sboinfrastructureassets-sandbox/scripts/environment.sh
         Args: !config environment_args
+      - Script: s3://sboinfrastructureassets-sandbox/scripts/80_cloudwatch_agent_config_prolog.sh
 #       - Script: s3://sboinfrastructureassets/scripts/all_or_nothing_allocation.sh
 #       - Script: s3://sboinfrastructureassets/scripts/setup_lustre_directories.py
 #         Args:
