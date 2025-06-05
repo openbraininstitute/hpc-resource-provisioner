@@ -16,6 +16,7 @@ from pcluster import lib as pc
 from pcluster.api.errors import CreateClusterBadRequestException, InternalServiceException
 
 from hpc_provisioner.aws_queries import (
+    create_dra,
     create_fsx,
     get_available_subnet,
     get_cluster_name,
@@ -25,6 +26,7 @@ from hpc_provisioner.aws_queries import (
     get_security_group,
     release_subnets,
     remove_key,
+    wait_for_dra,
 )
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
@@ -208,28 +210,54 @@ def pcluster_create(
     )
 
     if dev:
-        projects_fs = get_fsx(
-            fsx_client=fsx_client,
-            shared=True,
-            fs_name="projects",
-            vlab_id=vlab_id,
-            project_id=project_id,
-        )
-        if not projects_fs:
-            projects_fs = create_fsx(
+        filesystems = [
+            {
+                "name": "projects",
+                "shared": True,
+                "mountpoint": "/sbo/data/projects",
+                "bucket": get_sbonexusdata_bucket(),
+                "writable": False,
+            },
+            {
+                "name": "scratch",
+                "shared": False,
+                "mountpoint": "/sbo/data/scratch",
+                "bucket": f"{get_scratch_bucket()}/{vlab_id}/{project_id}",
+                "writable": True,
+            },
+        ]
+        for filesystem in filesystems:
+            fs = get_fsx(
                 fsx_client=fsx_client,
-                fs_name="projects",
-                bucket=get_sbonexusdata_bucket(),
                 shared=True,
+                fs_name=filesystem["name"],
                 vlab_id=vlab_id,
                 project_id=project_id,
-            )["FileSystem"]
-        CONFIG_VALUES["projects_fsx"] = {
-            "Name": next(tag["Value"] for tag in projects_fs["Tags"] if tag["Key"] == "Name"),
-            "StorageType": "FsxLustre",
-            "MountDir": "/sbo/data/projects",
-            "FsxLustreSettings": {"FileSystemId": projects_fs["FileSystemId"]},
-        }
+            )
+            if not fs:
+                fs = create_fsx(
+                    fsx_client=fsx_client,
+                    fs_name=filesystem["name"],
+                    shared=True,
+                    vlab_id=vlab_id,
+                    project_id=project_id,
+                )["FileSystem"]
+                dra = create_dra(
+                    fsx_client=fsx_client,
+                    filesystem_id=fs["FileSystemId"],
+                    mountpoint=filesystem["mountpoint"],
+                    bucket=filesystem["bucket"],
+                    vlab_id=vlab_id,
+                    project_id=project_id,
+                    writable=filesystem["writable"],
+                )
+                wait_for_dra(fsx_client=fsx_client, dra_id=dra["Association"]["AssociationId"])
+            CONFIG_VALUES[f"{filesystem['name']}_fsx"] = {
+                "Name": next(tag["Value"] for tag in fs["Tags"] if tag["Key"] == "Name"),
+                "StorageType": "FsxLustre",
+                "MountDir": filesystem["mountpoint"],
+                "FsxLustreSettings": {"FileSystemId": fs["FileSystemId"]},
+            }
 
     pcluster_config = load_pcluster_config(dev)
     pcluster_config["Tags"] = populate_tags(pcluster_config, vlab_id, project_id)
