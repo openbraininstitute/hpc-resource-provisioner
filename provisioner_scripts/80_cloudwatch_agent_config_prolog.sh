@@ -1,3 +1,7 @@
+#!/bin/bash
+
+mkdir -p /opt/slurm/etc/scripts/prolog.d
+
 cat << _EOF_ >> /opt/slurm/etc/scripts/prolog.d/80_cloudwatch_agent_config_prolog.sh
 #!/bin/bash
 
