@@ -20,7 +20,7 @@ export AWS_APIGW_DEPLOY_ID=""
 export AWS_REGION="us-east-1"
 
 # PROJECT_ID, with automatic creation date for easy identification and uniqueness (date format is YYYY-MM-DD-hh-mm)
-export PROJECT_ID="$(date '+%Y-%m-%d-%Hh%M')-my-pcluster"
+export PROJECT_ID="$(date '+%Y-%m-%d-%Hh%M')"
 export SSH_KEY_FILE=${PROJECT_ID}
 
 #VLAB_ID set to the username
