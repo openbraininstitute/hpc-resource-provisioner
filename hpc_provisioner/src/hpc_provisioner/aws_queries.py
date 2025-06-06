@@ -428,9 +428,11 @@ def create_dra(
     return dra
 
 
-def get_dra_by_id(fsx_client, dra_id: str) -> dict:
+def get_dra_by_id(fsx_client, dra_id: str) -> Optional[dict]:
     dras = fsx_client.describe_data_repository_associations(AssociationIds=[dra_id])
-    return dras.get("Associations", [{}])[0]
+    if len(dras.get("Associations", [])) == 0:
+        return None
+    return dras.get("Associations")[0]
 
 
 def get_dra(fsx_client, filesystem_id: str, mountpoint: str) -> Optional[dict]:
@@ -467,6 +469,7 @@ def wait_for_dra(fsx_client, dra_id, target_status="AVAILABLE", timeout=300) -> 
         logger.debug(f"DRA: {dra}")
         if not dra:
             raise RuntimeError(f"DRA with id {dra_id} not found")
+        time.sleep(10)
 
     if dra["Lifecycle"] != target_status:
         raise RuntimeError(
