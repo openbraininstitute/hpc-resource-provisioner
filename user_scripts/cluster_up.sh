@@ -10,6 +10,7 @@
 ## - This script assumes the following:
 ##     - The sequence of cluster_up + cluster_status + cluster_down scripts are called in this order
 ## - This script does NOT check for every possible error
+## - This script allows tuning the cluster through some variables
 
 
 # AWS credentials and needed data
@@ -19,18 +20,35 @@ export AWS_APIGW_DEPLOY_ID=""
 export AWS_REGION="us-east-1"
 
 # PROJECT_ID, with automatic creation date for easy identification and uniqueness (date format is YYYY-MM-DD-hh-mm)
-export PROJECT_ID="$(date '+%Y-%m-%d-%Hh%M')-${USER}-soma-rep-30k"
+export PROJECT_ID="$(date '+%Y-%m-%d-%Hh%M')-my-pcluster"
 export SSH_KEY_FILE=${PROJECT_ID}
 
 #VLAB_ID set to the username
 export VLAB_ID=${USER}
 
-#EC2 instance type
-export TIER="prod-mpi"
+# Cluster custom parameters
+## Mount FSx Lustre storage
+export LUSTRE="true"
+## Benchmark mounts the whole FSx scratch
+export BENCHMARK="false"
+## EC2 instance type
+export TIER="mixed-prod-mpi" # c7a and c6a
 
 # Cluster creation call
 echo "Calling cluster creation of ${PROJECT_ID}"
-export COMMAND="curl -X POST --user \""${AWS_ACCESS_KEY_ID}":"${AWS_SECRET_ACCESS_KEY}"\" --aws-sigv4 \"aws:amz:"${AWS_REGION}":execute-api\" https://"${AWS_APIGW_DEPLOY_ID}".execute-api."${AWS_REGION}".amazonaws.com/production/hpc-provisioner/pcluster\?benchmark\=true\&project_id\="${PROJECT_ID}"\&tier\="${TIER}"\&vlab_id\="${VLAB_ID}" | jq"
+export COMMAND="curl -X POST --user \""${AWS_ACCESS_KEY_ID}":"${AWS_SECRET_ACCESS_KEY}"\" --aws-sigv4 \"aws:amz:"${AWS_REGION}":execute-api\" https://"${AWS_APIGW_DEPLOY_ID}".execute-api."${AWS_REGION}".amazonaws.com/production/hpc-provisioner/pcluster\?"
+
+# Parameters need to go alphabetically ordered
+if [ "${BENCHMARK}" = "true" ]; then
+    # False by default
+    export COMMAND=${COMMAND}"benchmark\=true\&"
+fi
+if [ "${LUSTRE}" = "false" ]; then
+    # True by default
+    export COMMAND=${COMMAND}"include_lustre\=false\&"
+fi
+
+export COMMAND=${COMMAND}"project_id\="${PROJECT_ID}"\&tier\="${TIER}"\&vlab_id\="${VLAB_ID}" | jq"
 echo "+ ${COMMAND}"
 export CLUSTER=$(eval "${COMMAND}")
 
@@ -63,5 +81,4 @@ else
 	aws secretsmanager get-secret-value --secret-id=${CLUSTER_SSH_KEY_ARN_ADMIN} | jq -r .SecretString >| ${ADMIN_KEY}
 	echo "Secret key stored in ${ADMIN_KEY}"
 fi
-
 
