@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 import logging.config
@@ -7,9 +8,11 @@ import boto3
 from pcluster.api.errors import NotFoundException
 
 from hpc_provisioner.aws_queries import create_keypair, list_existing_stacks, store_private_key
+from hpc_provisioner.cluster import Cluster, ClusterJSONEncoder
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
     BILLING_TAG_VALUE,
+    DEFAULTS,
     PROJECT_TAG_KEY,
     VLAB_TAG_KEY,
 )
@@ -30,12 +33,11 @@ logger = logging.getLogger("hpc-resource-provisioner")
 
 def pcluster_do_create_handler(event, _context=None):
     logger.debug(f"event: {event}, _context: {_context}")
-    options = _get_vlab_query_params(event)
-    vlab_id = options["vlab_id"]
-    project_id = options["project_id"]
-    logger.debug(f"handler: create pcluster {vlab_id}-{project_id} with options: {options}")
-    pcluster_create(vlab_id, project_id, options)
-    logger.debug(f"created pcluster {vlab_id}-{project_id}")
+    cluster = _get_vlab_query_params(event)
+
+    logger.debug(f"handler: create pcluster {cluster}")
+    pcluster_create(cluster)
+    logger.debug(f"created pcluster {cluster}")
 
 
 def pcluster_handler(event, _context=None):
@@ -68,70 +70,69 @@ def pcluster_handler(event, _context=None):
 def pcluster_create_request_handler(event, _context=None):
     """Request the creation of an HPC cluster for a given vlab_id and project_id"""
 
-    options = _get_vlab_query_params(event)
-    vlab_id = options["vlab_id"]
-    project_id = options["project_id"]
+    cluster = _get_vlab_query_params(event)
+
     ec2_client = boto3.client("ec2")
     sm_client = boto3.client("secretsmanager")
     cf_client = boto3.client("cloudformation")
 
-    ssh_keypair = create_keypair(
+    admin_ssh_keypair = create_keypair(
         ec2_client,
-        vlab_id=vlab_id,
-        project_id=project_id,
+        cluster=cluster,
         tags=[
-            {"Key": VLAB_TAG_KEY, "Value": vlab_id},
-            {"Key": PROJECT_TAG_KEY, "Value": project_id},
+            {"Key": VLAB_TAG_KEY, "Value": cluster.vlab_id},
+            {"Key": PROJECT_TAG_KEY, "Value": cluster.project_id},
             {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
         ],
     )
 
-    admin_user_secret = store_private_key(sm_client, vlab_id, project_id, ssh_keypair)
+    admin_user_secret = store_private_key(sm_client, cluster, admin_ssh_keypair)
 
     response = {
         "cluster": {
-            "clusterName": f"pcluster-{vlab_id}-{project_id}",
+            "clusterName": cluster.name,
             "clusterStatus": "CREATE_REQUEST_RECEIVED",
         }
     }
 
     create_args = {
-        "vlab_id": vlab_id,
-        "project_id": project_id,
-        "keyname": ssh_keypair["KeyName"],
-        "options": options,
+        "cluster": cluster,
     }
 
     sim_user_ssh_keypair = create_keypair(
         ec2_client,
-        vlab_id=vlab_id,
-        project_id=project_id,
+        cluster,
         tags=[
-            {"Key": VLAB_TAG_KEY, "Value": vlab_id},
-            {"Key": PROJECT_TAG_KEY, "Value": project_id},
+            {"Key": VLAB_TAG_KEY, "Value": cluster.vlab_id},
+            {"Key": PROJECT_TAG_KEY, "Value": cluster.project_id},
             {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
         ],
         keypair_user="sim",
     )
 
-    sim_user_secret = store_private_key(sm_client, vlab_id, project_id, sim_user_ssh_keypair)
+    sim_user_secret = store_private_key(sm_client, cluster, sim_user_ssh_keypair)
+    logger.debug(f"Created sim user keypair: {sim_user_ssh_keypair}")
+
     response["cluster"]["ssh_user"] = "sim"
     response["cluster"]["private_ssh_key_arn"] = sim_user_secret["ARN"]
     response["cluster"]["admin_user_private_ssh_key_arn"] = admin_user_secret["ARN"]
-    logger.debug(f"Created sim user keypair: {sim_user_ssh_keypair}")
 
     if key_material := sm_client.get_secret_value(SecretId=sim_user_secret["ARN"]):
-        create_args["sim_pubkey"] = generate_public_key(key_material["SecretString"])
-    logger.debug(f"Create args: {create_args}")
+        cluster.sim_pubkey = generate_public_key(key_material["SecretString"])
+    else:
+        raise RuntimeError(
+            f"Something went wrong retrieving the sim user private key: {sim_user_secret['ARN']}"
+        )
+    logger.debug(f"Cluster: {cluster}")
 
-    if f"pcluster-{vlab_id}-{project_id}" in list_existing_stacks(cf_client):
-        print(f"Stack pcluster-{vlab_id}-{project_id} already exists - exiting")
+    if cluster.name in list_existing_stacks(cf_client):
+        print(f"Stack {cluster.name} already exists - exiting")
         return response_json(response)
 
-    logger.debug("calling create lambda async")
+    logger.debug(f"calling create lambda async with arguments {create_args}")
     boto3.client("lambda").invoke_async(
         FunctionName=f"hpc-resource-provisioner-creator-{get_suffix()}",
-        InvokeArgs=json.dumps(create_args),
+        InvokeArgs=json.dumps(create_args, cls=ClusterJSONEncoder),
     )
     logger.debug("called create lambda async")
 
@@ -141,17 +142,15 @@ def pcluster_create_request_handler(event, _context=None):
 def pcluster_describe_handler(event, _context=None):
     """Describe a cluster given the vlab_id and project_id"""
     try:
-        options = _get_vlab_query_params(event)
-        vlab_id = options["vlab_id"]
-        project_id = options["project_id"]
+        cluster = _get_vlab_query_params(event)
     except InvalidRequest:
         logger.debug("No vlab_id specified - listing pclusters")
         pc_output = pcluster_list()
     else:
-        logger.debug(f"describe pcluster {vlab_id}-{project_id}")
+        logger.debug(f"describe pcluster {cluster}")
         try:
-            pc_output = pcluster_describe(vlab_id, project_id)
-            logger.debug(f"described pcluster {vlab_id}-{project_id}")
+            pc_output = pcluster_describe(cluster)
+            logger.debug(f"described pcluster {cluster}")
         except NotFoundException as e:
             return {"statusCode": 404, "body": e.content.message}
         except Exception as e:
@@ -162,14 +161,12 @@ def pcluster_describe_handler(event, _context=None):
 
 def pcluster_delete_handler(event, _context=None):
     """Delete a cluster given the vlab_id and project_id"""
-    options = _get_vlab_query_params(event)
-    vlab_id = options["vlab_id"]
-    project_id = options["project_id"]
+    cluster = _get_vlab_query_params(event)
 
-    logger.debug(f"delete pcluster {vlab_id}-{project_id}")
+    logger.debug(f"delete pcluster {cluster}")
     try:
-        pc_output = pcluster_delete(vlab_id, project_id)
-        logger.debug(f"deleted pcluster {vlab_id}-{project_id}")
+        pc_output = pcluster_delete(cluster)
+        logger.debug(f"deleted pcluster {cluster.vlab_id}-{cluster.project_id}")
     except NotFoundException as e:
         return {"statusCode": 404, "body": e.content.message}
     except Exception as e:
@@ -178,57 +175,53 @@ def pcluster_delete_handler(event, _context=None):
     return response_json(pc_output)
 
 
-def _get_vlab_query_params(event):
-    logger.debug(f"Getting query params from event {event}")
+def _get_vlab_query_params(incoming_event) -> Cluster:
+    logger.debug(f"Getting query params from event {incoming_event}")
+    event = copy.deepcopy(incoming_event)
 
     params = {
-        "benchmark": event.get("benchmark"),
-        "dev": event.get("dev"),
-        "include_lustre": event.get("include_lustre"),
-        "tier": event.get("tier"),
+        "benchmark": event.get("benchmark", DEFAULTS["benchmark"]),
+        "dev": event.get("dev", DEFAULTS["dev"]),
+        "include_lustre": event.get("include_lustre", DEFAULTS["include_lustre"]),
+        "tier": event.get("tier", DEFAULTS["tier"]),
         "project_id": event.get("project_id"),
         "vlab_id": event.get("vlab_id"),
-        "keyname": event.get("keyname"),
+        "admin_ssh_key_name": event.get("admin_ssh_key_name"),
         "sim_pubkey": event.get("sim_pubkey"),
     }
 
+    for param, value in params.items():
+        if value == DEFAULTS.get(param) or value is None:
+            logger.debug(
+                f"Param {param} is set to {value} - making sure it's not in queryStringParameters"
+            )
+            if param in event.get("queryStringParameters", {}):
+                params[param] = event["queryStringParameters"][param]
+    cluster = Cluster(
+        project_id=params["project_id"],
+        vlab_id=params["vlab_id"],
+        tier=params["tier"],
+        benchmark=params.get("benchmark", "").lower() == "true",
+        dev=params.get("dev", "").lower() == "true",
+        include_lustre=params.get("include_lustre", "").lower() == "true",
+    )
+
     logger.debug(f"Params: {params}")
-
-    if query_string_parameters := event.get("queryStringParameters", event.get("options", {})):
-        logger.debug(
-            "Trying to get unset values from query string parameters or options: "
-            f"{query_string_parameters}"
-        )
-        for param, value in params.items():
-            if value is None:
-                logger.debug(
-                    f"Parameter {param} not defined yet - "
-                    "checking queryStringParameters {queryStringParameters}"
-                )
-                if param in ["benchmark", "dev"]:
-                    params[param] = query_string_parameters.pop(param, False)
-                else:
-                    params[param] = query_string_parameters.pop(param, None)
-
-    for default_false_bool_param in ["benchmark", "dev"]:
-        if isinstance(params[default_false_bool_param], str):
-            params[default_false_bool_param] = params[default_false_bool_param].lower() == "true"
-        elif not isinstance(params[default_false_bool_param], bool):
-            params[default_false_bool_param] = False
-
-    for default_true_bool_param in ["include_lustre"]:
-        if isinstance(params[default_true_bool_param], str):
-            params[default_true_bool_param] = params[default_true_bool_param].lower() == "true"
-        elif not isinstance(params[default_true_bool_param], bool):
-            params[default_true_bool_param] = True
+    logger.debug(f"Cluster: {cluster}")
 
     if params["vlab_id"] is None:
         raise InvalidRequest("missing required 'vlab_id' query param")
     if params["project_id"] is None:
         raise InvalidRequest("missing required 'project_id' query param")
 
+    if params["admin_ssh_key_name"]:
+        cluster.admin_ssh_key_name = params["admin_ssh_key_name"]
+    if params["sim_pubkey"]:
+        cluster.sim_pubkey = params["sim_pubkey"]
+
     logger.debug(f"Parameters: {params}")
-    return params
+    logger.debug(f"Cluster: {cluster}")
+    return cluster
 
 
 def response_text(text: str, code: int = 200):

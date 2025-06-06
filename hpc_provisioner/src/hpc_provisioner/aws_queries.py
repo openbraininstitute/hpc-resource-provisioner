@@ -43,20 +43,16 @@ class CouldNotDetermineEFSException(Exception):
     """
 
 
-def get_cluster_name(vlab_id: str, project_id: str) -> str:
-    return f"pcluster-{vlab_id}-{project_id}"
-
-
-def get_keypair_name(vlab_id, project_id, keypair_user=None) -> str:
-    keypair_name = get_cluster_name(vlab_id, project_id)
+def get_keypair_name(cluster, keypair_user=None) -> str:
+    keypair_name = cluster.name
     if keypair_user:
         keypair_name = "_".join([keypair_name, keypair_user])
 
     return keypair_name
 
 
-def create_keypair(ec2_client, vlab_id, project_id, tags, keypair_user=None) -> dict:
-    keypair_name = get_keypair_name(vlab_id, project_id, keypair_user)
+def create_keypair(ec2_client, cluster, tags, keypair_user=None) -> dict:
+    keypair_name = get_keypair_name(cluster, keypair_user)
     try:
         existing_key = ec2_client.describe_key_pairs(KeyNames=[keypair_name])
         return existing_key["KeyPairs"][0]
@@ -72,10 +68,14 @@ def create_keypair(ec2_client, vlab_id, project_id, tags, keypair_user=None) -> 
         )
 
 
-def store_private_key(sm_client, vlab_id, project_id, ssh_keypair):
+def store_private_key(sm_client, cluster, ssh_keypair):
     if "KeyMaterial" in ssh_keypair:
         secret = create_secret(
-            sm_client, vlab_id, project_id, ssh_keypair["KeyName"], ssh_keypair["KeyMaterial"]
+            sm_client,
+            cluster.vlab_id,
+            cluster.project_id,
+            ssh_keypair["KeyName"],
+            ssh_keypair["KeyMaterial"],
         )
     else:
         secret = get_secret(sm_client, ssh_keypair["KeyName"])

@@ -11,7 +11,6 @@ REGION = "us-east-1"  # TODO: don't hardcode?
 
 DEFAULTS = {
     "tier": "debug",
-    "fs_type": "efs",
     "project_id": "-",
     "dev": "false",
     "benchmark": "false",

@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 from botocore.exceptions import ClientError
+
 from hpc_provisioner.aws_queries import (
     CouldNotDetermineEFSException,
     CouldNotDetermineSecurityGroupException,
@@ -314,19 +315,17 @@ def test_get_available_subnet(mock_dynamodb_client, mock_claim_subnet):
     assert subnet == "sub-1"
 
 
-def test_create_keypair():
+def test_create_keypair(test_cluster):
     mock_ec2_client = MagicMock()
     mock_ec2_client.describe_key_pairs.side_effect = ClientError(
         error_response={"Error": {"Code": 1, "Message": "It failed"}},
         operation_name="describe_key_pairs",
     )
     mock_ec2_client.create_key_pair.return_value = "key created"
-    vlab_id = "test_vlab"
-    project_id = "test_project"
     tags = [{"Key": "tagkey", "Value": "tagvalue"}]
-    create_keypair(mock_ec2_client, vlab_id, project_id, tags)
+    create_keypair(mock_ec2_client, test_cluster, tags)
     mock_ec2_client.create_key_pair.assert_called_once_with(
-        KeyName=f"pcluster-{vlab_id}-{project_id}",
+        KeyName=test_cluster.name,
         TagSpecifications=[{"ResourceType": "key-pair", "Tags": tags}],
     )
 
@@ -367,16 +366,14 @@ def test_create_secret():
 
 @pytest.mark.parametrize("keypair_exists", [True, False])
 @pytest.mark.parametrize("secret_exists", [True, False])
-def test_store_private_key(keypair_exists, secret_exists):
+def test_store_private_key(keypair_exists, secret_exists, test_cluster):
     if secret_exists and not keypair_exists:
         pytest.skip(
             "New keypair with existing secret: sm_client.create_secret will raise "
             "on trying to create a secret that already exists."
         )
     mock_sm_client = MagicMock()
-    vlab_id = "testvlab"
-    project_id = "testproject"
-    secret_name = key_name = f"pcluster-{vlab_id}-{project_id}"
+    secret_name = key_name = test_cluster.name
     if not keypair_exists:
         ssh_keypair = {"KeyMaterial": "supersecret", "KeyName": key_name}
     else:
@@ -385,24 +382,24 @@ def test_store_private_key(keypair_exists, secret_exists):
     if not keypair_exists:
         if not secret_exists:
             print("Keypair created, secret does not exist yet")
-            store_private_key(mock_sm_client, vlab_id, project_id, ssh_keypair)
+            store_private_key(mock_sm_client, test_cluster, ssh_keypair)
             mock_sm_client.create_secret.assert_called_once_with(
                 Name=secret_name,
-                Description=f"SSH Key for cluster for vlab {vlab_id}, project {project_id}",
+                Description=f"SSH Key for cluster for vlab {test_cluster.vlab_id}, project {test_cluster.project_id}",
                 SecretString=ssh_keypair["KeyMaterial"],
                 Tags=[
-                    {"Key": VLAB_TAG_KEY, "Value": vlab_id},
-                    {"Key": PROJECT_TAG_KEY, "Value": project_id},
+                    {"Key": VLAB_TAG_KEY, "Value": test_cluster.vlab_id},
+                    {"Key": PROJECT_TAG_KEY, "Value": test_cluster.project_id},
                     {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
                 ],
             )
     elif secret_exists:
         print("Both already exist")
         mock_sm_client.list_secrets.return_value = {"SecretList": ["somesecret"]}
-        retrieved_secret = store_private_key(mock_sm_client, vlab_id, project_id, ssh_keypair)
+        retrieved_secret = store_private_key(mock_sm_client, test_cluster, ssh_keypair)
         assert retrieved_secret == "somesecret"
     else:
         print("Keypair already existed but was not stored in secretsmanager yet")
         mock_sm_client.list_secrets.return_value = {"SecretList": []}
         with pytest.raises(RuntimeError):
-            store_private_key(mock_sm_client, vlab_id, project_id, ssh_keypair)
+            store_private_key(mock_sm_client, test_cluster, ssh_keypair)
