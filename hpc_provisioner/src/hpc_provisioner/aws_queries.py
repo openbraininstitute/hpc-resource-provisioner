@@ -21,7 +21,7 @@ from hpc_provisioner.dynamodb_actions import (
     register_subnet,
 )
 from hpc_provisioner.logging_config import LOGGING_CONFIG
-from hpc_provisioner.utils import get_fs_sg_id, get_fs_subnet_id
+from hpc_provisioner.utils import get_fs_sg_id, get_fs_subnet_ids
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("hpc-resource-provisioner")
@@ -332,7 +332,7 @@ def create_fsx(
         FileSystemType="LUSTRE",
         StorageCapacity=19200,
         StorageType="SSD",
-        SubnetIds=[get_fs_subnet_id()],
+        SubnetIds=get_fs_subnet_ids(),
         SecurityGroupIds=[get_fs_sg_id()],
         Tags=tags,
         LustreConfiguration={
