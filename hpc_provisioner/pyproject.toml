@@ -8,6 +8,7 @@ dependencies = [
     "aws-parallelcluster",
     "boto3",
     "cryptography",
+    "python_dynamodb_lock",
     "PyYAML"
 ]
 authors = [{"name" = "Fernando Pereira", "email" = "fernando.pereira@epfl.ch"},
