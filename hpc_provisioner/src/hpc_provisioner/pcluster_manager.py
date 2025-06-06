@@ -227,6 +227,7 @@ def pcluster_create(
             },
         ]
         for filesystem in filesystems:
+            logger.debug(f"Checking for filesystem {filesystem}")
             fs = get_fsx(
                 fsx_client=fsx_client,
                 shared=True,
@@ -235,6 +236,7 @@ def pcluster_create(
                 project_id=project_id,
             )
             if not fs:
+                logger.debug(f"Creating filesystem {filesystem}")
                 fs = create_fsx(
                     fsx_client=fsx_client,
                     fs_name=filesystem["name"],
@@ -242,6 +244,7 @@ def pcluster_create(
                     vlab_id=vlab_id,
                     project_id=project_id,
                 )["FileSystem"]
+                logger.debug("Creating DRA")
                 dra = create_dra(
                     fsx_client=fsx_client,
                     filesystem_id=fs["FileSystemId"],

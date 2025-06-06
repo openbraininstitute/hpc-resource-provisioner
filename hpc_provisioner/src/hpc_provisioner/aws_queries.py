@@ -317,15 +317,21 @@ def create_fsx(
     :param project_id: project of the cluster to which the filesystem will be attached.
     """
 
+    logger.debug(
+        f"Creating fsx with name {fs_name}, shared {shared}, vlab id {vlab_id} and project id {project_id}"
+    )
     tags = [
         {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
     ]
     token = get_fsx_name(shared, fs_name, vlab_id, project_id)
+    logger.debug(f"Token: {token}")
     tags.append({"Key": "Name", "Value": token})
 
     if not shared:
         tags.append({"Key": VLAB_TAG_KEY, "Value": vlab_id})
         tags.append({"Key": PROJECT_TAG_KEY, "Value": project_id})
+
+    logger.debug(f"Tags: {tags}")
 
     fs = fsx_client.create_file_system(
         ClientRequestToken=token,
@@ -350,6 +356,7 @@ def create_fsx(
         },
     )
 
+    logger.debug(f"Created fsx {fs}")
     return fs
 
 
@@ -396,6 +403,9 @@ def create_dra(
     project_id: str,
     writable: bool = False,
 ) -> dict:
+    logger.debug(
+        f"Creating DRA for fs {filesystem_id}, mount {bucket} at {mountpoint}, for {vlab_id}-{project_id}, writable {writable}"
+    )
     s3_config = {
         "AutoImportPolicy": {  # from S3 to FS
             "Events": [
@@ -408,6 +418,8 @@ def create_dra(
 
     if writable:
         s3_config["AutoExportPolicy"] = {"Events": ["NEW", "CHANGED", "DELETED"]}
+
+    logger.debug(f"s3 config: {s3_config}")
 
     dra = fsx_client.create_data_repository_association(
         FileSystemId=filesystem_id,
@@ -425,6 +437,7 @@ def create_dra(
         ],
     )
 
+    logger.debug(f"Created DRA {dra}")
     return dra
 
 
@@ -461,8 +474,9 @@ def wait_for_fsx(fsx_client, filesystem_id, target_status="AVAILABLE", timeout=3
         )
 
 
-def wait_for_dra(fsx_client, dra_id, target_status="AVAILABLE", timeout=300) -> None:
+def wait_for_dra(fsx_client, dra_id, target_status="AVAILABLE", timeout=600) -> None:
     dra = {"Lifecycle": "UNKNOWN"}
+    logger.debug(f"Waiting for dra {dra_id} for {timeout} seconds")
     start = time.time()
     while dra.get("Lifecycle") != target_status and time.time() < start + timeout:
         dra = get_dra_by_id(fsx_client=fsx_client, dra_id=dra_id)
