@@ -191,13 +191,15 @@ def _get_vlab_query_params(incoming_event) -> Cluster:
     }
 
     logger.debug(f"params: {params}")
-    for param, value in params.items():
-        if value == DEFAULTS.get(param) or value is None:
-            logger.debug(
-                f"Param {param} is set to {value} (default or None)- making sure it's not in queryStringParameters"
-            )
-            if param in event.get("queryStringParameters", {}):
-                params[param] = event["queryStringParameters"][param]
+    if event.get("queryStringParameters"):
+        print("queryStringParameters specified - getting values from it")
+        for param, value in params.items():
+            if value == DEFAULTS.get(param) or value is None:
+                logger.debug(
+                    f"Param {param} is set to {value} (default or None)- making sure it's not in queryStringParameters"
+                )
+                if param in event.get("queryStringParameters", {}):
+                    params[param] = event["queryStringParameters"][param]
     cluster = Cluster(
         project_id=params["project_id"],
         vlab_id=params["vlab_id"],
