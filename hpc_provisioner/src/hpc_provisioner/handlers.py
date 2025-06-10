@@ -190,10 +190,11 @@ def _get_vlab_query_params(incoming_event) -> Cluster:
         "sim_pubkey": event.get("sim_pubkey"),
     }
 
+    logger.debug(f"params: {params}")
     for param, value in params.items():
         if value == DEFAULTS.get(param) or value is None:
             logger.debug(
-                f"Param {param} is set to {value} - making sure it's not in queryStringParameters"
+                f"Param {param} is set to {value} (default or None)- making sure it's not in queryStringParameters"
             )
             if param in event.get("queryStringParameters", {}):
                 params[param] = event["queryStringParameters"][param]
