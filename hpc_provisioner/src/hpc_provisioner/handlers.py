@@ -33,7 +33,7 @@ logger = logging.getLogger("hpc-resource-provisioner")
 
 def pcluster_do_create_handler(event, _context=None):
     logger.debug(f"event: {event}, _context: {_context}")
-    cluster = _get_vlab_query_params(event)
+    cluster = Cluster.from_json(event["cluster"])
 
     logger.debug(f"handler: create pcluster {cluster}")
     pcluster_create(cluster)

@@ -1,3 +1,4 @@
+import json
 from json import JSONEncoder
 from typing import Optional
 
@@ -55,3 +56,8 @@ class Cluster:
             f"admin_ssh_key_name: {self.admin_ssh_key_name} "
             f"sim_pubkey: {self.sim_pubkey}"
         )
+
+    @staticmethod
+    def from_json(cluster: str):
+        cluster_data = json.loads(cluster)
+        return Cluster(**cluster_data)
