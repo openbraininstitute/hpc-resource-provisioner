@@ -33,7 +33,7 @@ logger = logging.getLogger("hpc-resource-provisioner")
 
 def pcluster_do_create_handler(event, _context=None):
     logger.debug(f"event: {event}, _context: {_context}")
-    cluster = Cluster.from_json(event["cluster"])
+    cluster = Cluster.from_dict(event["cluster"])
 
     logger.debug(f"handler: create pcluster {cluster}")
     pcluster_create(cluster)

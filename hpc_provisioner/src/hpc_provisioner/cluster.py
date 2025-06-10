@@ -1,4 +1,3 @@
-import json
 from json import JSONEncoder
 from typing import Optional
 
@@ -58,6 +57,5 @@ class Cluster:
         )
 
     @staticmethod
-    def from_json(cluster: str):
-        cluster_data = json.loads(cluster)
+    def from_dict(cluster_data: dict):
         return Cluster(**cluster_data)
