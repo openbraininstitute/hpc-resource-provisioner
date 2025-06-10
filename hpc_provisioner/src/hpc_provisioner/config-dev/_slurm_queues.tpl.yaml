@@ -81,6 +81,7 @@
         - InstanceType: c6a.48xlarge  # compute optimized nodes
       MinCount: 0
       MaxCount: 20  # least number of nodes needed to simulate the full O1 circuit x2
+      DisableSimultaneousMultithreading: true
       Efa:  # low-latency, high BW network
         Enabled: true  # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/efa-start.html#efa-start-security
   Networking:
