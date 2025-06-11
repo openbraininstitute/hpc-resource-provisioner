@@ -43,7 +43,7 @@ cat << _EOF_ >> /opt/slurm/CWAgent_config_$CLUSTER_NAME.json
                                         "used_percent", "used"
                                 ],
                                 "resources": [
-					"/sbo/data/scratch/*", "/sbo/home/*"
+					"/sbo/data/scratch", "/sbo/home"
                                 ]
                         },
 			"diskio": {
