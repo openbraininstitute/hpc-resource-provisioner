@@ -17,11 +17,17 @@ from hpc_provisioner.constants import (
     VLAB_TAG_KEY,
 )
 from hpc_provisioner.dynamodb_actions import delete_cluster, dynamodb_resource, register_cluster
-from hpc_provisioner.utils import generate_public_key, get_suffix
+from hpc_provisioner.utils import (
+    generate_public_key,
+    get_sbonexusdata_bucket,
+    get_scratch_bucket,
+    get_suffix,
+)
 
 from .logging_config import LOGGING_CONFIG
 from .pcluster_manager import (
     InvalidRequest,
+    fsx_precreate,
     pcluster_create,
     pcluster_delete,
     pcluster_describe,
@@ -36,8 +42,38 @@ def pcluster_do_create_handler(event, _context=None):
     logger.debug(f"event: {event}, _context: {_context}")
     cluster = Cluster.from_dict(event["cluster"])
 
+    logger.debug(f"handler: precreate filesystems for cluster {cluster}")
+    if cluster.include_lustre:
+        filesystems = [
+            {
+                "name": "projects",
+                "shared": True,
+                "mountpoint": "/sbo/data/projects",
+                "bucket": get_sbonexusdata_bucket(),
+                "writable": False,
+            },
+            {
+                "name": "scratch",
+                "shared": False,
+                "mountpoint": "/sbo/data/scratch",
+                "bucket": f"{get_scratch_bucket()}/{cluster.vlab_id}/{cluster.project_id}",
+                "writable": True,
+            },
+        ]
+        if fsx_precreate(cluster, filesystems):
+            logger.debug("Created FSx - not proceeding to cluster creation yet")
+            return
+        else:
+            logger.debug("All FSx filesystems created - proceeding to cluster create")
+    else:
+        # only defined because the template must have it
+        filesystems = [
+            {"name": "projects", "expected": False},
+            {"name": "scratch", "expected": False},
+        ]
+
     logger.debug(f"handler: create pcluster {cluster}")
-    pcluster_create(cluster)
+    pcluster_create(cluster, filesystems)
     logger.debug(f"created pcluster {cluster}")
 
 
