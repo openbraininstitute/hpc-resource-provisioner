@@ -106,13 +106,13 @@ def register_cluster(dynamodb_resource, cluster: Cluster) -> None:
     if get_cluster_by_name(dynamodb_resource, cluster.name):
         raise ClusterAlreadyRegistered(f"Cluster {cluster} already registered")
 
-    dynamodb_resource.update_item(
-        TableName=CLUSTER_TABLE_NAME, Key={"name": {"S": cluster.name}}, AttributeUpdates={}
-    )
+    table = dynamodb_resource.Table(CLUSTER_TABLE_NAME)
+    table.update_item(Key={"name": cluster.name}, AttributeUpdates={})
 
 
 def delete_cluster(dynamodb_resource, cluster: Cluster) -> None:
-    dynamodb_resource.delete_item(Key={"name": cluster.name})
+    table = dynamodb_resource.Table(CLUSTER_TABLE_NAME)
+    table.delete_item(Key={"name": cluster.name})
 
 
 def _update_cluster_claim(dynamodb_resource, cluster: Cluster, new_value: int) -> None:
@@ -126,7 +126,7 @@ def _update_cluster_claim(dynamodb_resource, cluster: Cluster, new_value: int) -
     table = dynamodb_resource.Table(CLUSTER_TABLE_NAME)
     table.update_item(
         Key={"name": cluster.name},
-        UpdateExpression="SET claimed = :claim",
+        UpdateExpression="SET provisioning_launched = :claim",
         ExpressionAttributeValues={":claim": new_value},
     )
 
