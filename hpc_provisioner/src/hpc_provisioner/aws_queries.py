@@ -142,8 +142,10 @@ def get_security_group(ec2_client) -> str:
 
 
 def release_subnets(cluster_name: str) -> None:
+    logger.debug(f"Releasing subnets for {cluster_name}")
     client = dynamodb_client()
     registered_subnets = get_registered_subnets(client)
+    logger.debug(f"Registered subnets: {registered_subnets}")
     claimed_subnets = [
         subnet for subnet in registered_subnets if registered_subnets[subnet] == cluster_name
     ]
