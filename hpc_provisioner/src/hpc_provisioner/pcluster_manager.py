@@ -245,8 +245,6 @@ def pcluster_create(cluster: Cluster):
         pcluster_config["SharedStorage"].pop()
     pcluster_config["Tags"] = populate_tags(pcluster_config, cluster.vlab_id, cluster.project_id)
     pcluster_config["Scheduling"]["SlurmQueues"] = get_tier_config(pcluster_config, cluster.tier)
-    if cluster.include_lustre is False:
-        pcluster_config["SharedStorage"].pop(1)  # TODO: should probably pop more
     if cluster.benchmark:
         pcluster_config["HeadNode"]["CustomActions"]["OnNodeConfigured"]["Sequence"].append(
             {
