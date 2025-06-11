@@ -107,7 +107,7 @@ def register_cluster(dynamodb_resource, cluster: Cluster) -> None:
         raise ClusterAlreadyRegistered(f"Cluster {cluster} already registered")
 
     table = dynamodb_resource.Table(CLUSTER_TABLE_NAME)
-    table.update_item(Key={"name": cluster.name}, AttributeUpdates={})
+    table.put_item(Item=cluster.as_dict())
 
 
 def delete_cluster(dynamodb_resource, cluster: Cluster) -> None:
