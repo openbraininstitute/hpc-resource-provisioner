@@ -38,6 +38,14 @@ logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("hpc-resource-provisioner")
 
 
+def dra_ready_handler(event, _context=None):
+    """
+    1. Retrieve clusters which use this FS/DRA
+    2. For each of them: construct an event and call pcluster_do_create_handler
+    """
+    logger.debug(f"event: {event}, _context: {_context}")
+
+
 def pcluster_do_create_handler(event, _context=None):
     logger.debug(f"event: {event}, _context: {_context}")
     cluster = Cluster.from_dict(event["cluster"])
