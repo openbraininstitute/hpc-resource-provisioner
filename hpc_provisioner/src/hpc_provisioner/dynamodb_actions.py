@@ -1,11 +1,14 @@
 import logging
 import logging.config
+from typing import Optional
 
 import boto3
 
+from hpc_provisioner.cluster import Cluster
 from hpc_provisioner.logging_config import LOGGING_CONFIG
 
-TABLE_NAME = "sbo-parallelcluster-subnets"
+SUBNET_TABLE_NAME = "sbo-parallelcluster-subnets"
+CLUSTER_TABLE_NAME = "pclusters"
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("hpc-resource-provisioner")
@@ -13,6 +16,14 @@ logger = logging.getLogger("hpc-resource-provisioner")
 
 class SubnetAlreadyRegisteredException(Exception):
     "Raised when trying to register a subnet that already has a DB entry"
+
+
+class ClusterNotRegistered(Exception):
+    "Raised when trying to manipulate a cluster that's not registered"
+
+
+class ClusterAlreadyInClaimState(Exception):
+    "Raised when trying to claim / release a cluster that is already claimed / released"
 
 
 def dynamodb_client():
@@ -27,7 +38,7 @@ def get_registered_subnets(dynamodb_client) -> dict:
     Get all registered subnets and the clusters they are registered to
     """
 
-    result = dynamodb_client.scan(TableName=TABLE_NAME)
+    result = dynamodb_client.scan(TableName=SUBNET_TABLE_NAME)
     logger.debug(f"Registered subnets: {result}")
 
     return {item["subnet_id"]["S"]: item["cluster"]["S"] for item in result["Items"]}
@@ -36,7 +47,7 @@ def get_registered_subnets(dynamodb_client) -> dict:
 def get_subnet(dynamodb_client, subnet_id: str) -> dict:
     logger.debug(f"Getting subnet {subnet_id}")
     items = dynamodb_client.get_item(
-        TableName=TABLE_NAME,
+        TableName=SUBNET_TABLE_NAME,
         Key={"subnet_id": {"S": subnet_id}},
         ConsistentRead=True,
     )
@@ -59,7 +70,7 @@ def register_subnet(dynamodb_client, subnet_id: str, cluster: str) -> None:
         raise SubnetAlreadyRegisteredException()
 
     dynamodb_client.update_item(
-        TableName=TABLE_NAME,
+        TableName=SUBNET_TABLE_NAME,
         Key={"subnet_id": {"S": subnet_id}},
         AttributeUpdates={"cluster": {"Value": {"S": cluster}}},
     )
@@ -72,3 +83,42 @@ def free_subnet(dynamodb_client, subnet_id: str) -> None:
     dynamodb_client.delete_item(
         TableName="sbo-parallelcluster-subnets", Key={"subnet_id": {"S": subnet_id}}
     )
+
+
+def get_cluster_by_name(dynamodb_resource, cluster_name: str) -> Optional[dict]:
+    table = dynamodb_resource.Table(CLUSTER_TABLE_NAME)
+    result = table.get_item(Key={"name": cluster_name}, ConsistentRead=True)
+    return result.get("Item")
+
+
+def register_cluster(dynamodb_resource, cluster: Cluster) -> None:
+    if get_cluster_by_name(dynamodb_resource, cluster.name):
+        raise RuntimeError(f"Cluster {cluster} already registered")
+
+    dynamodb_resource.update_item(
+        TableName=CLUSTER_TABLE_NAME, Key={"name": {"S": cluster.name}}, AttributeUpdates={}
+    )
+
+
+def _update_cluster_claim(dynamodb_resource, cluster: Cluster, new_value: int) -> None:
+    stored_cluster = get_cluster_by_name(dynamodb_resource, cluster.name)
+    if not stored_cluster:
+        raise ClusterNotRegistered(f"Cluster {cluster} is not registered - cannot claim it")
+
+    if stored_cluster.get("claimed") == new_value:
+        raise ClusterAlreadyInClaimState(f"Cluster {cluster} already has claim state {new_value}")
+
+    table = dynamodb_resource.Table(CLUSTER_TABLE_NAME)
+    table.update_item(
+        Key={"name": cluster.name},
+        UpdateExpression="SET claimed = :claim",
+        ExpressionAttributeValues={":claim": new_value},
+    )
+
+
+def claim_cluster(dynamodb_resource, cluster: Cluster) -> None:
+    _update_cluster_claim(dynamodb_resource, cluster, 1)
+
+
+def release_cluster(dynamodb_resource, cluster: Cluster) -> None:
+    _update_cluster_claim(dynamodb_resource, cluster, 0)
