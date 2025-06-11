@@ -6,6 +6,7 @@ from typing import Dict, Optional
 import boto3
 from botocore.exceptions import ClientError
 
+from hpc_provisioner.cluster import Cluster
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
     BILLING_TAG_VALUE,
@@ -293,12 +294,11 @@ def list_existing_stacks(cf_client):
     return existing_stack_names
 
 
-def get_fsx_name(shared: bool, fs_name: str, vlab_id: str, project_id: str) -> str:
+def get_fsx_name(shared: bool, fs_name: str, cluster: Cluster) -> str:
     if shared:
         return fs_name
     else:
-        pcluster_name = get_cluster_name(vlab_id, project_id)
-        return f"{fs_name}-{pcluster_name}"
+        return f"{fs_name}-{cluster.name}"
 
 
 def create_fsx(

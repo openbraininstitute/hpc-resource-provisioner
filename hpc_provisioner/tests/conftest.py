@@ -28,6 +28,11 @@ def data():
 
 
 @pytest.fixture
+def create_event(test_cluster):
+    return {"cluster": test_cluster.as_dict(), "path": "/hpc-provisioner/pcluster"}
+
+
+@pytest.fixture
 def event():
     return {
         "vlab_id": VLAB_ID,
@@ -51,6 +56,13 @@ def get_event(event):
 @pytest.fixture
 def post_event(event):
     retval = copy.deepcopy(event)
+    retval["httpMethod"] = "POST"
+    return retval
+
+
+@pytest.fixture
+def post_create_event(create_event):
+    retval = copy.deepcopy(create_event)
     retval["httpMethod"] = "POST"
     return retval
 

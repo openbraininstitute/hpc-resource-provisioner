@@ -1,3 +1,4 @@
+import copy
 from json import JSONEncoder
 from typing import Optional
 
@@ -58,4 +59,11 @@ class Cluster:
 
     @staticmethod
     def from_dict(cluster_data: dict):
+        if "name" in cluster_data:
+            cluster_data.pop("name")
         return Cluster(**cluster_data)
+
+    def as_dict(self) -> dict:
+        d = copy.deepcopy(self.__dict__)
+        d["name"] = self.name
+        return d

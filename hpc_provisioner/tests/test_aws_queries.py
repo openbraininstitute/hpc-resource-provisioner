@@ -13,8 +13,10 @@ from hpc_provisioner.aws_queries import (
     create_secret,
     get_available_subnet,
     get_efs,
+    get_fsx_name,
     get_secret,
     get_security_group,
+    remove_key,
     store_private_key,
 )
 from hpc_provisioner.constants import (
@@ -403,3 +405,29 @@ def test_store_private_key(keypair_exists, secret_exists, test_cluster):
         mock_sm_client.list_secrets.return_value = {"SecretList": []}
         with pytest.raises(RuntimeError):
             store_private_key(mock_sm_client, test_cluster, ssh_keypair)
+
+
+@patch("hpc_provisioner.aws_queries.boto3")
+def test_remove_key(patched_boto3):
+    test_key_name = "test_keypair"
+    patched_ec2_client = MagicMock()
+    patched_sm_client = MagicMock()
+    patched_boto3.client.side_effect = [patched_ec2_client, patched_sm_client]
+    remove_key(test_key_name)
+    patched_ec2_client.delete_key_pair.assert_called_once_with(KeyName=test_key_name)
+    patched_sm_client.delete_secret.assert_called_once_with(
+        SecretId=test_key_name, ForceDeleteWithoutRecovery=True
+    )
+
+
+@pytest.mark.parametrize("shared", [True, False])
+def test_get_fsx_name(shared, test_cluster):
+    test_fs_name = "test"
+    fsx_name = get_fsx_name(shared=shared, fs_name=test_fs_name, cluster=test_cluster)
+
+    if shared:
+        assert fsx_name == test_fs_name
+    else:
+        assert (
+            fsx_name == f"{test_fs_name}-pcluster-{test_cluster.vlab_id}-{test_cluster.project_id}"
+        )

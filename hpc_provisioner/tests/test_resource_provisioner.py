@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -185,8 +186,9 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
     cluster = Cluster(
         project_id=post_event["project_id"], vlab_id=post_event["vlab_id"], sim_pubkey=sim_pubkey
     )
+    suffix = os.environ["SUFFIX"]
     mock_lambda_client.invoke_async.assert_called_with(
-        FunctionName="hpc-resource-provisioner-creator",
+        FunctionName=f"hpc-resource-provisioner-creator-{suffix}",
         InvokeArgs=json.dumps({"cluster": cluster}, cls=ClusterJSONEncoder),
     )
     expected_response = expected_response_template(
@@ -302,10 +304,12 @@ def test_delete_internal_server_error(patched_remove_key, patched_dynamodb_clien
 
 @patch("hpc_provisioner.pcluster_manager.pc.create_cluster")
 @patch("hpc_provisioner.pcluster_manager.boto3")
-def test_do_create_already_exists(patched_boto3, patched_create_cluster, post_event, test_cluster):
+def test_do_create_already_exists(
+    patched_boto3, patched_create_cluster, post_create_event, test_cluster
+):
     mock_cloudformation_client = MagicMock()
     patched_boto3.client.return_value = mock_cloudformation_client
-    handlers.pcluster_do_create_handler(post_event)
+    handlers.pcluster_do_create_handler(post_create_event)
     mock_cloudformation_client.describe_stacks.assert_called_once_with(StackName=test_cluster.name)
     patched_create_cluster.assert_not_called()
 
@@ -321,7 +325,7 @@ def test_do_create(
     patched_get_available_subnet,
     patched_boto3,
     patched_create_cluster,
-    post_event,
+    post_create_event,
     test_cluster,
 ):
     mock_cloudformation_client = MagicMock()
@@ -337,8 +341,8 @@ def test_do_create(
         "efs": mock_efs_client,
         "fsx": mock_fsx_client,
     }[x]
-    post_event["keyname"] = test_cluster.name
-    handlers.pcluster_do_create_handler(post_event)
+    post_create_event["keyname"] = test_cluster.name
+    handlers.pcluster_do_create_handler(post_create_event)
     patched_create_cluster.assert_called_once()
     assert patched_create_cluster.call_args.kwargs["cluster_name"] == test_cluster.name
     assert "tmp" in patched_create_cluster.call_args.kwargs["cluster_configuration"]
