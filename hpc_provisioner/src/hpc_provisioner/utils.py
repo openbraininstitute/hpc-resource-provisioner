@@ -48,10 +48,6 @@ def get_fs_sg_id() -> str:
     return _get_env_var("FS_SG_ID")
 
 
-def get_suffix() -> str:
-    return _get_env_var("SUFFIX")
-
-
 def generate_public_key(key_material):
     private_key = serialization.load_pem_private_key(key_material.encode(), password=None)
     public_key = private_key.public_key()
