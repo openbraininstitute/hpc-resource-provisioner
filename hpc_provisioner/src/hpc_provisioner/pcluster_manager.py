@@ -212,7 +212,7 @@ def pcluster_create(
         pcluster_config["HeadNode"]["CustomActions"]["OnNodeConfigured"]["Sequence"].append(
             {
                 "Script": "s3://sboinfrastructureassets-sandbox/scripts/80_cloudwatch_agent_config_prolog.sh",
-                "Args": cluster_name,
+                "Args": [cluster_name],
             }
         )
 
