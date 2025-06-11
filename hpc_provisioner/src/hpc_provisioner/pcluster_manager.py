@@ -241,8 +241,7 @@ def pcluster_create(cluster: Cluster):
 
     pcluster_config = load_pcluster_config(cluster.dev)
     if not cluster.include_lustre:
-        pcluster_config["SharedStorage"].pop()
-        pcluster_config["SharedStorage"].pop()
+        pcluster_config["SharedStorage"] = pcluster_config["SharedStorage"][:1]  # keep only EFS
     pcluster_config["Tags"] = populate_tags(pcluster_config, cluster.vlab_id, cluster.project_id)
     pcluster_config["Scheduling"]["SlurmQueues"] = get_tier_config(pcluster_config, cluster.tier)
     if cluster.benchmark:
