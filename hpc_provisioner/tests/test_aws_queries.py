@@ -1,4 +1,6 @@
+import json
 import logging
+import os
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -9,6 +11,7 @@ from hpc_provisioner.aws_queries import (
     CouldNotDetermineSecurityGroupException,
     OutOfSubnetsException,
     claim_subnet,
+    create_fsx,
     create_keypair,
     create_secret,
     get_available_subnet,
@@ -431,3 +434,48 @@ def test_get_fsx_name(shared, test_cluster):
         assert (
             fsx_name == f"{test_fs_name}-pcluster-{test_cluster.vlab_id}-{test_cluster.project_id}"
         )
+
+
+@pytest.mark.parametrize("shared", [True, False])
+def test_create_fsx(shared, test_cluster):
+    patched_fsx_client = MagicMock()
+    retval = {"fs": "fs"}
+    patched_fsx_client.create_file_system.return_value = retval
+    test_fs_name = "test"
+    if shared:
+        expected_args = {"ClientRequestToken": test_fs_name}
+        expected_tags = [
+            {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+            {"Key": "Name", "Value": test_fs_name},
+        ]
+    else:
+        token = f"{test_fs_name}-{test_cluster.name}"
+        expected_args = {"ClientRequestToken": token}
+        expected_tags = [
+            {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+            {"Key": "Name", "Value": token},
+            {"Key": VLAB_TAG_KEY, "Value": test_cluster.vlab_id},
+            {"Key": PROJECT_TAG_KEY, "Value": test_cluster.project_id},
+        ]
+
+    expected_args["FileSystemType"] = "LUSTRE"
+    expected_args["StorageCapacity"] = 19200
+    expected_args["StorageType"] = "SSD"
+    expected_args["SubnetIds"] = json.loads(os.environ["FS_SUBNET_IDS"])
+    expected_args["SecurityGroupIds"] = [os.environ["FS_SG_ID"]]
+    expected_args["Tags"] = expected_tags
+    expected_args["LustreConfiguration"] = {
+        "WeeklyMaintenanceStartTime": "6:05:00",
+        "DeploymentType": "PERSISTENT_2",
+        "PerUnitStorageThroughput": 250,
+        "DataCompressionType": "LZ4",
+        "EfaEnabled": True,
+        "MetadataConfiguration": {"Mode": "AUTOMATIC"},
+    }
+    if shared:
+        fsx = create_fsx(patched_fsx_client, test_fs_name, shared)
+    else:
+        fsx = create_fsx(patched_fsx_client, test_fs_name, shared, test_cluster)
+
+    patched_fsx_client.create_file_system.assert_called_once_with(**expected_args)
+    assert fsx == retval

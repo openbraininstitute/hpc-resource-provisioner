@@ -294,7 +294,7 @@ def list_existing_stacks(cf_client):
     return existing_stack_names
 
 
-def get_fsx_name(shared: bool, fs_name: str, cluster: Cluster) -> str:
+def get_fsx_name(shared: bool, fs_name: str, cluster: Optional[Cluster]) -> str:
     if shared:
         return fs_name
     else:
@@ -305,8 +305,7 @@ def create_fsx(
     fsx_client,
     fs_name: str,
     shared: bool = True,
-    vlab_id: str = "",
-    project_id: str = "",
+    cluster: Optional[Cluster] = None,
 ) -> Dict:
     """
     Create an FSX filesystem if it doesn't exist yet
@@ -318,18 +317,18 @@ def create_fsx(
     """
 
     logger.debug(
-        f"Creating fsx with name {fs_name}, shared {shared}, vlab id {vlab_id} and project id {project_id}"
+        f"Creating fsx with name {fs_name}, shared {shared}, and cluster {cluster}",
     )
     tags = [
         {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
     ]
-    token = get_fsx_name(shared, fs_name, vlab_id, project_id)
+    token = get_fsx_name(shared, fs_name, cluster)
     logger.debug(f"Token: {token}")
     tags.append({"Key": "Name", "Value": token})
 
     if not shared:
-        tags.append({"Key": VLAB_TAG_KEY, "Value": vlab_id})
-        tags.append({"Key": PROJECT_TAG_KEY, "Value": project_id})
+        tags.append({"Key": VLAB_TAG_KEY, "Value": cluster.vlab_id})
+        tags.append({"Key": PROJECT_TAG_KEY, "Value": cluster.project_id})
 
     logger.debug(f"Tags: {tags}")
 
