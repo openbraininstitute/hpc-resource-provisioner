@@ -188,24 +188,24 @@ def pcluster_create(cluster: Cluster):
 
     populate_config(cluster=cluster, create_users_args=create_users_args)
 
-    if cluster.include_lustre:
-        filesystems = [
-            {
-                "name": "projects",
-                "shared": True,
-                "mountpoint": "/sbo/data/projects",
-                "bucket": get_sbonexusdata_bucket(),
-                "writable": False,
-            },
-            {
-                "name": "scratch",
-                "shared": False,
-                "mountpoint": "/sbo/data/scratch",
-                "bucket": f"{get_scratch_bucket()}/{cluster.vlab_id}/{cluster.project_id}",
-                "writable": True,
-            },
-        ]
-        for filesystem in filesystems:
+    filesystems = [
+        {
+            "name": "projects",
+            "shared": True,
+            "mountpoint": "/sbo/data/projects",
+            "bucket": get_sbonexusdata_bucket(),
+            "writable": False,
+        },
+        {
+            "name": "scratch",
+            "shared": False,
+            "mountpoint": "/sbo/data/scratch",
+            "bucket": f"{get_scratch_bucket()}/{cluster.vlab_id}/{cluster.project_id}",
+            "writable": True,
+        },
+    ]
+    for filesystem in filesystems:
+        if cluster.include_lustre:
             logger.debug(f"Checking for filesystem {filesystem}")
             fs = get_fsx(
                 fsx_client=fsx_client,
@@ -217,11 +217,7 @@ def pcluster_create(cluster: Cluster):
             if not fs:
                 logger.debug(f"Creating filesystem {filesystem}")
                 fs = create_fsx(
-                    fsx_client=fsx_client,
-                    fs_name=filesystem["name"],
-                    shared=True,
-                    vlab_id=cluster.vlab_id,
-                    project_id=cluster.project_id,
+                    fsx_client=fsx_client, fs_name=filesystem["name"], shared=True, cluster=cluster
                 )["FileSystem"]
                 logger.debug("Creating DRA")
                 dra = create_dra(
@@ -240,6 +236,8 @@ def pcluster_create(cluster: Cluster):
                 "MountDir": filesystem["mountpoint"],
                 "FsxLustreSettings": {"FileSystemId": fs["FileSystemId"]},
             }
+        else:
+            CONFIG_VALUES[f"{filesystem['name']}_fsx"] = {}
 
     pcluster_config = load_pcluster_config(cluster.dev)
     if not cluster.include_lustre:
