@@ -30,6 +30,10 @@ def get_fsx_policy_arn() -> str:
     return _get_env_var("FSX_POLICY_ARN")
 
 
+def get_suffix() -> str:
+    return _get_env_var("SUFFIX")
+
+
 def generate_public_key(key_material):
     private_key = serialization.load_pem_private_key(key_material.encode(), password=None)
     public_key = private_key.public_key()
