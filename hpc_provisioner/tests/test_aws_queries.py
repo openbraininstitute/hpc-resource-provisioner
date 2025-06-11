@@ -16,6 +16,7 @@ from hpc_provisioner.aws_queries import (
     create_secret,
     get_available_subnet,
     get_efs,
+    get_fsx_by_id,
     get_fsx_name,
     get_secret,
     get_security_group,
@@ -479,3 +480,32 @@ def test_create_fsx(shared, test_cluster):
 
     patched_fsx_client.create_file_system.assert_called_once_with(**expected_args)
     assert fsx == retval
+
+
+@pytest.mark.parametrize("test_fs_id,expected_call_count", [("fs-1", 1), ("fs-5", 3)])
+def test_get_fsx_by_id(test_fs_id, expected_call_count):
+    patched_fsx_client = MagicMock()
+    patched_fsx_client.describe_file_systems.side_effect = [
+        {"FileSystems": [{"FileSystemId": "fs-1"}, {"FileSystemId": "fs-2"}], "NextToken": "p-2"},
+        {"FileSystems": [{"FileSystemId": "fs-3"}, {"FileSystemId": "fs-4"}], "NextToken": "p-3"},
+        {"FileSystems": [{"FileSystemId": "fs-5"}, {"FileSystemId": "fs-6"}], "NextToken": "p-4"},
+        {"FileSystems": [{"FileSystemId": "fs-7"}, {"FileSystemId": "fs-8"}]},
+    ]
+    found_fs = get_fsx_by_id(patched_fsx_client, test_fs_id)
+    assert found_fs == {"FileSystemId": test_fs_id}
+    assert patched_fsx_client.describe_file_systems.call_count == expected_call_count
+    if test_fs_id == "fs-5":
+        patched_fsx_client.describe_file_systems.assert_has_calls(
+            [call(), call(NextToken="p-2"), call(NextToken="p-3")]
+        )
+
+
+def test_get_nonexisting_fsx_by_id():
+    patched_fsx_client = MagicMock()
+    patched_fsx_client.describe_file_systems.return_value = {
+        "FileSystems": [{"FileSystemId": "fs-1"}, {"FileSystemId": "fs-2"}]
+    }
+    test_fs_id = "fs-1234"
+    found_fs = get_fsx_by_id(patched_fsx_client, test_fs_id)
+    patched_fsx_client.describe_file_systems.assert_called_once_with()
+    assert found_fs is None

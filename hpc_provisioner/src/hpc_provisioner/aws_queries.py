@@ -368,7 +368,9 @@ def get_fsx_by_id(fsx_client, filesystem_id: str) -> Optional[dict]:
         else:
             file_systems = fsx_client.describe_file_systems()
         try:
-            return next(fs for fs in file_systems if fs["FileSystemId"] == filesystem_id)
+            return next(
+                fs for fs in file_systems["FileSystems"] if fs["FileSystemId"] == filesystem_id
+            )
         except StopIteration:
             next_token = file_systems.get("NextToken")
             go_on = next_token is not None
