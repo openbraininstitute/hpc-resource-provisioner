@@ -22,6 +22,10 @@ class ClusterNotRegistered(Exception):
     "Raised when trying to manipulate a cluster that's not registered"
 
 
+class ClusterAlreadyRegistered(Exception):
+    "Raised when trying register a cluster that's already registered"
+
+
 class ClusterAlreadyInClaimState(Exception):
     "Raised when trying to claim / release a cluster that is already claimed / released"
 
@@ -31,6 +35,13 @@ def dynamodb_client():
     Return the DynamoDB boto3 client
     """
     return boto3.client("dynamodb")
+
+
+def dynamodb_resource():
+    """
+    Return the DynamoDB boto3 resource
+    """
+    return boto3.resource("dynamodb")
 
 
 def get_registered_subnets(dynamodb_client) -> dict:
@@ -93,11 +104,15 @@ def get_cluster_by_name(dynamodb_resource, cluster_name: str) -> Optional[dict]:
 
 def register_cluster(dynamodb_resource, cluster: Cluster) -> None:
     if get_cluster_by_name(dynamodb_resource, cluster.name):
-        raise RuntimeError(f"Cluster {cluster} already registered")
+        raise ClusterAlreadyRegistered(f"Cluster {cluster} already registered")
 
     dynamodb_resource.update_item(
         TableName=CLUSTER_TABLE_NAME, Key={"name": {"S": cluster.name}}, AttributeUpdates={}
     )
+
+
+def delete_cluster(dynamodb_resource, cluster: Cluster) -> None:
+    dynamodb_resource.delete_item(Key={"name": cluster.name})
 
 
 def _update_cluster_claim(dynamodb_resource, cluster: Cluster, new_value: int) -> None:

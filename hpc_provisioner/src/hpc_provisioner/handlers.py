@@ -16,6 +16,7 @@ from hpc_provisioner.constants import (
     PROJECT_TAG_KEY,
     VLAB_TAG_KEY,
 )
+from hpc_provisioner.dynamodb_actions import delete_cluster, dynamodb_resource, register_cluster
 from hpc_provisioner.utils import generate_public_key, get_suffix
 
 from .logging_config import LOGGING_CONFIG
@@ -71,6 +72,8 @@ def pcluster_create_request_handler(event, _context=None):
     """Request the creation of an HPC cluster for a given vlab_id and project_id"""
 
     cluster = _get_vlab_query_params(event)
+    dynamo = dynamodb_resource()
+    register_cluster(dynamo, cluster)
 
     ec2_client = boto3.client("ec2")
     sm_client = boto3.client("secretsmanager")
@@ -165,6 +168,8 @@ def pcluster_delete_handler(event, _context=None):
 
     logger.debug(f"delete pcluster {cluster}")
     try:
+        dynamo = dynamodb_resource()
+        delete_cluster(dynamo, cluster)
         pc_output = pcluster_delete(cluster)
         logger.debug(f"deleted pcluster {cluster.vlab_id}-{cluster.project_id}")
     except NotFoundException as e:
