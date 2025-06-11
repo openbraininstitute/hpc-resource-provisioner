@@ -286,7 +286,11 @@ def pcluster_describe(cluster: Cluster):
 
 def pcluster_delete(cluster: Cluster):
     """Destroy a cluster, given the vlab_id and project_id"""
+    logger.debug("Releasing subnets")
     release_subnets(cluster.name)
+    logger.debug("Removing admin key")
     remove_key(get_keypair_name(cluster))
+    logger.debug("Removin sim key")
     remove_key(get_keypair_name(cluster, "sim"))
+    logger.debug(f"Removing cluster {cluster.name}")
     return pc.delete_cluster(cluster_name=cluster.name, region=REGION)
