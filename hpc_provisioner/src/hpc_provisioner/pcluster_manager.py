@@ -25,7 +25,6 @@ from hpc_provisioner.aws_queries import (
     get_security_group,
     release_subnets,
     remove_key,
-    wait_for_dra,
 )
 from hpc_provisioner.cluster import Cluster
 from hpc_provisioner.constants import (
@@ -154,7 +153,41 @@ def write_config(cluster_name: str, pcluster_config: dict) -> str:
     return output_file.name
 
 
-def pcluster_create(cluster: Cluster):
+def fsx_precreate(cluster: Cluster, filesystems: list) -> bool:
+    """
+    Return True if creating a filesystem, False if nothing to do
+    """
+    fsx_client = boto3.client("fsx")
+    for filesystem in filesystems:
+        logger.debug(f"Checking for filesystem {filesystem}")
+        fs = get_fsx(
+            fsx_client=fsx_client,
+            shared=True,
+            fs_name=filesystem["name"],
+            vlab_id=cluster.vlab_id,
+            project_id=cluster.project_id,
+        )
+        if not fs:
+            logger.debug(f"Creating filesystem {filesystem}")
+            fs = create_fsx(
+                fsx_client=fsx_client, fs_name=filesystem["name"], shared=True, cluster=cluster
+            )["FileSystem"]
+            logger.debug("Creating DRA")
+            create_dra(
+                fsx_client=fsx_client,
+                filesystem_id=fs["FileSystemId"],
+                mountpoint=filesystem["mountpoint"],
+                bucket=filesystem["bucket"],
+                vlab_id=cluster.vlab_id,
+                project_id=cluster.project_id,
+                writable=filesystem["writable"],
+            )
+            return True
+
+    return False
+
+
+def pcluster_create(cluster: Cluster, filesystems: list):
     """Create a pcluster for a given vlab
 
     Args:
@@ -169,7 +202,6 @@ def pcluster_create(cluster: Cluster):
     if cluster_already_exists(cluster.name):
         return
 
-    fsx_client = boto3.client("fsx")
     cluster_users = json.dumps(
         [
             {
@@ -187,26 +219,9 @@ def pcluster_create(cluster: Cluster):
     ]
 
     populate_config(cluster=cluster, create_users_args=create_users_args)
-
-    filesystems = [
-        {
-            "name": "projects",
-            "shared": True,
-            "mountpoint": "/sbo/data/projects",
-            "bucket": get_sbonexusdata_bucket(),
-            "writable": False,
-        },
-        {
-            "name": "scratch",
-            "shared": False,
-            "mountpoint": "/sbo/data/scratch",
-            "bucket": f"{get_scratch_bucket()}/{cluster.vlab_id}/{cluster.project_id}",
-            "writable": True,
-        },
-    ]
+    fsx_client = boto3.client("fsx")
     for filesystem in filesystems:
-        if cluster.include_lustre:
-            logger.debug(f"Checking for filesystem {filesystem}")
+        if filesystem.get("expected", True):
             fs = get_fsx(
                 fsx_client=fsx_client,
                 shared=True,
@@ -215,21 +230,7 @@ def pcluster_create(cluster: Cluster):
                 project_id=cluster.project_id,
             )
             if not fs:
-                logger.debug(f"Creating filesystem {filesystem}")
-                fs = create_fsx(
-                    fsx_client=fsx_client, fs_name=filesystem["name"], shared=True, cluster=cluster
-                )["FileSystem"]
-                logger.debug("Creating DRA")
-                dra = create_dra(
-                    fsx_client=fsx_client,
-                    filesystem_id=fs["FileSystemId"],
-                    mountpoint=filesystem["mountpoint"],
-                    bucket=filesystem["bucket"],
-                    vlab_id=cluster.vlab_id,
-                    project_id=cluster.project_id,
-                    writable=filesystem["writable"],
-                )
-                wait_for_dra(fsx_client=fsx_client, dra_id=dra["Association"]["AssociationId"])
+                raise RuntimeError(f"Filesystem {filesystem} not created when it should have been")
             CONFIG_VALUES[f"{filesystem['name']}_fsx"] = {
                 "Name": next(tag["Value"] for tag in fs["Tags"] if tag["Key"] == "Name"),
                 "StorageType": "FsxLustre",
