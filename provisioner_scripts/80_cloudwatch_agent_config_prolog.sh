@@ -46,7 +46,7 @@ cat << _EOF_ >> /opt/slurm/CWAgent_config_$CLUSTER_NAME.json
                         },
 			"diskio": {
                                 "append_dimensions":{
-                                        "ClusterName": "\$CLUSTER_NAME"
+                                        "ClusterName": "$CLUSTER_NAME"
                                 },
                                  "measurement": [
                                         "reads", "read_bytes", "writes", "write_bytes"
@@ -57,7 +57,7 @@ cat << _EOF_ >> /opt/slurm/CWAgent_config_$CLUSTER_NAME.json
                         },
                         "mem": {
 				"append_dimensions":{
-					"ClusterName": "\$CLUSTER_NAME"
+					"ClusterName": "$CLUSTER_NAME"
 				},
                                 "measurement": [
                                         "mem_used_percent"
@@ -65,7 +65,7 @@ cat << _EOF_ >> /opt/slurm/CWAgent_config_$CLUSTER_NAME.json
                         },
 			"cpu": {
        				"append_dimensions":{
-					"ClusterName": "\$CLUSTER_NAME"
+					"ClusterName": "$CLUSTER_NAME"
 				},
         			"measurement": [
             				"cpu_usage_active"
