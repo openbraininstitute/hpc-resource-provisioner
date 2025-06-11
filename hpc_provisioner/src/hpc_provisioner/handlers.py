@@ -99,8 +99,12 @@ def pcluster_handler(event, _context=None):
                 logger.debug("GET version")
                 return response_text(text=version("hpc_provisioner"))
         elif event["httpMethod"] == "POST":
-            logger.debug("POST pcluster")
-            return pcluster_create_request_handler(event, _context)
+            if event["path"] == "/hpc-provisioner/pcluster":
+                logger.debug("POST pcluster")
+                return pcluster_create_request_handler(event, _context)
+            if event["path"] == "/hpc-provisioner/efs":
+                logger.debug("POST EFS")
+                return dra_ready_handler(event, _context)
         elif event["httpMethod"] == "DELETE":
             logger.debug("DELETE pcluster")
             return pcluster_delete_handler(event, _context)
