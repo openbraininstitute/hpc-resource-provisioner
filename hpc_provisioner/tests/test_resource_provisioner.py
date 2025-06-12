@@ -394,13 +394,15 @@ def test_invalid_http_method(put_event):
 @pytest.mark.parametrize("method", ["POST", "DELETE"])
 def test_vlab_id_not_specified(method):
     with pytest.raises(InvalidRequest):
-        handlers.pcluster_handler({"httpMethod": method})
+        handlers.pcluster_handler({"httpMethod": method, "path": "/hpc-provisioner/pcluster"})
 
 
 @pytest.mark.parametrize("method", ["POST", "DELETE"])
 def test_project_id_not_specified(method):
     with pytest.raises(InvalidRequest):
-        handlers.pcluster_handler({"httpMethod": method, "vlab_id": "test_vlab"})
+        handlers.pcluster_handler(
+            {"httpMethod": method, "vlab_id": "test_vlab", "path": "/hpc-provisioner/pcluster"}
+        )
 
 
 def test_http_method_not_specified():
