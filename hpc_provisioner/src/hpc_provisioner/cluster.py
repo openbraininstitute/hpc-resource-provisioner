@@ -67,3 +67,11 @@ class Cluster:
         d = copy.deepcopy(self.__dict__)
         d["name"] = self.name
         return d
+
+    def __eq__(self, other) -> bool:
+        compare_props = ["benchmark", "dev", "include_lustre", "project_id", "tier", "vlab_id"]
+        for prop in compare_props:
+            if getattr(self, prop) != getattr(other, prop):
+                print(f"{prop}: {getattr(self, prop)} != {getattr(other, prop)}")
+                return False
+        return True
