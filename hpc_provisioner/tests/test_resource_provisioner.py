@@ -212,7 +212,9 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
 )
 @patch("hpc_provisioner.aws_queries.free_subnet")
 @patch("hpc_provisioner.pcluster_manager.remove_key")
+@patch("hpc_provisioner.handlers.dynamodb_resource")
 def test_delete(
+    patched_dynamodb_resource,
     patched_remove_key,
     patched_free_subnet,
     patched_dynamodb_client,
@@ -220,6 +222,11 @@ def test_delete(
     delete_event,
     test_cluster,
 ):
+    mock_resource = MagicMock()
+    mock_table = MagicMock()
+    mock_resource.Table.return_value = mock_table
+    patched_dynamodb_resource.return_value = mock_resource
+
     mock_client = MagicMock()
     patched_dynamodb_client.return_value = mock_client
     with patch(
@@ -244,6 +251,7 @@ def test_delete(
     call1 = call(mock_client, "subnet-123")
     call2 = call(mock_client, "subnet-234")
     patched_free_subnet.assert_has_calls([call1, call2], any_order=True)
+    mock_table.delete_item.assert_called_once_with(Key={"name": test_cluster.name})
 
 
 def test_get_not_found(get_event):
@@ -273,7 +281,18 @@ def test_get_internal_server_error(get_event):
     "hpc_provisioner.aws_queries.dynamodb_client",
 )
 @patch("hpc_provisioner.pcluster_manager.remove_key")
-def test_delete_not_found(patched_remove_key, patched_dynamodb_client, delete_event):
+@patch("hpc_provisioner.handlers.dynamodb_resource")
+def test_delete_not_found(
+    patched_dynamodb_resource,
+    patched_remove_key,
+    patched_dynamodb_client,
+    delete_event,
+    test_cluster,
+):
+    mock_resource = MagicMock()
+    mock_table = MagicMock()
+    mock_resource.Table.return_value = mock_table
+    patched_dynamodb_resource.return_value = mock_resource
     error_message = f"Cluster {delete_event['vlab_id']}-{delete_event['project_id']} does not exist"
     with patch(
         "hpc_provisioner.pcluster_manager.pc.delete_cluster",
@@ -284,13 +303,25 @@ def test_delete_not_found(patched_remove_key, patched_dynamodb_client, delete_ev
     assert result == {"statusCode": 404, "body": error_message}
     patched_dynamodb_client.assert_called_once()
     assert patched_remove_key.call_count == 2
+    mock_table.delete_item.assert_called_once_with(Key={"name": test_cluster.name})
 
 
 @patch(
     "hpc_provisioner.aws_queries.dynamodb_client",
 )
 @patch("hpc_provisioner.pcluster_manager.remove_key")
-def test_delete_internal_server_error(patched_remove_key, patched_dynamodb_client, delete_event):
+@patch("hpc_provisioner.handlers.dynamodb_resource")
+def test_delete_internal_server_error(
+    patched_dynamodb_resource,
+    patched_remove_key,
+    patched_dynamodb_client,
+    delete_event,
+    test_cluster,
+):
+    mock_resource = MagicMock()
+    mock_table = MagicMock()
+    mock_resource.Table.return_value = mock_table
+    patched_dynamodb_resource.return_value = mock_resource
     with patch(
         "hpc_provisioner.pcluster_manager.pc.delete_cluster",
         side_effect=RuntimeError,
@@ -300,6 +331,7 @@ def test_delete_internal_server_error(patched_remove_key, patched_dynamodb_clien
     assert result == {"statusCode": 500, "body": "<class 'RuntimeError'>"}
     patched_dynamodb_client.assert_called_once()
     assert patched_remove_key.call_count == 2
+    mock_table.delete_item.assert_called_once_with(Key={"name": test_cluster.name})
 
 
 @patch("hpc_provisioner.pcluster_manager.pc.create_cluster")
