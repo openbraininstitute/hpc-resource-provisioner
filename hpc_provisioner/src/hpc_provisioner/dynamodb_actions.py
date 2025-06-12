@@ -103,8 +103,13 @@ def get_cluster_by_name(dynamodb_resource, cluster_name: str) -> Optional[dict]:
 
 
 def register_cluster(dynamodb_resource, cluster: Cluster) -> None:
-    if get_cluster_by_name(dynamodb_resource, cluster.name):
-        raise ClusterAlreadyRegistered(f"Cluster {cluster} already registered")
+    if registered_cluster := get_cluster_by_name(dynamodb_resource, cluster.name):
+        if cluster != Cluster.from_dict(registered_cluster):
+            raise ClusterAlreadyRegistered(
+                f"Cluster {cluster} already registered with different parameters"
+            )
+        else:
+            return
 
     table = dynamodb_resource.Table(CLUSTER_TABLE_NAME)
     table.put_item(Item=cluster.as_dict())
