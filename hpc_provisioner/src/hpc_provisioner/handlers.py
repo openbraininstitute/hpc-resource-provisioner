@@ -16,7 +16,12 @@ from hpc_provisioner.constants import (
     PROJECT_TAG_KEY,
     VLAB_TAG_KEY,
 )
-from hpc_provisioner.dynamodb_actions import delete_cluster, dynamodb_resource, register_cluster
+from hpc_provisioner.dynamodb_actions import (
+    ClusterAlreadyRegistered,
+    delete_cluster,
+    dynamodb_resource,
+    register_cluster,
+)
 from hpc_provisioner.utils import (
     generate_public_key,
     get_sbonexusdata_bucket,
@@ -102,8 +107,8 @@ def pcluster_handler(event, _context=None):
             if event["path"] == "/hpc-provisioner/pcluster":
                 logger.debug("POST pcluster")
                 return pcluster_create_request_handler(event, _context)
-            if event["path"] == "/hpc-provisioner/efs":
-                logger.debug("POST EFS")
+            if event["path"] == "/hpc-provisioner/dra":
+                logger.debug("POST DRA")
                 return dra_ready_handler(event, _context)
         elif event["httpMethod"] == "DELETE":
             logger.debug("DELETE pcluster")
@@ -121,7 +126,14 @@ def pcluster_create_request_handler(event, _context=None):
 
     cluster = _get_vlab_query_params(event)
     dynamo = dynamodb_resource()
-    register_cluster(dynamo, cluster)
+    try:
+        register_cluster(dynamo, cluster)
+    except ClusterAlreadyRegistered as e:
+        return response_text(text=e.__str__(), code=500)
+    else:
+        logger.debug(
+            f"Cluster {cluster.name} already registered with identical parameters; proceeding"
+        )
 
     ec2_client = boto3.client("ec2")
     sm_client = boto3.client("secretsmanager")
