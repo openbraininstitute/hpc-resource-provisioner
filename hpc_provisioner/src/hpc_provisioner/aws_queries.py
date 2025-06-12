@@ -378,10 +378,8 @@ def get_fsx_by_id(fsx_client, filesystem_id: str) -> Optional[dict]:
             go_on = next_token is not None
 
 
-def get_fsx(
-    fsx_client, shared: bool, fs_name: str, vlab_id: str, project_id: str
-) -> Optional[dict]:
-    full_fs_name = get_fsx_name(shared, fs_name, vlab_id, project_id)
+def get_fsx(fsx_client, shared: bool, fs_name: str, cluster: Cluster) -> Optional[dict]:
+    full_fs_name = get_fsx_name(shared, fs_name, cluster)
     go_on = True
     next_token = None
     while go_on:
