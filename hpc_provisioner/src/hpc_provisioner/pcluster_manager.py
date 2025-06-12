@@ -161,11 +161,7 @@ def fsx_precreate(cluster: Cluster, filesystems: list) -> bool:
     for filesystem in filesystems:
         logger.debug(f"Checking for filesystem {filesystem}")
         fs = get_fsx(
-            fsx_client=fsx_client,
-            shared=True,
-            fs_name=filesystem["name"],
-            vlab_id=cluster.vlab_id,
-            project_id=cluster.project_id,
+            fsx_client=fsx_client, shared=True, fs_name=filesystem["name"], cluster=cluster
         )
         if not fs:
             logger.debug(f"Creating filesystem {filesystem}")
@@ -223,11 +219,7 @@ def pcluster_create(cluster: Cluster, filesystems: list):
     for filesystem in filesystems:
         if filesystem.get("expected", True):
             fs = get_fsx(
-                fsx_client=fsx_client,
-                shared=True,
-                fs_name=filesystem["name"],
-                vlab_id=cluster.vlab_id,
-                project_id=cluster.project_id,
+                fsx_client=fsx_client, shared=True, fs_name=filesystem["name"], cluster=cluster
             )
             if not fs:
                 raise RuntimeError(f"Filesystem {filesystem} not created when it should have been")
