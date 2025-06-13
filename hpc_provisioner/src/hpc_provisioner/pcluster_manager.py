@@ -208,6 +208,14 @@ def pcluster_create(
     pcluster_config["Scheduling"]["SlurmQueues"] = choose_tier(pcluster_config, options)
     if not options["include_lustre"]:
         pcluster_config["SharedStorage"].pop(1)
+    if benchmark:
+        pcluster_config["HeadNode"]["CustomActions"]["OnNodeConfigured"]["Sequence"].append(
+            {
+                "Script": "s3://sboinfrastructureassets-sandbox/scripts/80_cloudwatch_agent_config_prolog.sh",
+                "Args": [cluster_name],
+            }
+        )
+
     output_file_name = write_config(cluster_name, pcluster_config)
 
     try:
