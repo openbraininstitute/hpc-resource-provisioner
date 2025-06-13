@@ -17,7 +17,7 @@ def test_cluster():
         vlab_id=VLAB_ID,
         benchmark=False,
         dev=False,
-        include_lustre=True,
+        include_lustre=False,
     )
 
 
@@ -35,8 +35,9 @@ def create_event(test_cluster):
 @pytest.fixture
 def event():
     return {
-        "vlab_id": VLAB_ID,
+        "include_lustre": "False",
         "project_id": PROJECT_ID,
+        "vlab_id": VLAB_ID,
         "path": "/hpc-provisioner/pcluster",
     }
 
