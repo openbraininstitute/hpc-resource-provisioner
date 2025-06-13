@@ -6,7 +6,7 @@ on:
       environment:
         description: Which environment to push the image to
         type: choice
-        options: [aws-sandbox-hpc, public-ecr]
+        options: [aws-sandbox-hpc, public-ecr, aws-sandbox-benchmarks]
         required: true
         default: aws-sandbox-hpc
   push:
