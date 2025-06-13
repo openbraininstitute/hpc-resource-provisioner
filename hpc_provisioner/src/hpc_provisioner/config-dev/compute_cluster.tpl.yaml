@@ -28,4 +28,5 @@ SharedStorage:
     MountDir: /sbo/home
     EfsSettings:
       FileSystemId: !config efs_id
-  - !include _lustre_storage.tpl.yaml
+  - !config projects_fsx
+  - !config scratch_fsx

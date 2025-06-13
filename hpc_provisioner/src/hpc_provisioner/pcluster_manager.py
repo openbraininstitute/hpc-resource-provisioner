@@ -16,19 +16,22 @@ from pcluster import lib as pc
 from pcluster.api.errors import CreateClusterBadRequestException, InternalServiceException
 
 from hpc_provisioner.aws_queries import (
+    create_dra,
+    create_fsx,
     get_available_subnet,
-    get_cluster_name,
     get_efs,
+    get_fsx,
     get_keypair_name,
     get_security_group,
     release_subnets,
     remove_key,
+    wait_for_dra,
 )
+from hpc_provisioner.cluster import Cluster
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
     BILLING_TAG_VALUE,
     CONFIG_VALUES,
-    DEFAULTS,
     PCLUSTER_CONFIG_TPL,
     PCLUSTER_DEV_CONFIG_TPL,
     PROJECT_TAG_KEY,
@@ -58,18 +61,13 @@ class InvalidRequest(Exception):
 
 
 def populate_config(
-    cluster_name: str,
-    keyname: str,
-    vlab_id: str,
-    project_id: str,
+    cluster: Cluster,
     create_users_args: Optional[List[str]] = None,
-    benchmark: Optional[bool] = False,
 ) -> None:
     """
     populate config values for loading cluster config yaml
 
     :param cluster_name: name of the cluster
-    :param keyname: ssh key name
     :param create_users_args: arguments to create_users.py
     """
     ec2_client = boto3.client("ec2")
@@ -77,21 +75,23 @@ def populate_config(
     # base_security_group_id and efs_id should be fairly static and change only if
     # something changes about the deployment.
     # base_subnet_id is where the interesting stuff happens
-    CONFIG_VALUES["base_subnet_id"] = get_available_subnet(ec2_client, cluster_name)
+    CONFIG_VALUES["base_subnet_id"] = get_available_subnet(ec2_client, cluster.name)
     CONFIG_VALUES["base_security_group_id"] = get_security_group(ec2_client)
     CONFIG_VALUES["efs_id"] = get_efs(efs_client)
-    CONFIG_VALUES["ssh_key"] = keyname
+    CONFIG_VALUES["ssh_key"] = cluster.admin_ssh_key_name
     CONFIG_VALUES["sbonexusdata_bucket"] = get_sbonexusdata_bucket()
     CONFIG_VALUES["containers_bucket"] = get_containers_bucket()
     CONFIG_VALUES["fsx_policy_arn"] = get_fsx_policy_arn()
-    if benchmark:
+    if cluster.benchmark:
         CONFIG_VALUES["scratch_bucket"] = get_scratch_bucket()
     else:
-        CONFIG_VALUES["scratch_bucket"] = "/".join([get_scratch_bucket(), vlab_id, project_id])
+        CONFIG_VALUES["scratch_bucket"] = "/".join(
+            [get_scratch_bucket(), cluster.vlab_id, cluster.project_id]
+        )
     CONFIG_VALUES["efa_security_group_id"] = get_efa_security_group_id()
     if create_users_args:
         CONFIG_VALUES["create_users_args"] = create_users_args
-    CONFIG_VALUES["environment_args"] = [get_cluster_name(vlab_id, project_id)]
+    CONFIG_VALUES["environment_args"] = [cluster.name]
     logger.debug(f"Config values: {CONFIG_VALUES}")
 
 
@@ -128,15 +128,15 @@ def load_pcluster_config(dev: bool) -> dict:
     return pcluster_config
 
 
-def choose_tier(pcluster_config: dict, options: dict) -> list:
+def get_tier_config(pcluster_config: dict, chosen_tier: str) -> list:
     available_tiers = [q["Name"] for q in pcluster_config["Scheduling"]["SlurmQueues"]]
-    if options["tier"] not in available_tiers:
+    if chosen_tier not in available_tiers:
         raise ValueError(
-            f"Tier {options['tier']} not available - choose from {', '.join(available_tiers)}"
+            f"Tier {chosen_tier} not available - choose from {', '.join(available_tiers)}"
         )
     else:
         queues = pcluster_config["Scheduling"]["SlurmQueues"]
-        queues = [next(q for q in queues if q["Name"] == options["tier"])]
+        queues = [next(q for q in queues if q["Name"] == chosen_tier)]
 
     return queues
 
@@ -154,11 +154,7 @@ def write_config(cluster_name: str, pcluster_config: dict) -> str:
     return output_file.name
 
 
-def pcluster_create(
-    vlab_id: str,
-    project_id: str,
-    options: dict,
-):
+def pcluster_create(cluster: Cluster):
     """Create a pcluster for a given vlab
 
     Args:
@@ -168,47 +164,89 @@ def pcluster_create(
             All possible options can be seen in DEFAULTS.
 
     """
-    logger.info(f"Creating pcluster: {vlab_id}-{project_id} with options {options}")
-    if not options:
-        options = {}
-    for k, default in DEFAULTS.items():
-        if k in options and options[k] is None:
-            options.pop(k)
-        options.setdefault(k, default)
+    logger.info(f"Creating pcluster: {cluster}")
 
-    logger.info(f"Creating pcluster: {vlab_id}-{project_id} with default-filled options {options}")
-    cluster_name = get_cluster_name(vlab_id, project_id)
-
-    if cluster_already_exists(cluster_name):
+    if cluster_already_exists(cluster.name):
         return
 
-    dev = options["dev"]
-    benchmark = options["benchmark"]
+    fsx_client = boto3.client("fsx")
     cluster_users = json.dumps(
         [
             {
                 "name": "sim",
-                "public_key": options["sim_pubkey"],
+                "public_key": cluster.sim_pubkey,
                 "sudo": False,
                 "folder_ownership": ["/sbo/data/scratch"],
             }
         ]
     )
     create_users_args = [
-        f"--vlab-id={vlab_id}",
-        f"--project-id={project_id}",
+        f"--vlab-id={cluster.vlab_id}",
+        f"--project-id={cluster.project_id}",
         f"--users={cluster_users}",
     ]
 
-    populate_config(
-        cluster_name, options["keyname"], vlab_id, project_id, create_users_args, benchmark
-    )
-    pcluster_config = load_pcluster_config(dev)
-    pcluster_config["Tags"] = populate_tags(pcluster_config, vlab_id, project_id)
-    pcluster_config["Scheduling"]["SlurmQueues"] = choose_tier(pcluster_config, options)
-    if not options["include_lustre"]:
-        pcluster_config["SharedStorage"].pop(1)
-    if benchmark:
+    populate_config(cluster=cluster, create_users_args=create_users_args)
+
+    if cluster.dev:
+        filesystems = [
+            {
+                "name": "projects",
+                "shared": True,
+                "mountpoint": "/sbo/data/projects",
+                "bucket": get_sbonexusdata_bucket(),
+                "writable": False,
+            },
+            {
+                "name": "scratch",
+                "shared": False,
+                "mountpoint": "/sbo/data/scratch",
+                "bucket": f"{get_scratch_bucket()}/{cluster.vlab_id}/{cluster.project_id}",
+                "writable": True,
+            },
+        ]
+        for filesystem in filesystems:
+            logger.debug(f"Checking for filesystem {filesystem}")
+            fs = get_fsx(
+                fsx_client=fsx_client,
+                shared=True,
+                fs_name=filesystem["name"],
+                vlab_id=cluster.vlab_id,
+                project_id=cluster.project_id,
+            )
+            if not fs:
+                logger.debug(f"Creating filesystem {filesystem}")
+                fs = create_fsx(
+                    fsx_client=fsx_client,
+                    fs_name=filesystem["name"],
+                    shared=True,
+                    vlab_id=cluster.vlab_id,
+                    project_id=cluster.project_id,
+                )["FileSystem"]
+                logger.debug("Creating DRA")
+                dra = create_dra(
+                    fsx_client=fsx_client,
+                    filesystem_id=fs["FileSystemId"],
+                    mountpoint=filesystem["mountpoint"],
+                    bucket=filesystem["bucket"],
+                    vlab_id=cluster.vlab_id,
+                    project_id=cluster.project_id,
+                    writable=filesystem["writable"],
+                )
+                wait_for_dra(fsx_client=fsx_client, dra_id=dra["Association"]["AssociationId"])
+            CONFIG_VALUES[f"{filesystem['name']}_fsx"] = {
+                "Name": next(tag["Value"] for tag in fs["Tags"] if tag["Key"] == "Name"),
+                "StorageType": "FsxLustre",
+                "MountDir": filesystem["mountpoint"],
+                "FsxLustreSettings": {"FileSystemId": fs["FileSystemId"]},
+            }
+
+    pcluster_config = load_pcluster_config(cluster.dev)
+    pcluster_config["Tags"] = populate_tags(pcluster_config, cluster.vlab_id, cluster.project_id)
+    pcluster_config["Scheduling"]["SlurmQueues"] = get_tier_config(pcluster_config, cluster.tier)
+    if cluster.include_lustre is False:
+        pcluster_config["SharedStorage"].pop(1)  # TODO: should probably pop more
+    if cluster.benchmark:
         pcluster_config["HeadNode"]["CustomActions"]["OnNodeConfigured"]["Sequence"].append(
             {
                 "Script": "s3://sboinfrastructureassets-sandbox/scripts/80_cloudwatch_agent_config_prolog.sh",
@@ -216,12 +254,12 @@ def pcluster_create(
             }
         )
 
-    output_file_name = write_config(cluster_name, pcluster_config)
+    output_file_name = write_config(cluster.name, pcluster_config)
 
     try:
         logger.debug("Actual create_cluster command")
         return pc.create_cluster(
-            cluster_name=cluster_name,
+            cluster_name=cluster.name,
             cluster_configuration=output_file_name,
             rollback_on_failure=False,
         )
@@ -242,16 +280,15 @@ def pcluster_list():
     return pc.list_clusters(region=REGION)
 
 
-def pcluster_describe(vlab_id: str, project_id: str):
+def pcluster_describe(cluster: Cluster):
     """Describe a cluster, given the vlab_id and project_id"""
-    cluster_name = get_cluster_name(vlab_id, project_id)
-    return pc.describe_cluster(cluster_name=cluster_name, region=REGION)
+    logger.debug("About to describe")
+    return pc.describe_cluster(cluster_name=cluster.name, region=REGION)
 
 
-def pcluster_delete(vlab_id: str, project_id: str):
+def pcluster_delete(cluster: Cluster):
     """Destroy a cluster, given the vlab_id and project_id"""
-    cluster_name = get_cluster_name(vlab_id, project_id)
-    release_subnets(cluster_name)
-    remove_key(get_keypair_name(vlab_id, project_id))
-    remove_key(get_keypair_name(vlab_id, project_id, "sim"))
-    return pc.delete_cluster(cluster_name=cluster_name, region=REGION)
+    release_subnets(cluster.name)
+    remove_key(get_keypair_name(cluster))
+    remove_key(get_keypair_name(cluster, "sim"))
+    return pc.delete_cluster(cluster_name=cluster.name, region=REGION)

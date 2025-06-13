@@ -1,6 +1,6 @@
-import copy
 import json
 import logging
+import os
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -8,6 +8,7 @@ from botocore.client import ClientError
 from pcluster.api.errors import NotFoundException
 
 from hpc_provisioner import handlers, pcluster_manager
+from hpc_provisioner.cluster import Cluster, ClusterJSONEncoder
 from hpc_provisioner.pcluster_manager import InvalidRequest
 
 logger = logging.getLogger("test_logger")
@@ -29,58 +30,6 @@ def expected_response_template(status_code=200, text=""):
         "headers": {"Content-Type": "application/json"},
         "body": text,
     }
-
-
-@pytest.fixture
-def data():
-    with open("hpc_provisioner/tests/data.json", "r") as fp:
-        return json.load(fp)
-
-
-@pytest.fixture
-def event():
-    return {
-        "vlab_id": "test_vlab",
-        "project_id": "test_project",
-        "path": "/hpc-provisioner/pcluster",
-    }
-
-
-@pytest.fixture
-def get_event(event):
-    retval = copy.deepcopy(event)
-    retval["httpMethod"] = "GET"
-    retval.pop("vlab_id")
-    retval["queryStringParameters"] = {
-        "vlab_id": "vlab_as_querystring_param",
-        "project_id": "project_as_querystring_param",
-    }
-    return retval
-
-
-@pytest.fixture
-def post_event(event):
-    retval = copy.deepcopy(event)
-    retval["httpMethod"] = "POST"
-    return retval
-
-
-@pytest.fixture
-def put_event(event):
-    retval = copy.deepcopy(event)
-    retval["httpMethod"] = "PUT"
-    return retval
-
-
-@pytest.fixture
-def delete_event(event):
-    retval = copy.deepcopy(event)
-    retval["httpMethod"] = "DELETE"
-    return retval
-
-
-def cluster_name(vlab_id, project_id):
-    return f"pcluster-{vlab_id}-{project_id}"
 
 
 @patch("hpc_provisioner.handlers.pcluster_describe_handler")
@@ -135,11 +84,12 @@ def test_get(data, get_event):
         "hpc_provisioner.pcluster_manager.pc.describe_cluster",
         return_value=data["existingCluster"],
     ) as describe_cluster:
-        vlab_id = get_event["queryStringParameters"]["vlab_id"]
-        project_id = get_event["project_id"]
+        cluster_name = (
+            f"pcluster-{get_event['queryStringParameters']['vlab_id']}-{get_event['project_id']}"
+        )
         result = handlers.pcluster_describe_handler(get_event)
         describe_cluster.assert_called_once_with(
-            cluster_name=cluster_name(vlab_id, project_id),
+            cluster_name=cluster_name,
             region="us-east-1",
         )
     expected_response = expected_response_template(text=json.dumps(data["existingCluster"]))
@@ -158,8 +108,8 @@ def test_get_all_clusters(data):
 
 @patch("hpc_provisioner.handlers.boto3")
 @pytest.mark.parametrize("key_exists", [True, False])
-def test_post(patched_boto3, post_event, key_exists):
-    test_cluster_name = cluster_name(post_event["vlab_id"], post_event["project_id"])
+def test_post(patched_boto3, post_event, key_exists, test_cluster):
+    test_cluster_name = test_cluster.name
     mock_ec2_client = MagicMock()
     mock_sm_client = MagicMock()
     mock_cf_client = MagicMock()
@@ -233,27 +183,13 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
                 patched_generate_public_key.return_value = sim_pubkey
                 actual_response = handlers.pcluster_create_request_handler(post_event)
                 patched_generate_public_key.assert_called_once_with(sim_private_key)
-    expected_args = {
-        "vlab_id": post_event["vlab_id"],
-        "project_id": post_event["project_id"],
-        "keyname": f"pcluster-{post_event['vlab_id']}-{post_event['project_id']}",
-        "options": {
-            "benchmark": False,
-            "dev": False,
-            "include_lustre": True,
-            "tier": None,
-            "project_id": post_event["project_id"],
-            "vlab_id": post_event["vlab_id"],
-            "keyname": None,
-            "sim_pubkey": None,
-        },
-        "sim_pubkey": sim_pubkey,
-    }
-    if not key_exists:
-        expected_args["sim_pubkey"] = sim_pubkey
+    cluster = Cluster(
+        project_id=post_event["project_id"], vlab_id=post_event["vlab_id"], sim_pubkey=sim_pubkey
+    )
+    suffix = os.environ["SUFFIX"]
     mock_lambda_client.invoke_async.assert_called_with(
-        FunctionName="hpc-resource-provisioner-creator",
-        InvokeArgs=json.dumps(expected_args),
+        FunctionName=f"hpc-resource-provisioner-creator-{suffix}",
+        InvokeArgs=json.dumps({"cluster": cluster}, cls=ClusterJSONEncoder),
     )
     expected_response = expected_response_template(
         text=json.dumps(
@@ -277,7 +213,12 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
 @patch("hpc_provisioner.aws_queries.free_subnet")
 @patch("hpc_provisioner.pcluster_manager.remove_key")
 def test_delete(
-    patched_remove_key, patched_free_subnet, patched_dynamodb_client, data, delete_event
+    patched_remove_key,
+    patched_free_subnet,
+    patched_dynamodb_client,
+    data,
+    delete_event,
+    test_cluster,
 ):
     mock_client = MagicMock()
     patched_dynamodb_client.return_value = mock_client
@@ -287,13 +228,13 @@ def test_delete(
         with patch(
             "hpc_provisioner.aws_queries.get_registered_subnets",
             return_value={
-                "subnet-123": cluster_name(delete_event["vlab_id"], delete_event["project_id"]),
-                "subnet-234": cluster_name(delete_event["vlab_id"], delete_event["project_id"]),
+                "subnet-123": test_cluster.name,
+                "subnet-234": test_cluster.name,
             },
         ) as patched_get_registered_subnets:
             actual_response = handlers.pcluster_delete_handler(delete_event)
             patched_delete_cluster.assert_called_once_with(
-                cluster_name=cluster_name(delete_event["vlab_id"], delete_event["project_id"]),
+                cluster_name=test_cluster.name,
                 region="us-east-1",
             )
     expected_response = expected_response_template(text=json.dumps(data["deletingCluster"]))
@@ -363,13 +304,13 @@ def test_delete_internal_server_error(patched_remove_key, patched_dynamodb_clien
 
 @patch("hpc_provisioner.pcluster_manager.pc.create_cluster")
 @patch("hpc_provisioner.pcluster_manager.boto3")
-def test_do_create_already_exists(patched_boto3, patched_create_cluster, post_event):
+def test_do_create_already_exists(
+    patched_boto3, patched_create_cluster, post_create_event, test_cluster
+):
     mock_cloudformation_client = MagicMock()
     patched_boto3.client.return_value = mock_cloudformation_client
-    handlers.pcluster_do_create_handler(post_event)
-    mock_cloudformation_client.describe_stacks.assert_called_once_with(
-        StackName=cluster_name(post_event["vlab_id"], post_event["project_id"])
-    )
+    handlers.pcluster_do_create_handler(post_create_event)
+    mock_cloudformation_client.describe_stacks.assert_called_once_with(StackName=test_cluster.name)
     patched_create_cluster.assert_not_called()
 
 
@@ -384,7 +325,8 @@ def test_do_create(
     patched_get_available_subnet,
     patched_boto3,
     patched_create_cluster,
-    post_event,
+    post_create_event,
+    test_cluster,
 ):
     mock_cloudformation_client = MagicMock()
     mock_cloudformation_client.describe_stacks.side_effect = ClientError(
@@ -392,17 +334,17 @@ def test_do_create(
     )
     mock_ec2_client = MagicMock()
     mock_efs_client = MagicMock()
+    mock_fsx_client = MagicMock()
     patched_boto3.client.side_effect = lambda x: {
         "cloudformation": mock_cloudformation_client,
         "ec2": mock_ec2_client,
         "efs": mock_efs_client,
+        "fsx": mock_fsx_client,
     }[x]
-    post_event["keyname"] = cluster_name(post_event["vlab_id"], post_event["project_id"])
-    handlers.pcluster_do_create_handler(post_event)
+    post_create_event["keyname"] = test_cluster.name
+    handlers.pcluster_do_create_handler(post_create_event)
     patched_create_cluster.assert_called_once()
-    assert patched_create_cluster.call_args.kwargs["cluster_name"] == cluster_name(
-        post_event["vlab_id"], post_event["project_id"]
-    )
+    assert patched_create_cluster.call_args.kwargs["cluster_name"] == test_cluster.name
     assert "tmp" in patched_create_cluster.call_args.kwargs["cluster_configuration"]
     patched_get_efs.assert_called_once()
     patched_get_security_group.assert_called_once()
@@ -442,12 +384,11 @@ def test_load_tier(tier, is_valid):
     pcluster_config = {
         "Scheduling": {"SlurmQueues": [{"Name": "debug"}, {"Name": "prod-mpi"}, {"Name": "lite"}]}
     }
-    options = {"tier": tier}
     if is_valid:
-        queues = pcluster_manager.choose_tier(pcluster_config, options)
+        queues = pcluster_manager.get_tier_config(pcluster_config, tier)
         logger.debug(pcluster_config)
         assert len(queues) == 1
         assert queues[0]["Name"] == tier
     else:
         with pytest.raises(ValueError):
-            pcluster_manager.choose_tier(pcluster_config, options)
+            pcluster_manager.get_tier_config(pcluster_config, tier)
