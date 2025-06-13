@@ -107,19 +107,28 @@ def test_get_all_clusters(data):
 
 
 @patch("hpc_provisioner.handlers.boto3")
+@patch("hpc_provisioner.handlers.dynamodb_resource")
 @pytest.mark.parametrize("key_exists", [True, False])
-def test_post(patched_boto3, post_event, key_exists, test_cluster):
+def test_post(patched_boto3, patched_dynamodb_resource, post_event, key_exists, test_cluster):
     test_cluster_name = test_cluster.name
     mock_ec2_client = MagicMock()
     mock_sm_client = MagicMock()
     mock_cf_client = MagicMock()
     mock_lambda_client = MagicMock()
-    patched_boto3.client.side_effect = [
+    patched_boto3_client = MagicMock()
+    patched_boto3_client.side_effect = [
         mock_ec2_client,
         mock_sm_client,
         mock_cf_client,
         mock_lambda_client,
     ]
+    patched_boto3.client = patched_boto3_client
+    # patched_boto3.client.side_effect = [
+    #     mock_ec2_client,
+    #     mock_sm_client,
+    #     mock_cf_client,
+    #     mock_lambda_client,
+    # ]
     sim_private_key = """-----BEGIN RSA PRIVATE KEY-----
 MIIEogIBAAKCAQEAvfvswsbNBM05kutLby0DZEl+tWx62yqMU0IgKqEoPamtgS3s
 V6S5xOLqYItd5UAMLf4pAGbvqXNy8BbVNmiKfPEXRfBq1hC4t/FmILIh5uyTRqEe
@@ -155,6 +164,8 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
     }
     mock_sm_client.get_secret_value.return_value = sim_key_secret
 
+    patched_dynamodb_table = MagicMock()
+    patched_dynamodb_resource.Table.return_value = patched_dynamodb_table
     with patch("hpc_provisioner.handlers.create_keypair") as patched_create_keypair:
         if key_exists:
             patched_create_keypair.side_effect = [
@@ -181,8 +192,17 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
                     {"ARN": "secret ARN sim"},
                 ]
                 patched_generate_public_key.return_value = sim_pubkey
-                actual_response = handlers.pcluster_create_request_handler(post_event)
-                patched_generate_public_key.assert_called_once_with(sim_private_key)
+                with patch(
+                    "hpc_provisioner.dynamodb_actions.get_cluster_by_name"
+                ) as patched_get_cluster:
+                    patched_get_cluster.return_value = None
+                    logger.debug(f"Post event: {post_event}")
+                    actual_response = handlers.pcluster_create_request_handler(post_event)
+                    logger.debug(80 * "*")
+                    logger.debug(f"Boto3 mock calls: {patched_boto3.mock_calls}")
+                    logger.debug(f"client mock calls: {patched_boto3.client.mock_calls}")
+                    logger.debug(80 * "*")
+                    patched_generate_public_key.assert_called_once_with(sim_private_key)
     cluster = Cluster(
         project_id=post_event["project_id"], vlab_id=post_event["vlab_id"], sim_pubkey=sim_pubkey
     )
@@ -205,6 +225,7 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
         )
     )
     assert actual_response == expected_response
+    patched_dynamodb_table.put_item.assert_called_with(Item=test_cluster.as_dict())
 
 
 @patch(
