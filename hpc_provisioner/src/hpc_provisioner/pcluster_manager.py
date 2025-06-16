@@ -44,6 +44,7 @@ from hpc_provisioner.utils import (
     get_efa_security_group_id,
     get_fs_bucket,
     get_fsx_policy_arn,
+    get_infra_bucket,
     get_sbonexusdata_bucket,
     get_scratch_bucket,
 )
@@ -94,6 +95,9 @@ def populate_config(
         CONFIG_VALUES["create_users_args"] = create_users_args
     CONFIG_VALUES["environment_args"] = [cluster.name]
     CONFIG_VALUES["ami_id"] = get_ami_id()
+    CONFIG_VALUES["infra_assets_bucket"] = get_infra_bucket()
+    CONFIG_VALUES["create_users_script"] = f"s3://{get_infra_bucket()}/scripts/create_users.py"
+    CONFIG_VALUES["environment_script"] = f"s3://{get_infra_bucket()}/scripts/environment.sh"
     logger.debug(f"Config values: {CONFIG_VALUES}")
 
 
@@ -243,7 +247,7 @@ def pcluster_create(cluster: Cluster, filesystems: list):
     if cluster.benchmark:
         pcluster_config["HeadNode"]["CustomActions"]["OnNodeConfigured"]["Sequence"].append(
             {
-                "Script": "s3://sboinfrastructureassets-sandbox/scripts/80_cloudwatch_agent_config_prolog.sh",
+                "Script": f"s3://{get_infra_bucket()}/scripts/80_cloudwatch_agent_config_prolog.sh",
                 "Args": [cluster.name],
             }
         )
