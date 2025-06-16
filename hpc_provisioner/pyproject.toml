@@ -65,3 +65,5 @@ FSX_POLICY_ARN = "arn:aws:iam::123456:policy/fsx_policy"
 SUFFIX = "dev"
 FS_SUBNET_IDS = '["subnet-1234"]'
 FS_SG_ID = "sg-123456789"
+EVENTBRIDGE_ROLE_ARN = "arn:eventbridge_role"
+API_GW_STAGE_ARN = "arn:api_gw_stage"

@@ -4,6 +4,8 @@ from typing import List
 
 from cryptography.hazmat.primitives import serialization
 
+from hpc_provisioner.cluster import Cluster
+
 
 def _get_env_var(var_name: str) -> str:
     if value := os.environ.get(var_name):
@@ -46,6 +48,23 @@ def get_fs_subnet_ids() -> List[str]:
 
 def get_fs_sg_id() -> str:
     return _get_env_var("FS_SG_ID")
+
+
+def get_eventbridge_role_arn() -> str:
+    return _get_env_var("EVENTBRIDGE_ROLE_ARN")
+
+
+def get_api_gw_arn() -> str:
+    return _get_env_var("API_GW_STAGE_ARN")
+
+
+def get_fs_bucket(bucket_name: str, cluster: Cluster) -> str:
+    if bucket_name == "projects":
+        return get_sbonexusdata_bucket()
+    elif bucket_name == "scratch":
+        return f"{get_scratch_bucket()}/{cluster.vlab_id}/{cluster.project_id}"
+    else:
+        raise NotImplementedError(f"Can't get fs bucket for {bucket_name}")
 
 
 def generate_public_key(key_material):
