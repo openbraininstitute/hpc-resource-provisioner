@@ -48,8 +48,8 @@ def get_fs_sg_id() -> str:
     return _get_env_var("FS_SG_ID")
 
 
-def get_suffix() -> str:
-    return _get_env_var("SUFFIX")
+def get_ami_id() -> str:
+    return _get_env_var("PCLUSTER_AMI_ID")
 
 
 def generate_public_key(key_material):
