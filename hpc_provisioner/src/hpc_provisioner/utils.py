@@ -67,6 +67,10 @@ def get_fs_bucket(bucket_name: str, cluster: Cluster) -> str:
         raise NotImplementedError(f"Can't get fs bucket for {bucket_name}")
 
 
+def get_ami_id() -> str:
+    return _get_env_var("PCLUSTER_AMI_ID")
+
+
 def generate_public_key(key_material):
     private_key = serialization.load_pem_private_key(key_material.encode(), password=None)
     public_key = private_key.public_key()
