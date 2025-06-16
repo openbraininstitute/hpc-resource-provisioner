@@ -11,6 +11,7 @@ from hpc_provisioner.aws_queries import (
     CouldNotDetermineSecurityGroupException,
     OutOfSubnetsException,
     claim_subnet,
+    create_eventbridge_dra_checking_rule,
     create_fsx,
     create_keypair,
     create_secret,
@@ -26,6 +27,7 @@ from hpc_provisioner.aws_queries import (
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
     BILLING_TAG_VALUE,
+    DRA_CHECKING_RULE_NAME,
     PROJECT_TAG_KEY,
     VLAB_TAG_KEY,
 )
@@ -509,3 +511,19 @@ def test_get_nonexisting_fsx_by_id():
     found_fs = get_fsx_by_id(patched_fsx_client, test_fs_id)
     patched_fsx_client.describe_file_systems.assert_called_once_with()
     assert found_fs is None
+
+
+@pytest.mark.parametrize("rule_already_exists", [True, False])
+def test_create_eventbridge_dra_checking_rule(rule_already_exists):
+    mock_eb_client = MagicMock()
+    if rule_already_exists:
+        mock_eb_client.list_rules.return_value = {"Rules": [{"Name": DRA_CHECKING_RULE_NAME}]}
+    else:
+        mock_eb_client.list_rules.return_value = {"Rules": []}
+    create_eventbridge_dra_checking_rule(mock_eb_client)
+    if rule_already_exists:
+        mock_eb_client.put_rule.assert_not_called()
+        mock_eb_client.put_targets.assert_not_called()
+    else:
+        mock_eb_client.put_rule.assert_called_once()
+        mock_eb_client.put_targets.assert_called_once()

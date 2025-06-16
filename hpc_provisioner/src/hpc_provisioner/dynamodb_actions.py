@@ -96,6 +96,16 @@ def free_subnet(dynamodb_client, subnet_id: str) -> None:
     )
 
 
+def get_unclaimed_clusters(dynamodb_resource) -> list:
+    table = dynamodb_resource.Table(CLUSTER_TABLE_NAME)
+    result = table.get_items(Key={"claimed": False}, ConsistentRead=True)
+    retval = []
+    for item in result.get("Item"):
+        item.pop("name")
+        retval.append(Cluster(**item))
+    return retval
+
+
 def get_cluster_by_name(dynamodb_resource, cluster_name: str) -> Optional[dict]:
     table = dynamodb_resource.Table(CLUSTER_TABLE_NAME)
     result = table.get_item(Key={"name": cluster_name}, ConsistentRead=True)

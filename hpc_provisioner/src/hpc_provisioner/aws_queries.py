@@ -10,6 +10,7 @@ from hpc_provisioner.cluster import Cluster
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
     BILLING_TAG_VALUE,
+    DRA_CHECKING_RULE_NAME,
     PROJECT_TAG_KEY,
     VLAB_TAG_KEY,
 )
@@ -22,7 +23,12 @@ from hpc_provisioner.dynamodb_actions import (
     register_subnet,
 )
 from hpc_provisioner.logging_config import LOGGING_CONFIG
-from hpc_provisioner.utils import get_fs_sg_id, get_fs_subnet_ids
+from hpc_provisioner.utils import (
+    get_api_gw_arn,
+    get_eventbridge_role_arn,
+    get_fs_sg_id,
+    get_fs_subnet_ids,
+)
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("hpc-resource-provisioner")
@@ -459,3 +465,42 @@ def get_dra(fsx_client, filesystem_id: str, mountpoint: str) -> Optional[dict]:
         return dra
     except StopIteration:
         return None
+
+
+def eventbridge_dra_checking_rule_exists(eb_client):
+    response = eb_client.list_rules(NamePrefix="resource_provisioner", Limit=123)
+    return any(rule["Name"] == DRA_CHECKING_RULE_NAME for rule in response.get("Rules", []))
+
+
+def create_eventbridge_dra_checking_rule(eb_client):
+    if eventbridge_dra_checking_rule_exists(eb_client):
+        return
+
+    eb_client.put_rule(
+        Name=DRA_CHECKING_RULE_NAME,
+        ScheduleExpression="rate(5 minutes)",
+        State="ENABLED",
+        Description="Periodically check for DRAs and fire resource creator",
+        RoleArn=get_eventbridge_role_arn(),
+        Tags=[
+            {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+        ],
+    )
+
+    create_eventbridge_target(eb_client)
+
+
+def create_eventbridge_target(eb_client):
+    eb_client.put_targets(
+        Rule=DRA_CHECKING_RULE_NAME,
+        Targets=[
+            {
+                "Id": "hpc-resource-provisioner",
+                "Arn": f"{get_api_gw_arn()}/POST/hpc-provisioner/dra",
+                "RoleArn": get_eventbridge_role_arn(),
+                # Let's hope the following two are optional
+                # "DeadLetterConfig": {"Arn": "string"},
+                # "RetryPolicy": {"MaximumRetryAttempts": 123, "MaximumEventAgeInSeconds": 123},
+            },
+        ],
+    )
