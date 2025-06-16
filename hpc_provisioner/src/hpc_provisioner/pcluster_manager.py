@@ -95,7 +95,7 @@ def populate_config(
         CONFIG_VALUES["create_users_args"] = create_users_args
     CONFIG_VALUES["environment_args"] = [cluster.name]
     CONFIG_VALUES["ami_id"] = get_ami_id()
-    CONFIG_VALUES["infra_assets_bucket"] = get_infra_bucket().lstrip("s3://")
+    CONFIG_VALUES["infra_assets_bucket"] = get_infra_bucket().replace("s3://", "")
     CONFIG_VALUES["create_users_script"] = f"{get_infra_bucket()}/scripts/create_users.py"
     CONFIG_VALUES["environment_script"] = f"{get_infra_bucket()}/scripts/environment.sh"
     logger.debug(f"Config values: {CONFIG_VALUES}")
