@@ -7,12 +7,19 @@ from importlib.metadata import version
 import boto3
 from pcluster.api.errors import NotFoundException
 
-from hpc_provisioner.aws_queries import create_keypair, list_existing_stacks, store_private_key
+from hpc_provisioner.aws_queries import (
+    create_eventbridge_dra_checking_rule,
+    create_keypair,
+    get_fsx,
+    list_existing_stacks,
+    store_private_key,
+)
 from hpc_provisioner.cluster import Cluster, ClusterJSONEncoder
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
     BILLING_TAG_VALUE,
     DEFAULTS,
+    FILESYSTEMS,
     PROJECT_TAG_KEY,
     VLAB_TAG_KEY,
 )
@@ -20,12 +27,11 @@ from hpc_provisioner.dynamodb_actions import (
     ClusterAlreadyRegistered,
     delete_cluster,
     dynamodb_resource,
+    get_unclaimed_clusters,
     register_cluster,
 )
 from hpc_provisioner.utils import (
     generate_public_key,
-    get_sbonexusdata_bucket,
-    get_scratch_bucket,
     get_suffix,
 )
 
@@ -43,12 +49,18 @@ logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("hpc-resource-provisioner")
 
 
-def dra_ready_handler(event, _context=None):
+def dra_check(event, _context=None):
     """
-    1. Retrieve clusters which use this FS/DRA
-    2. For each of them: construct an event and call pcluster_do_create_handler
+    1. Check which clusters are pending (claimed=False) creation and have include_lustre=True
+    2. For each of them:
+        check whether any DRAs are still pending
+        if not: call pcluster_do_create_handler
     """
     logger.debug(f"event: {event}, _context: {_context}")
+    dynamo = dynamodb_resource()
+    fsx_client = boto3.client("fsx")
+    for cluster in get_unclaimed_clusters(dynamodb_resource=dynamo):
+        get_fsx(fsx_client)
 
 
 def pcluster_do_create_handler(event, _context=None):
@@ -57,36 +69,19 @@ def pcluster_do_create_handler(event, _context=None):
 
     logger.debug(f"handler: precreate filesystems for cluster {cluster}")
     if cluster.include_lustre:
-        filesystems = [
-            {
-                "name": "projects",
-                "shared": True,
-                "mountpoint": "/sbo/data/projects",
-                "bucket": get_sbonexusdata_bucket(),
-                "writable": False,
-            },
-            {
-                "name": "scratch",
-                "shared": False,
-                "mountpoint": "/sbo/data/scratch",
-                "bucket": f"{get_scratch_bucket()}/{cluster.vlab_id}/{cluster.project_id}",
-                "writable": True,
-            },
-        ]
-        if fsx_precreate(cluster, filesystems):
+        if fsx_precreate(cluster, FILESYSTEMS):
             logger.debug("Created FSx - not proceeding to cluster creation yet")
+            create_eventbridge_dra_checking_rule(eb_client=boto3.client("eventbridge"))
             return
         else:
             logger.debug("All FSx filesystems created - proceeding to cluster create")
     else:
-        # only defined because the template must have it
-        filesystems = [
-            {"name": "projects", "expected": False},
-            {"name": "scratch", "expected": False},
-        ]
+        # the filesystems don't really need to exist - later code will check for this
+        for fs in FILESYSTEMS:
+            fs["expected"] = False
 
     logger.debug(f"handler: create pcluster {cluster}")
-    pcluster_create(cluster, filesystems)
+    pcluster_create(cluster, FILESYSTEMS)
     logger.debug(f"created pcluster {cluster}")
 
 
@@ -95,6 +90,7 @@ def pcluster_handler(event, _context=None):
     * Check whether we have a GET, a POST or a DELETE method
     * Pass on to pcluster_*_handler
     """
+    logger.debug(f"pcluster handler: event: {event}")
     if event.get("httpMethod"):
         if event["httpMethod"] == "GET":
             if event["path"] == "/hpc-provisioner/pcluster":
@@ -107,9 +103,11 @@ def pcluster_handler(event, _context=None):
             if event["path"] == "/hpc-provisioner/pcluster":
                 logger.debug("POST pcluster")
                 return pcluster_create_request_handler(event, _context)
-            if event["path"] == "/hpc-provisioner/dra":
+            if event["path"].startswith("/hpc-provisioner/dra"):
                 logger.debug("POST DRA")
-                return dra_ready_handler(event, _context)
+                return dra_check(event, _context)
+            logger.debug("No idea what to do with this POST")
+            return response_text("No idea what to do with this POST")
         elif event["httpMethod"] == "DELETE":
             logger.debug("DELETE pcluster")
             return pcluster_delete_handler(event, _context)

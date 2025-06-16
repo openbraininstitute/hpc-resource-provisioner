@@ -18,3 +18,19 @@ DEFAULTS = {
 }
 
 CONFIG_VALUES = {}
+
+DRA_CHECKING_RULE_NAME = "resource_provisioner_check_for_dra"
+FILESYSTEMS = [
+    {
+        "name": "projects",
+        "shared": True,
+        "mountpoint": "/sbo/data/projects",
+        "writable": False,
+    },
+    {
+        "name": "scratch",
+        "shared": False,
+        "mountpoint": "/sbo/data/scratch",
+        "writable": True,
+    },
+]

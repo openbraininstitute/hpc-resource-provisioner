@@ -41,6 +41,7 @@ from hpc_provisioner.logging_config import LOGGING_CONFIG
 from hpc_provisioner.utils import (
     get_containers_bucket,
     get_efa_security_group_id,
+    get_fs_bucket,
     get_fsx_policy_arn,
     get_sbonexusdata_bucket,
     get_scratch_bucket,
@@ -173,7 +174,7 @@ def fsx_precreate(cluster: Cluster, filesystems: list) -> bool:
                 fsx_client=fsx_client,
                 filesystem_id=fs["FileSystemId"],
                 mountpoint=filesystem["mountpoint"],
-                bucket=filesystem["bucket"],
+                bucket=get_fs_bucket(filesystem["bucket"], cluster),
                 vlab_id=cluster.vlab_id,
                 project_id=cluster.project_id,
                 writable=filesystem["writable"],
