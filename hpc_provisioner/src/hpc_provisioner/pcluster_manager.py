@@ -39,6 +39,7 @@ from hpc_provisioner.constants import (
 )
 from hpc_provisioner.logging_config import LOGGING_CONFIG
 from hpc_provisioner.utils import (
+    get_ami_id,
     get_containers_bucket,
     get_efa_security_group_id,
     get_fs_bucket,
@@ -92,6 +93,7 @@ def populate_config(
     if create_users_args:
         CONFIG_VALUES["create_users_args"] = create_users_args
     CONFIG_VALUES["environment_args"] = [cluster.name]
+    CONFIG_VALUES["ami_id"] = get_ami_id()
     logger.debug(f"Config values: {CONFIG_VALUES}")
 
 
