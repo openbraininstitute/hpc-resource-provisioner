@@ -1,4 +1,6 @@
+import json
 import os
+from typing import List
 
 from cryptography.hazmat.primitives import serialization
 
@@ -22,12 +24,28 @@ def get_scratch_bucket() -> str:
     return _get_env_var("SCRATCH_BUCKET")
 
 
+def get_projects_bucket() -> str:
+    return _get_env_var("PROJECTS_BUCKET")
+
+
 def get_efa_security_group_id() -> str:
     return _get_env_var("EFA_SG_ID")
 
 
 def get_fsx_policy_arn() -> str:
     return _get_env_var("FSX_POLICY_ARN")
+
+
+def get_suffix() -> str:
+    return _get_env_var("SUFFIX")
+
+
+def get_fs_subnet_ids() -> List[str]:
+    return json.loads(_get_env_var("FS_SUBNET_IDS"))
+
+
+def get_fs_sg_id() -> str:
+    return _get_env_var("FS_SG_ID")
 
 
 def get_suffix() -> str:

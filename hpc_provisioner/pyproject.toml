@@ -61,3 +61,6 @@ CONTAINERS_BUCKET = "s3://sboinfrastructureassets-test/containers"
 SCRATCH_BUCKET = "s3://scratch-test"
 EFA_SG_ID = "sg-123456789"
 FSX_POLICY_ARN = "arn:aws:iam::123456:policy/fsx_policy"
+SUFFIX = "dev"
+FS_SUBNET_IDS = '["subnet-1234"]'
+FS_SG_ID = "sg-123456789"

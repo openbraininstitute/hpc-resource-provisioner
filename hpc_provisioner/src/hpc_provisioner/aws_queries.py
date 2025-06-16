@@ -1,11 +1,12 @@
 import logging
 import logging.config
 import time
-from typing import Optional
+from typing import Dict, Optional
 
 import boto3
 from botocore.exceptions import ClientError
 
+from hpc_provisioner.cluster import Cluster
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
     BILLING_TAG_VALUE,
@@ -21,6 +22,7 @@ from hpc_provisioner.dynamodb_actions import (
     register_subnet,
 )
 from hpc_provisioner.logging_config import LOGGING_CONFIG
+from hpc_provisioner.utils import get_fs_sg_id, get_fs_subnet_ids
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("hpc-resource-provisioner")
@@ -42,20 +44,16 @@ class CouldNotDetermineEFSException(Exception):
     """
 
 
-def get_cluster_name(vlab_id: str, project_id: str) -> str:
-    return f"pcluster-{vlab_id}-{project_id}"
-
-
-def get_keypair_name(vlab_id, project_id, keypair_user=None) -> str:
-    keypair_name = get_cluster_name(vlab_id, project_id)
+def get_keypair_name(cluster, keypair_user=None) -> str:
+    keypair_name = cluster.name
     if keypair_user:
         keypair_name = "_".join([keypair_name, keypair_user])
 
     return keypair_name
 
 
-def create_keypair(ec2_client, vlab_id, project_id, tags, keypair_user=None) -> dict:
-    keypair_name = get_keypair_name(vlab_id, project_id, keypair_user)
+def create_keypair(ec2_client, cluster, tags, keypair_user=None) -> dict:
+    keypair_name = get_keypair_name(cluster, keypair_user)
     try:
         existing_key = ec2_client.describe_key_pairs(KeyNames=[keypair_name])
         return existing_key["KeyPairs"][0]
@@ -71,10 +69,14 @@ def create_keypair(ec2_client, vlab_id, project_id, tags, keypair_user=None) -> 
         )
 
 
-def store_private_key(sm_client, vlab_id, project_id, ssh_keypair):
+def store_private_key(sm_client, cluster, ssh_keypair):
     if "KeyMaterial" in ssh_keypair:
         secret = create_secret(
-            sm_client, vlab_id, project_id, ssh_keypair["KeyName"], ssh_keypair["KeyMaterial"]
+            sm_client,
+            cluster.vlab_id,
+            cluster.project_id,
+            ssh_keypair["KeyName"],
+            ssh_keypair["KeyMaterial"],
         )
     else:
         secret = get_secret(sm_client, ssh_keypair["KeyName"])
@@ -290,3 +292,201 @@ def list_existing_stacks(cf_client):
     ]
 
     return existing_stack_names
+
+
+def get_fsx_name(shared: bool, fs_name: str, cluster: Optional[Cluster]) -> str:
+    if shared:
+        return fs_name
+    else:
+        return f"{fs_name}-{cluster.name}"
+
+
+def create_fsx(
+    fsx_client,
+    fs_name: str,
+    shared: bool = True,
+    cluster: Optional[Cluster] = None,
+) -> Dict:
+    """
+    Create an FSX filesystem if it doesn't exist yet
+
+    :param fs_name: name to identify the filesystem (e.g. "scratch", "projects", ...)
+    :param shared: whether the filesystem is shared among all pclusters or specific to one cluster
+    :param vlab_id: vlab of the cluster to which the filesystem will be attached.
+    :param project_id: project of the cluster to which the filesystem will be attached.
+    """
+
+    logger.debug(
+        f"Creating fsx with name {fs_name}, shared {shared}, and cluster {cluster}",
+    )
+    tags = [
+        {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+    ]
+    token = get_fsx_name(shared, fs_name, cluster)
+    logger.debug(f"Token: {token}")
+    tags.append({"Key": "Name", "Value": token})
+
+    if not shared:
+        tags.append({"Key": VLAB_TAG_KEY, "Value": cluster.vlab_id})
+        tags.append({"Key": PROJECT_TAG_KEY, "Value": cluster.project_id})
+
+    logger.debug(f"Tags: {tags}")
+
+    fs = fsx_client.create_file_system(
+        ClientRequestToken=token,
+        FileSystemType="LUSTRE",
+        StorageCapacity=19200,
+        StorageType="SSD",
+        SubnetIds=get_fs_subnet_ids(),
+        SecurityGroupIds=[get_fs_sg_id()],
+        Tags=tags,
+        LustreConfiguration={
+            "WeeklyMaintenanceStartTime": "6:05:00",  # start at 5AM on Saturdays
+            # "ExportPath": "string",
+            "DeploymentType": "PERSISTENT_2",
+            "PerUnitStorageThroughput": 250,
+            "DataCompressionType": "LZ4",
+            "EfaEnabled": True,
+            # "LogConfiguration": {  # TODO do we want this?
+            #     "Level": "DISABLED" | "WARN_ONLY" | "ERROR_ONLY" | "WARN_ERROR",
+            #     "Destination": "string",
+            # },
+            "MetadataConfiguration": {"Mode": "AUTOMATIC"},
+        },
+    )
+
+    logger.debug(f"Created fsx {fs}")
+    return fs
+
+
+def get_fsx_by_id(fsx_client, filesystem_id: str) -> Optional[dict]:
+    go_on = True
+    next_token = None
+    while go_on:
+        if next_token:
+            file_systems = fsx_client.describe_file_systems(NextToken=next_token)
+        else:
+            file_systems = fsx_client.describe_file_systems()
+        try:
+            return next(
+                fs for fs in file_systems["FileSystems"] if fs["FileSystemId"] == filesystem_id
+            )
+        except StopIteration:
+            next_token = file_systems.get("NextToken")
+            go_on = next_token is not None
+
+
+def get_fsx(
+    fsx_client, shared: bool, fs_name: str, vlab_id: str, project_id: str
+) -> Optional[dict]:
+    full_fs_name = get_fsx_name(shared, fs_name, vlab_id, project_id)
+    go_on = True
+    next_token = None
+    while go_on:
+        if next_token:
+            file_systems = fsx_client.describe_file_systems(NextToken=next_token)
+        else:
+            file_systems = fsx_client.describe_file_systems()
+        for fs in file_systems["FileSystems"]:
+            if any([t["Value"] == full_fs_name for t in fs["Tags"] if t["Key"] == "Name"]):
+                return fs
+        next_token = file_systems.get("NextToken")
+        go_on = next_token is not None
+    return None
+
+
+def create_dra(
+    fsx_client,
+    filesystem_id: str,
+    mountpoint: str,
+    bucket: str,
+    vlab_id: str,
+    project_id: str,
+    writable: bool = False,
+) -> dict:
+    logger.debug(
+        f"Creating DRA for fs {filesystem_id}, mount {bucket} at {mountpoint}, for {vlab_id}-{project_id}, writable {writable}"
+    )
+    s3_config = {
+        "AutoImportPolicy": {  # from S3 to FS
+            "Events": [
+                "NEW",
+                "CHANGED",
+                "DELETED",
+            ]
+        },
+    }
+
+    if writable:
+        s3_config["AutoExportPolicy"] = {"Events": ["NEW", "CHANGED", "DELETED"]}
+
+    logger.debug(f"s3 config: {s3_config}")
+
+    dra = fsx_client.create_data_repository_association(
+        FileSystemId=filesystem_id,
+        FileSystemPath=mountpoint,
+        DataRepositoryPath=bucket,
+        BatchImportMetaDataOnCreate=True,
+        ImportedFileChunkSize=1024,
+        S3=s3_config,
+        ClientRequestToken=f"{filesystem_id}-{vlab_id}-{project_id}",
+        Tags=[
+            {"Key": "Name", "Value": f"{filesystem_id}-{mountpoint}"},
+            {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+            {"Key": VLAB_TAG_KEY, "Value": vlab_id},
+            {"Key": PROJECT_TAG_KEY, "Value": project_id},
+        ],
+    )
+
+    logger.debug(f"Created DRA {dra}")
+    return dra
+
+
+def get_dra_by_id(fsx_client, dra_id: str) -> Optional[dict]:
+    dras = fsx_client.describe_data_repository_associations(AssociationIds=[dra_id])
+    if len(dras.get("Associations", [])) == 0:
+        return None
+    return dras.get("Associations")[0]
+
+
+def get_dra(fsx_client, filesystem_id: str, mountpoint: str) -> Optional[dict]:
+    dras = fsx_client.describe_data_repository_associations(
+        Filters=[{"Name": "file-system-id", "Values": [filesystem_id]}]
+    )
+
+    try:
+        dra = next(dra for dra in dras if dra["FileSystemPath"] == mountpoint)
+        return dra
+    except StopIteration:
+        return None
+
+
+def wait_for_fsx(fsx_client, filesystem_id, target_status="AVAILABLE", timeout=300) -> None:
+    fsx = {"Lifecycle": "UNKNOWN"}
+    start = time.time()
+    while fsx["Lifecycle"] != target_status and time.time() < start + timeout:
+        fsx = get_fsx_by_id(fsx_client=fsx_client, filesystem_id=filesystem_id)
+        if not fsx:
+            raise RuntimeError(f"FSx with id {filesystem_id} not found")
+
+    if fsx["Lifecycle"] != target_status:
+        raise RuntimeError(
+            f"FSx {filesystem_id} did not reach status {target_status} within {timeout} seconds"
+        )
+
+
+def wait_for_dra(fsx_client, dra_id, target_status="AVAILABLE", timeout=600) -> None:
+    dra = {"Lifecycle": "UNKNOWN"}
+    logger.debug(f"Waiting for dra {dra_id} for {timeout} seconds")
+    start = time.time()
+    while dra.get("Lifecycle") != target_status and time.time() < start + timeout:
+        dra = get_dra_by_id(fsx_client=fsx_client, dra_id=dra_id)
+        logger.debug(f"DRA: {dra}")
+        if not dra:
+            raise RuntimeError(f"DRA with id {dra_id} not found")
+        time.sleep(10)
+
+    if dra["Lifecycle"] != target_status:
+        raise RuntimeError(
+            f"DRA {dra_id} did not reach status {target_status} within {timeout} seconds"
+        )

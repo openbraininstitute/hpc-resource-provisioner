@@ -27,26 +27,26 @@ cat << _EOF_ >> /opt/slurm/CWAgent_config_$CLUSTER_NAME.json
                 "run_as_user": "root"
         },
         "metrics": {
-		"namespace": "CustomMetrics_test",
-		"aggregation_dimensions": [
-       			["ClusterName", "InstanceId"]
-       		],
+                "namespace": "CustomMetrics_test",
+                "aggregation_dimensions": [
+                        ["ClusterName", "InstanceId"]
+                ],
                 "append_dimensions": {
                         "InstanceId": "\${aws:InstanceId}"
                 },
-	        "metrics_collected": {
-                	"disk": {
-       				"append_dimensions":{
-					"ClusterName": "$CLUSTER_NAME"
-				},
+                "metrics_collected": {
+                        "disk": {
+                                "append_dimensions":{
+                                        "ClusterName": "$CLUSTER_NAME"
+                                },
                                 "measurement": [
                                         "used_percent", "used"
                                 ],
                                 "resources": [
-					"/sbo/data/scratch", "/sbo/home"
+                                        "/sbo/data/scratch", "/sbo/home"
                                 ]
                         },
-			"diskio": {
+                        "diskio": {
                                 "append_dimensions":{
                                         "ClusterName": "$CLUSTER_NAME"
                                 },
@@ -58,22 +58,22 @@ cat << _EOF_ >> /opt/slurm/CWAgent_config_$CLUSTER_NAME.json
                                 ]
                         },
                         "mem": {
-				"append_dimensions":{
-					"ClusterName": "$CLUSTER_NAME"
-				},
+                                "append_dimensions":{
+                                        "ClusterName": "$CLUSTER_NAME"
+                                },
+                                        "measurement": [
+                                                "mem_used_percent"
+                                        ]
+                                },
+                        "cpu": {
+                                "append_dimensions":{
+                                        "ClusterName": "$CLUSTER_NAME"
+                                },
                                 "measurement": [
-                                        "mem_used_percent"
-                                ]
-                        },
-			"cpu": {
-       				"append_dimensions":{
-					"ClusterName": "$CLUSTER_NAME"
-				},
-        			"measurement": [
-            				"cpu_usage_active"
-        			],
-        			"totalcpu": true
-    				}
+                                        "cpu_usage_active"
+                                ],
+                                "totalcpu": true
+                                }
                 }
         }
 }

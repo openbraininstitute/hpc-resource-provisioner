@@ -1,19 +1,26 @@
+import json
 import logging
+import os
 from unittest.mock import MagicMock, call, patch
 
 import pytest
 from botocore.exceptions import ClientError
+
 from hpc_provisioner.aws_queries import (
     CouldNotDetermineEFSException,
     CouldNotDetermineSecurityGroupException,
     OutOfSubnetsException,
     claim_subnet,
+    create_fsx,
     create_keypair,
     create_secret,
     get_available_subnet,
     get_efs,
+    get_fsx_by_id,
+    get_fsx_name,
     get_secret,
     get_security_group,
+    remove_key,
     store_private_key,
 )
 from hpc_provisioner.constants import (
@@ -314,19 +321,17 @@ def test_get_available_subnet(mock_dynamodb_client, mock_claim_subnet):
     assert subnet == "sub-1"
 
 
-def test_create_keypair():
+def test_create_keypair(test_cluster):
     mock_ec2_client = MagicMock()
     mock_ec2_client.describe_key_pairs.side_effect = ClientError(
         error_response={"Error": {"Code": 1, "Message": "It failed"}},
         operation_name="describe_key_pairs",
     )
     mock_ec2_client.create_key_pair.return_value = "key created"
-    vlab_id = "test_vlab"
-    project_id = "test_project"
     tags = [{"Key": "tagkey", "Value": "tagvalue"}]
-    create_keypair(mock_ec2_client, vlab_id, project_id, tags)
+    create_keypair(mock_ec2_client, test_cluster, tags)
     mock_ec2_client.create_key_pair.assert_called_once_with(
-        KeyName=f"pcluster-{vlab_id}-{project_id}",
+        KeyName=test_cluster.name,
         TagSpecifications=[{"ResourceType": "key-pair", "Tags": tags}],
     )
 
@@ -367,16 +372,14 @@ def test_create_secret():
 
 @pytest.mark.parametrize("keypair_exists", [True, False])
 @pytest.mark.parametrize("secret_exists", [True, False])
-def test_store_private_key(keypair_exists, secret_exists):
+def test_store_private_key(keypair_exists, secret_exists, test_cluster):
     if secret_exists and not keypair_exists:
         pytest.skip(
             "New keypair with existing secret: sm_client.create_secret will raise "
             "on trying to create a secret that already exists."
         )
     mock_sm_client = MagicMock()
-    vlab_id = "testvlab"
-    project_id = "testproject"
-    secret_name = key_name = f"pcluster-{vlab_id}-{project_id}"
+    secret_name = key_name = test_cluster.name
     if not keypair_exists:
         ssh_keypair = {"KeyMaterial": "supersecret", "KeyName": key_name}
     else:
@@ -385,24 +388,124 @@ def test_store_private_key(keypair_exists, secret_exists):
     if not keypair_exists:
         if not secret_exists:
             print("Keypair created, secret does not exist yet")
-            store_private_key(mock_sm_client, vlab_id, project_id, ssh_keypair)
+            store_private_key(mock_sm_client, test_cluster, ssh_keypair)
             mock_sm_client.create_secret.assert_called_once_with(
                 Name=secret_name,
-                Description=f"SSH Key for cluster for vlab {vlab_id}, project {project_id}",
+                Description=f"SSH Key for cluster for vlab {test_cluster.vlab_id}, project {test_cluster.project_id}",
                 SecretString=ssh_keypair["KeyMaterial"],
                 Tags=[
-                    {"Key": VLAB_TAG_KEY, "Value": vlab_id},
-                    {"Key": PROJECT_TAG_KEY, "Value": project_id},
+                    {"Key": VLAB_TAG_KEY, "Value": test_cluster.vlab_id},
+                    {"Key": PROJECT_TAG_KEY, "Value": test_cluster.project_id},
                     {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
                 ],
             )
     elif secret_exists:
         print("Both already exist")
         mock_sm_client.list_secrets.return_value = {"SecretList": ["somesecret"]}
-        retrieved_secret = store_private_key(mock_sm_client, vlab_id, project_id, ssh_keypair)
+        retrieved_secret = store_private_key(mock_sm_client, test_cluster, ssh_keypair)
         assert retrieved_secret == "somesecret"
     else:
         print("Keypair already existed but was not stored in secretsmanager yet")
         mock_sm_client.list_secrets.return_value = {"SecretList": []}
         with pytest.raises(RuntimeError):
-            store_private_key(mock_sm_client, vlab_id, project_id, ssh_keypair)
+            store_private_key(mock_sm_client, test_cluster, ssh_keypair)
+
+
+@patch("hpc_provisioner.aws_queries.boto3")
+def test_remove_key(patched_boto3):
+    test_key_name = "test_keypair"
+    patched_ec2_client = MagicMock()
+    patched_sm_client = MagicMock()
+    patched_boto3.client.side_effect = [patched_ec2_client, patched_sm_client]
+    remove_key(test_key_name)
+    patched_ec2_client.delete_key_pair.assert_called_once_with(KeyName=test_key_name)
+    patched_sm_client.delete_secret.assert_called_once_with(
+        SecretId=test_key_name, ForceDeleteWithoutRecovery=True
+    )
+
+
+@pytest.mark.parametrize("shared", [True, False])
+def test_get_fsx_name(shared, test_cluster):
+    test_fs_name = "test"
+    fsx_name = get_fsx_name(shared=shared, fs_name=test_fs_name, cluster=test_cluster)
+
+    if shared:
+        assert fsx_name == test_fs_name
+    else:
+        assert (
+            fsx_name == f"{test_fs_name}-pcluster-{test_cluster.vlab_id}-{test_cluster.project_id}"
+        )
+
+
+@pytest.mark.parametrize("shared", [True, False])
+def test_create_fsx(shared, test_cluster):
+    patched_fsx_client = MagicMock()
+    retval = {"fs": "fs"}
+    patched_fsx_client.create_file_system.return_value = retval
+    test_fs_name = "test"
+    if shared:
+        expected_args = {"ClientRequestToken": test_fs_name}
+        expected_tags = [
+            {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+            {"Key": "Name", "Value": test_fs_name},
+        ]
+    else:
+        token = f"{test_fs_name}-{test_cluster.name}"
+        expected_args = {"ClientRequestToken": token}
+        expected_tags = [
+            {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+            {"Key": "Name", "Value": token},
+            {"Key": VLAB_TAG_KEY, "Value": test_cluster.vlab_id},
+            {"Key": PROJECT_TAG_KEY, "Value": test_cluster.project_id},
+        ]
+
+    expected_args["FileSystemType"] = "LUSTRE"
+    expected_args["StorageCapacity"] = 19200
+    expected_args["StorageType"] = "SSD"
+    expected_args["SubnetIds"] = json.loads(os.environ["FS_SUBNET_IDS"])
+    expected_args["SecurityGroupIds"] = [os.environ["FS_SG_ID"]]
+    expected_args["Tags"] = expected_tags
+    expected_args["LustreConfiguration"] = {
+        "WeeklyMaintenanceStartTime": "6:05:00",
+        "DeploymentType": "PERSISTENT_2",
+        "PerUnitStorageThroughput": 250,
+        "DataCompressionType": "LZ4",
+        "EfaEnabled": True,
+        "MetadataConfiguration": {"Mode": "AUTOMATIC"},
+    }
+    if shared:
+        fsx = create_fsx(patched_fsx_client, test_fs_name, shared)
+    else:
+        fsx = create_fsx(patched_fsx_client, test_fs_name, shared, test_cluster)
+
+    patched_fsx_client.create_file_system.assert_called_once_with(**expected_args)
+    assert fsx == retval
+
+
+@pytest.mark.parametrize("test_fs_id,expected_call_count", [("fs-1", 1), ("fs-5", 3)])
+def test_get_fsx_by_id(test_fs_id, expected_call_count):
+    patched_fsx_client = MagicMock()
+    patched_fsx_client.describe_file_systems.side_effect = [
+        {"FileSystems": [{"FileSystemId": "fs-1"}, {"FileSystemId": "fs-2"}], "NextToken": "p-2"},
+        {"FileSystems": [{"FileSystemId": "fs-3"}, {"FileSystemId": "fs-4"}], "NextToken": "p-3"},
+        {"FileSystems": [{"FileSystemId": "fs-5"}, {"FileSystemId": "fs-6"}], "NextToken": "p-4"},
+        {"FileSystems": [{"FileSystemId": "fs-7"}, {"FileSystemId": "fs-8"}]},
+    ]
+    found_fs = get_fsx_by_id(patched_fsx_client, test_fs_id)
+    assert found_fs == {"FileSystemId": test_fs_id}
+    assert patched_fsx_client.describe_file_systems.call_count == expected_call_count
+    if test_fs_id == "fs-5":
+        patched_fsx_client.describe_file_systems.assert_has_calls(
+            [call(), call(NextToken="p-2"), call(NextToken="p-3")]
+        )
+
+
+def test_get_nonexisting_fsx_by_id():
+    patched_fsx_client = MagicMock()
+    patched_fsx_client.describe_file_systems.return_value = {
+        "FileSystems": [{"FileSystemId": "fs-1"}, {"FileSystemId": "fs-2"}]
+    }
+    test_fs_id = "fs-1234"
+    found_fs = get_fsx_by_id(patched_fsx_client, test_fs_id)
+    patched_fsx_client.describe_file_systems.assert_called_once_with()
+    assert found_fs is None
