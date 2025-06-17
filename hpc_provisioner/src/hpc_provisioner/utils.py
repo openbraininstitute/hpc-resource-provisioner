@@ -22,6 +22,10 @@ def get_containers_bucket() -> str:
     return _get_env_var("CONTAINERS_BUCKET")
 
 
+def get_infra_bucket() -> str:
+    return _get_env_var("INFRA_ASSETS_BUCKET")
+
+
 def get_scratch_bucket() -> str:
     return _get_env_var("SCRATCH_BUCKET")
 
@@ -65,6 +69,10 @@ def get_fs_bucket(bucket_name: str, cluster: Cluster) -> str:
         return f"{get_scratch_bucket()}/{cluster.vlab_id}/{cluster.project_id}"
     else:
         raise NotImplementedError(f"Can't get fs bucket for {bucket_name}")
+
+
+def get_ami_id() -> str:
+    return _get_env_var("PCLUSTER_AMI_ID")
 
 
 def generate_public_key(key_material):
