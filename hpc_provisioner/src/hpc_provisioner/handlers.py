@@ -8,9 +8,7 @@ import boto3
 from pcluster.api.errors import NotFoundException
 
 from hpc_provisioner.aws_queries import (
-    create_eventbridge_dra_checking_rule,
     create_keypair,
-    get_fsx,
     list_existing_stacks,
     store_private_key,
 )
@@ -38,8 +36,10 @@ from hpc_provisioner.utils import (
 from .logging_config import LOGGING_CONFIG
 from .pcluster_manager import (
     InvalidRequest,
+    all_dras_for_cluster_done,
+    any_fs_creating,
+    do_cluster_create,
     fsx_precreate,
-    pcluster_create,
     pcluster_delete,
     pcluster_describe,
     pcluster_list,
@@ -47,42 +47,6 @@ from .pcluster_manager import (
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("hpc-resource-provisioner")
-
-
-def dra_check(event, _context=None):
-    """
-    1. Check which clusters are pending (claimed=False) creation and have include_lustre=True
-    2. For each of them:
-        check whether any DRAs are still pending
-        if not: call pcluster_do_create_handler
-    """
-    logger.debug(f"event: {event}, _context: {_context}")
-    dynamo = dynamodb_resource()
-    fsx_client = boto3.client("fsx")
-    for cluster in get_unclaimed_clusters(dynamodb_resource=dynamo):
-        get_fsx(fsx_client)
-
-
-def pcluster_do_create_handler(event, _context=None):
-    logger.debug(f"event: {event}, _context: {_context}")
-    cluster = Cluster.from_dict(event["cluster"])
-
-    logger.debug(f"handler: precreate filesystems for cluster {cluster}")
-    if cluster.include_lustre:
-        if fsx_precreate(cluster, FILESYSTEMS):
-            logger.debug("Created FSx - not proceeding to cluster creation yet")
-            create_eventbridge_dra_checking_rule(eb_client=boto3.client("eventbridge"))
-            return
-        else:
-            logger.debug("All FSx filesystems created - proceeding to cluster create")
-    else:
-        # the filesystems don't really need to exist - later code will check for this
-        for fs in FILESYSTEMS:
-            fs["expected"] = False
-
-    logger.debug(f"handler: create pcluster {cluster}")
-    pcluster_create(cluster, FILESYSTEMS)
-    logger.debug(f"created pcluster {cluster}")
 
 
 def pcluster_handler(event, _context=None):
@@ -105,7 +69,7 @@ def pcluster_handler(event, _context=None):
                 return pcluster_create_request_handler(event, _context)
             if event["path"].startswith("/hpc-provisioner/dra"):
                 logger.debug("POST DRA")
-                return dra_check(event, _context)
+                return dra_check_handler(event, _context)
             logger.debug("No idea what to do with this POST")
             return response_text("No idea what to do with this POST")
         elif event["httpMethod"] == "DELETE":
@@ -117,6 +81,33 @@ def pcluster_handler(event, _context=None):
     return response_text(
         "Could not determine HTTP method - make sure to GET, POST or DELETE", code=400
     )
+
+
+def dra_check_handler(event, _context=None):
+    """
+    1. Check which clusters are pending (claimed=False) creation and have include_lustre=True
+    2. For each of them:
+        check whether any DRAs are still pending
+        if not: call do_cluster_create
+    """
+    logger.debug(f"event: {event}, _context: {_context}")
+    dynamo = dynamodb_resource()
+    for cluster in get_unclaimed_clusters(dynamodb_resource=dynamo):
+        logger.debug(f"Unclaimed cluster: {cluster}")
+        if all_dras_for_cluster_done(cluster):
+            logger.debug(f"All filesystems for {cluster.name} ready - creating cluster")
+            do_cluster_create(cluster)
+        elif any_fs_creating():
+            logger.debug(f"A filesystem is being created - skipping cluster {cluster.name} for now")
+        else:
+            logger.debug(f"No filesystems being created - precreating for {cluster.name}")
+            fsx_precreate(cluster=cluster, filesystems=FILESYSTEMS)
+
+
+def pcluster_do_create_handler(event, _context=None):
+    logger.debug(f"event: {event}, _context: {_context}")
+    cluster = Cluster.from_dict(event["cluster"])
+    do_cluster_create(cluster)
 
 
 def pcluster_create_request_handler(event, _context=None):

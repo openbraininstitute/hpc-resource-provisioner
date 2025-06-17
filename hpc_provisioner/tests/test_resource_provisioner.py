@@ -447,3 +447,63 @@ def test_load_tier(tier, is_valid):
     else:
         with pytest.raises(ValueError):
             pcluster_manager.get_tier_config(pcluster_config, tier)
+
+
+@patch("hpc_provisioner.handlers.dynamodb_resource")
+@patch("hpc_provisioner.handlers.boto3")
+@patch("hpc_provisioner.handlers.do_cluster_create")
+def test_dra_check_no_fs_created_yet(
+    patched_do_cluster_create, patched_boto3, patched_dynamodb_resource
+):
+    mock_fsx_client = MagicMock()
+    mock_fsx_client.describe_file_systems.side_effect = [
+        {"FileSystems": []},
+        {"FileSystems": []},
+        {"FileSystems": []},
+        {"FileSystems": [{"Lifecycle": "CREATING"}]},
+    ]
+    patched_boto3.client.return_value = mock_fsx_client
+    pending_clusters = [
+        Cluster(project_id="proj1", vlab_id="testing"),
+        Cluster(project_id="proj2", vlab_id="testing"),
+    ]
+    with patch(
+        "hpc_provisioner.handlers.get_unclaimed_clusters",
+        return_value=pending_clusters,
+    ):
+        handlers.dra_check_handler({})
+    patched_do_cluster_create.assert_not_called()
+
+
+@patch("hpc_provisioner.handlers.dynamodb_resource")
+@patch("hpc_provisioner.handlers.boto3")
+@patch("hpc_provisioner.handlers.do_cluster_create")
+@patch("hpc_provisioner.handlers.fsx_precreate")
+def test_dra_check_fs_creating(
+    patched_fsx_precreate, patched_do_cluster_create, patched_boto3, patched_dynamodb_resource
+):
+    pass
+
+
+def test_dra_check_dra_creating():
+    pass
+
+
+def test_dra_check_fs_failed():
+    pass
+
+
+def test_dra_check_dra_failed():
+    pass
+
+
+def test_dra_check_multiple_clusters_ready_to_go():
+    pass
+
+
+def test_dra_check_no_unclaimed_clusters():
+    pass
+
+
+def test_dra_check_one_cluster_ready_one_not_done():
+    pass

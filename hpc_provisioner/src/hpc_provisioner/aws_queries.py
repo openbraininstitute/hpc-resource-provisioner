@@ -384,8 +384,8 @@ def get_fsx_by_id(fsx_client, filesystem_id: str) -> Optional[dict]:
             go_on = next_token is not None
 
 
-def get_fsx(fsx_client, shared: bool, fs_name: str, cluster: Cluster) -> Optional[dict]:
-    full_fs_name = get_fsx_name(shared, fs_name, cluster)
+def list_all_fsx(fsx_client) -> list:
+    all_fsx = []
     go_on = True
     next_token = None
     while go_on:
@@ -393,11 +393,23 @@ def get_fsx(fsx_client, shared: bool, fs_name: str, cluster: Cluster) -> Optiona
             file_systems = fsx_client.describe_file_systems(NextToken=next_token)
         else:
             file_systems = fsx_client.describe_file_systems()
-        for fs in file_systems["FileSystems"]:
-            if any([t["Value"] == full_fs_name for t in fs["Tags"] if t["Key"] == "Name"]):
-                return fs
         next_token = file_systems.get("NextToken")
         go_on = next_token is not None
+        all_fsx.extend(file_systems["FileSystems"])
+    return all_fsx
+
+
+def list_all_dras_for_fsx(fsx_client, filesystem_id) -> list:
+    return fsx_client.describe_data_repository_associations(
+        Filters=[{"Name": "file-system-id", "Values": [filesystem_id]}]
+    ).get("Associations", [])
+
+
+def get_fsx(fsx_client, shared: bool, fs_name: str, cluster: Cluster) -> Optional[dict]:
+    full_fs_name = get_fsx_name(shared, fs_name, cluster)
+    for fsx in list_all_fsx(fsx_client):
+        if any([t["Value"] == full_fs_name for t in fsx["Tags"] if t["Key"] == "Name"]):
+            return fsx
     return None
 
 
@@ -456,9 +468,7 @@ def get_dra_by_id(fsx_client, dra_id: str) -> Optional[dict]:
 
 
 def get_dra(fsx_client, filesystem_id: str, mountpoint: str) -> Optional[dict]:
-    dras = fsx_client.describe_data_repository_associations(
-        Filters=[{"Name": "file-system-id", "Values": [filesystem_id]}]
-    )
+    dras = list_all_dras_for_fsx(fsx_client=fsx_client, filesystem_id=filesystem_id)
 
     try:
         dra = next(dra for dra in dras if dra["FileSystemPath"] == mountpoint)

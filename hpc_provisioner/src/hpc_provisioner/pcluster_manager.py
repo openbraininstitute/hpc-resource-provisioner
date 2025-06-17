@@ -17,12 +17,16 @@ from pcluster.api.errors import CreateClusterBadRequestException, InternalServic
 
 from hpc_provisioner.aws_queries import (
     create_dra,
+    create_eventbridge_dra_checking_rule,
     create_fsx,
     get_available_subnet,
+    get_dra,
     get_efs,
     get_fsx,
     get_keypair_name,
     get_security_group,
+    list_all_dras_for_fsx,
+    list_all_fsx,
     release_subnets,
     remove_key,
 )
@@ -31,6 +35,7 @@ from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
     BILLING_TAG_VALUE,
     CONFIG_VALUES,
+    FILESYSTEMS,
     PCLUSTER_CONFIG_TPL,
     PCLUSTER_DEV_CONFIG_TPL,
     PROJECT_TAG_KEY,
@@ -165,6 +170,7 @@ def fsx_precreate(cluster: Cluster, filesystems: list) -> bool:
     Return True if creating a filesystem, False if nothing to do
     """
     fsx_client = boto3.client("fsx")
+    logger.debug(f"Precreating filesystems for {cluster.name}")
     for filesystem in filesystems:
         logger.debug(f"Checking for filesystem {filesystem}")
         fs = get_fsx(
@@ -290,3 +296,54 @@ def pcluster_delete(cluster: Cluster):
     remove_key(get_keypair_name(cluster))
     remove_key(get_keypair_name(cluster, "sim"))
     return pc.delete_cluster(cluster_name=cluster.name, region=REGION)
+
+
+def all_dras_for_cluster_done(cluster: Cluster) -> bool:
+    """
+    Check whether all filesystems for the cluster are created and their DRAs all available
+    """
+    fsx_client = boto3.client("fsx")
+    for filesystem in FILESYSTEMS:
+        fsx = get_fsx(
+            fsx_client, shared=filesystem["shared"], fs_name=filesystem["name"], cluster=cluster
+        )
+        if not fsx or fsx["Lifecycle"] != "AVAILABLE":
+            return False
+        dra = get_dra(
+            fsx_client=fsx_client,
+            filesystem_id=fsx["FileSystemId"],
+            mountpoint=filesystem["mountpoint"],
+        )
+        if not dra or dra["Lifecycle"] != "AVAILABLE":
+            return False
+    return True
+
+
+def any_fs_creating() -> bool:
+    fsx_client = boto3.client("fsx")
+    for fsx in list_all_fsx(fsx_client=fsx_client):
+        if fsx["Lifecycle"] not in ["AVAILABLE", "FAILED"]:
+            return True
+        for dra in list_all_dras_for_fsx(fsx_client=fsx_client, filesystem_id=fsx["FileSystemId"]):
+            if dra["Lifecycle"] not in ["AVAILABLE", "FAILED"]:
+                return True
+    return False
+
+
+def do_cluster_create(cluster):
+    if cluster.include_lustre:
+        logger.debug(f"precreate filesystems for cluster {cluster.name}")
+        if fsx_precreate(cluster, FILESYSTEMS):
+            logger.debug("Created FSx - not proceeding to cluster creation yet")
+            create_eventbridge_dra_checking_rule(eb_client=boto3.client("eventbridge"))
+            return
+        else:
+            logger.debug("All FSx filesystems created - proceeding to cluster create")
+    else:
+        # the filesystems don't really need to exist - later code will check for this
+        for fs in FILESYSTEMS:
+            fs["expected"] = False
+
+    logger.debug(f"create pcluster {cluster.name}")
+    pcluster_create(cluster, FILESYSTEMS)
+    logger.debug(f"created pcluster {cluster.name}")
