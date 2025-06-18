@@ -64,6 +64,9 @@ def pcluster_handler(event, _context=None):
                 logger.debug("GET version")
                 return response_text(text=version("hpc_provisioner"))
         elif event["httpMethod"] == "POST":
+            logger.debug(
+                f"POST with path {event['path']} startswith /hpc-provisioner/dra: {event['path'].startswith('/hpc-provisioner/dra')}"
+            )
             if event["path"] == "/hpc-provisioner/pcluster":
                 logger.debug("POST pcluster")
                 return pcluster_create_request_handler(event, _context)
