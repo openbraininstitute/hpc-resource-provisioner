@@ -478,7 +478,7 @@ def get_dra(fsx_client, filesystem_id: str, mountpoint: str) -> Optional[dict]:
 
 
 def eventbridge_dra_checking_rule_exists(eb_client):
-    response = eb_client.list_rules(NamePrefix="resource_provisioner", Limit=123)
+    response = eb_client.list_rules(NamePrefix="resource_provisioner", Limit=100)
     return any(rule["Name"] == DRA_CHECKING_RULE_NAME for rule in response.get("Rules", []))
 
 
@@ -506,11 +506,8 @@ def create_eventbridge_target(eb_client):
         Targets=[
             {
                 "Id": "hpc-resource-provisioner",
-                "Arn": f"{get_api_gw_arn()}/POST/hpc-provisioner/dra",
+                "Arn": f"{get_api_gw_arn()}production/POST/hpc-provisioner/dra",
                 "RoleArn": get_eventbridge_role_arn(),
-                # Let's hope the following two are optional
-                # "DeadLetterConfig": {"Arn": "string"},
-                # "RetryPolicy": {"MaximumRetryAttempts": 123, "MaximumEventAgeInSeconds": 123},
             },
         ],
     )

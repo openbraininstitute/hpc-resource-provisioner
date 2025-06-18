@@ -335,7 +335,7 @@ def do_cluster_create(cluster):
         logger.debug(f"precreate filesystems for cluster {cluster.name}")
         if fsx_precreate(cluster, FILESYSTEMS):
             logger.debug("Created FSx - not proceeding to cluster creation yet")
-            create_eventbridge_dra_checking_rule(eb_client=boto3.client("eventbridge"))
+            create_eventbridge_dra_checking_rule(eb_client=boto3.client("events"))
             return
         else:
             logger.debug("All FSx filesystems created - proceeding to cluster create")
