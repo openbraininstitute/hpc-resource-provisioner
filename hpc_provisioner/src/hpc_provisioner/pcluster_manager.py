@@ -345,5 +345,6 @@ def do_cluster_create(cluster):
             fs["expected"] = False
 
     logger.debug(f"create pcluster {cluster.name}")
+    claim_cluster(dynmodb_resource(), cluster)
     pcluster_create(cluster, FILESYSTEMS)
     logger.debug(f"created pcluster {cluster.name}")
