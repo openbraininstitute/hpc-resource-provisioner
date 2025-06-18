@@ -9,10 +9,9 @@ from pcluster.api.errors import NotFoundException
 
 from hpc_provisioner.aws_queries import (
     create_keypair,
-    list_existing_stacks,
     store_private_key,
 )
-from hpc_provisioner.cluster import Cluster, ClusterJSONEncoder
+from hpc_provisioner.cluster import Cluster
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
     BILLING_TAG_VALUE,
@@ -30,7 +29,6 @@ from hpc_provisioner.dynamodb_actions import (
 )
 from hpc_provisioner.utils import (
     generate_public_key,
-    get_suffix,
 )
 
 from .logging_config import LOGGING_CONFIG
@@ -40,6 +38,7 @@ from .pcluster_manager import (
     any_fs_creating,
     do_cluster_create,
     fsx_precreate,
+    pcluster_create,
     pcluster_delete,
     pcluster_describe,
     pcluster_list,
@@ -99,22 +98,39 @@ def dra_check_handler(event, _context=None):
         logger.debug(f"Unclaimed cluster: {cluster}")
         if all_dras_for_cluster_done(cluster):
             logger.debug(f"All filesystems for {cluster.name} ready - creating cluster")
-            do_cluster_create(cluster)
+            return response_json(do_cluster_create(cluster))
         elif any_fs_creating():
-            logger.debug(f"A filesystem is being created - skipping cluster {cluster.name} for now")
+            msg = f"A filesystem is being created - skipping cluster {cluster.name} for now"
+            logger.debug(msg)
+            return response_text(msg)
         else:
             logger.debug(f"No filesystems being created - precreating for {cluster.name}")
-            fsx_precreate(cluster=cluster, filesystems=FILESYSTEMS)
+            creating_fsx = fsx_precreate(cluster=cluster, filesystems=FILESYSTEMS)
+            if creating_fsx:
+                msg = "Precreating fsx"
+            else:
+                msg = "No filesystems to create"
+            return msg
 
 
 def pcluster_do_create_handler(event, _context=None):
+    """
+    The handler for the async lambda which will do the actual create
+    """
     logger.debug(f"event: {event}, _context: {_context}")
     cluster = Cluster.from_dict(event["cluster"])
-    do_cluster_create(cluster)
+    if not cluster.include_lustre:
+        for fs in FILESYSTEMS:
+            fs["expected"] = False
+    pcluster_create(cluster, FILESYSTEMS)
 
 
 def pcluster_create_request_handler(event, _context=None):
-    """Request the creation of an HPC cluster for a given vlab_id and project_id"""
+    """
+    Handles the initial cluster create request.
+      * register the cluster in dynamo
+      * precreate ssh keys
+    """
 
     cluster = _get_vlab_query_params(event)
     dynamo = dynamodb_resource()
@@ -123,13 +139,10 @@ def pcluster_create_request_handler(event, _context=None):
     except ClusterAlreadyRegistered as e:
         return response_text(text=e.__str__(), code=500)
     else:
-        logger.debug(
-            f"Cluster {cluster.name} already registered with identical parameters; proceeding"
-        )
+        logger.debug(f"Cluster {cluster.name} registered successfully; proceeding")
 
     ec2_client = boto3.client("ec2")
     sm_client = boto3.client("secretsmanager")
-    cf_client = boto3.client("cloudformation")
 
     admin_ssh_keypair = create_keypair(
         ec2_client,
@@ -148,10 +161,6 @@ def pcluster_create_request_handler(event, _context=None):
             "clusterName": cluster.name,
             "clusterStatus": "CREATE_REQUEST_RECEIVED",
         }
-    }
-
-    create_args = {
-        "cluster": cluster,
     }
 
     sim_user_ssh_keypair = create_keypair(
@@ -179,17 +188,6 @@ def pcluster_create_request_handler(event, _context=None):
             f"Something went wrong retrieving the sim user private key: {sim_user_secret['ARN']}"
         )
     logger.debug(f"Cluster: {cluster}")
-
-    if cluster.name in list_existing_stacks(cf_client):
-        print(f"Stack {cluster.name} already exists - exiting")
-        return response_json(response)
-
-    logger.debug(f"calling create lambda async with arguments {create_args}")
-    boto3.client("lambda").invoke_async(
-        FunctionName=f"hpc-resource-provisioner-creator-{get_suffix()}",
-        InvokeArgs=json.dumps(create_args, cls=ClusterJSONEncoder),
-    )
-    logger.debug("called create lambda async")
 
     return response_json(response)
 
