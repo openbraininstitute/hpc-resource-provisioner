@@ -3,6 +3,7 @@ import logging.config
 from typing import Optional
 
 import boto3
+from boto3.dynamodb.conditions import Key
 
 from hpc_provisioner.cluster import Cluster
 from hpc_provisioner.logging_config import LOGGING_CONFIG
@@ -98,11 +99,10 @@ def free_subnet(dynamodb_client, subnet_id: str) -> None:
 
 def get_unclaimed_clusters(dynamodb_resource) -> list:
     table = dynamodb_resource.Table(CLUSTER_TABLE_NAME)
-    result = table.get_items(Key={"claimed": False}, ConsistentRead=True)
+    result = table.query(IndexName="ClaimIndex", KeyConditionExpression=Key("claimed").eq(0))
     retval = []
-    for item in result.get("Item"):
-        item.pop("name")
-        retval.append(Cluster(**item))
+    for item in result.get("Items", []):
+        retval.append(Cluster.from_dynamo_dict(item))
     return retval
 
 
@@ -114,7 +114,7 @@ def get_cluster_by_name(dynamodb_resource, cluster_name: str) -> Optional[dict]:
 
 def register_cluster(dynamodb_resource, cluster: Cluster) -> None:
     if registered_cluster := get_cluster_by_name(dynamodb_resource, cluster.name):
-        if cluster != Cluster.from_dict(registered_cluster):
+        if cluster != Cluster.from_dynamo_dict(registered_cluster):
             raise ClusterAlreadyRegistered(
                 f"Cluster {cluster} already registered with different parameters"
             )
@@ -122,7 +122,7 @@ def register_cluster(dynamodb_resource, cluster: Cluster) -> None:
             return
 
     table = dynamodb_resource.Table(CLUSTER_TABLE_NAME)
-    table.put_item(Item=cluster.as_dict())
+    table.put_item(Item=cluster.as_dynamo_dict())
 
 
 def delete_cluster(dynamodb_resource, cluster: Cluster) -> None:
