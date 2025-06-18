@@ -17,7 +17,6 @@ from pcluster.api.errors import CreateClusterBadRequestException, InternalServic
 
 from hpc_provisioner.aws_queries import (
     create_dra,
-    create_eventbridge_dra_checking_rule,
     create_fsx,
     get_available_subnet,
     get_dra,
@@ -27,10 +26,11 @@ from hpc_provisioner.aws_queries import (
     get_security_group,
     list_all_dras_for_fsx,
     list_all_fsx,
+    list_existing_stacks,
     release_subnets,
     remove_key,
 )
-from hpc_provisioner.cluster import Cluster
+from hpc_provisioner.cluster import Cluster, ClusterJSONEncoder
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
     BILLING_TAG_VALUE,
@@ -53,6 +53,7 @@ from hpc_provisioner.utils import (
     get_infra_bucket,
     get_sbonexusdata_bucket,
     get_scratch_bucket,
+    get_suffix,
 )
 from hpc_provisioner.yaml_loader import load_yaml_extended
 
@@ -303,20 +304,21 @@ def all_dras_for_cluster_done(cluster: Cluster) -> bool:
     """
     Check whether all filesystems for the cluster are created and their DRAs all available
     """
-    fsx_client = boto3.client("fsx")
-    for filesystem in FILESYSTEMS:
-        fsx = get_fsx(
-            fsx_client, shared=filesystem["shared"], fs_name=filesystem["name"], cluster=cluster
-        )
-        if not fsx or fsx["Lifecycle"] != "AVAILABLE":
-            return False
-        dra = get_dra(
-            fsx_client=fsx_client,
-            filesystem_id=fsx["FileSystemId"],
-            mountpoint=filesystem["mountpoint"],
-        )
-        if not dra or dra["Lifecycle"] != "AVAILABLE":
-            return False
+    if cluster.include_lustre:
+        fsx_client = boto3.client("fsx")
+        for filesystem in FILESYSTEMS:
+            fsx = get_fsx(
+                fsx_client, shared=filesystem["shared"], fs_name=filesystem["name"], cluster=cluster
+            )
+            if not fsx or fsx["Lifecycle"] != "AVAILABLE":
+                return False
+            dra = get_dra(
+                fsx_client=fsx_client,
+                filesystem_id=fsx["FileSystemId"],
+                mountpoint=filesystem["mountpoint"],
+            )
+            if not dra or dra["Lifecycle"] != "AVAILABLE":
+                return False
     return True
 
 
@@ -331,21 +333,48 @@ def any_fs_creating() -> bool:
     return False
 
 
+def call_async_lambda(cluster: Cluster):
+    cf_client = boto3.client("cloudformation")
+
+    create_args = {
+        "cluster": cluster,
+    }
+
+    if cluster.name in list_existing_stacks(cf_client):
+        print(f"Stack {cluster.name} already exists - exiting")
+        return pcluster_describe(cluster)
+
+    logger.debug(f"calling create lambda async with arguments {create_args}")
+    boto3.client("lambda").invoke_async(
+        FunctionName=f"hpc-resource-provisioner-creator-{get_suffix()}",
+        InvokeArgs=json.dumps(create_args, cls=ClusterJSONEncoder),
+    )
+    logger.debug("called create lambda async")
+    return {
+        "cluster": {
+            "clusterName": cluster.name,
+            "clusterStatus": "CREATE_REQUEST_RECEIVED",
+        }
+    }
+
+
 def do_cluster_create(cluster):
-    if cluster.include_lustre:
-        logger.debug(f"precreate filesystems for cluster {cluster.name}")
-        if fsx_precreate(cluster, FILESYSTEMS):
-            logger.debug("Created FSx - not proceeding to cluster creation yet")
-            create_eventbridge_dra_checking_rule(eb_client=boto3.client("events"))
-            return
-        else:
-            logger.debug("All FSx filesystems created - proceeding to cluster create")
-    else:
-        # the filesystems don't really need to exist - later code will check for this
-        for fs in FILESYSTEMS:
-            fs["expected"] = False
+    """Actually create the cluster - it assumes that all the necessary filesystems have been created"""
+    # if cluster.include_lustre:
+    #     logger.debug(f"precreate filesystems for cluster {cluster.name}")
+    #     if fsx_precreate(cluster, FILESYSTEMS):
+    #         logger.debug("Created FSx - not proceeding to cluster creation yet")
+    #         create_eventbridge_dra_checking_rule(eb_client=boto3.client("events"))
+    #         return
+    #     else:
+    #         logger.debug("All FSx filesystems created - proceeding to cluster create")
+    # else:
+    #     # the filesystems don't really need to exist - later code will check for this
+    #     for fs in FILESYSTEMS:
+    #         fs["expected"] = False
 
     logger.debug(f"create pcluster {cluster.name}")
     claim_cluster(dynamodb_resource(), cluster)
-    pcluster_create(cluster, FILESYSTEMS)
-    logger.debug(f"created pcluster {cluster.name}")
+    return call_async_lambda(cluster)
+    # pcluster_create(cluster, FILESYSTEMS)
+    # logger.debug(f"created pcluster {cluster.name}")
