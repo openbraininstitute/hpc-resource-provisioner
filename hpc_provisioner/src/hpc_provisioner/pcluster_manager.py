@@ -42,6 +42,7 @@ from hpc_provisioner.constants import (
     REGION,
     VLAB_TAG_KEY,
 )
+from hpc_provisioner.dynamodb_actions import claim_cluster, dynamodb_resource
 from hpc_provisioner.logging_config import LOGGING_CONFIG
 from hpc_provisioner.utils import (
     get_ami_id,
@@ -186,7 +187,7 @@ def fsx_precreate(cluster: Cluster, filesystems: list) -> bool:
                 fsx_client=fsx_client,
                 filesystem_id=fs["FileSystemId"],
                 mountpoint=filesystem["mountpoint"],
-                bucket=get_fs_bucket(filesystem["bucket"], cluster),
+                bucket=get_fs_bucket(filesystem["name"], cluster),
                 vlab_id=cluster.vlab_id,
                 project_id=cluster.project_id,
                 writable=filesystem["writable"],
@@ -345,6 +346,6 @@ def do_cluster_create(cluster):
             fs["expected"] = False
 
     logger.debug(f"create pcluster {cluster.name}")
-    claim_cluster(dynmodb_resource(), cluster)
+    claim_cluster(dynamodb_resource(), cluster)
     pcluster_create(cluster, FILESYSTEMS)
     logger.debug(f"created pcluster {cluster.name}")
