@@ -181,7 +181,10 @@ def fsx_precreate(cluster: Cluster, filesystems: list) -> bool:
         if not fs:
             logger.debug(f"Creating filesystem {filesystem}")
             fs = create_fsx(
-                fsx_client=fsx_client, fs_name=filesystem["name"], shared=True, cluster=cluster
+                fsx_client=fsx_client,
+                fs_name=filesystem["name"],
+                shared=filesystem["shared"],
+                cluster=cluster,
             )["FileSystem"]
             logger.debug("Creating DRA")
             create_dra(
@@ -234,7 +237,10 @@ def pcluster_create(cluster: Cluster, filesystems: list):
     for filesystem in filesystems:
         if filesystem.get("expected", True):
             fs = get_fsx(
-                fsx_client=fsx_client, shared=True, fs_name=filesystem["name"], cluster=cluster
+                fsx_client=fsx_client,
+                shared=filesystem["shared"],
+                fs_name=filesystem["name"],
+                cluster=cluster,
             )
             if not fs:
                 raise RuntimeError(f"Filesystem {filesystem} not created when it should have been")
