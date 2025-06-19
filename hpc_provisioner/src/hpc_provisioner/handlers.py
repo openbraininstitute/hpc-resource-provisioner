@@ -109,10 +109,10 @@ def dra_check_handler(event, _context=None):
             logger.debug(f"No filesystems being created - precreating for {cluster.name}")
             creating_fsx = fsx_precreate(cluster=cluster, filesystems=FILESYSTEMS)
             if creating_fsx:
-                msg = "Precreating fsx"
+                msg = f"Precreating fsx for cluster {cluster.name}"
             else:
                 msg = "No filesystems to create"
-            return msg
+            return response_text(msg)
 
 
 def pcluster_do_create_handler(event, _context=None):

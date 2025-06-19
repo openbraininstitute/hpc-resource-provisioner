@@ -313,6 +313,7 @@ def all_dras_for_cluster_done(cluster: Cluster) -> bool:
                 fsx_client, shared=filesystem["shared"], fs_name=filesystem["name"], cluster=cluster
             )
             if not fsx or fsx["Lifecycle"] != "AVAILABLE":
+                logger.debug(f"Filesystem {filesystem['name']} not found or not ready yet")
                 return False
             dra = get_dra(
                 fsx_client=fsx_client,
@@ -320,7 +321,9 @@ def all_dras_for_cluster_done(cluster: Cluster) -> bool:
                 mountpoint=filesystem["mountpoint"],
             )
             if not dra or dra["Lifecycle"] != "AVAILABLE":
+                logger.debug(f"DRA for fileysstem {filesystem['name']} not found or not ready yet")
                 return False
+    logger.debug(f"All filesystems for cluster{cluster.name} ready!")
     return True
 
 

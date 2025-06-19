@@ -9,6 +9,7 @@ from pcluster.api.errors import NotFoundException
 
 from hpc_provisioner import handlers, pcluster_manager
 from hpc_provisioner.cluster import Cluster, ClusterJSONEncoder
+from hpc_provisioner.constants import FILESYSTEMS
 from hpc_provisioner.pcluster_manager import InvalidRequest
 
 logger = logging.getLogger("test_logger")
@@ -462,6 +463,10 @@ def test_dra_check_no_fs_created_yet(
         {"FileSystems": []},
         {"FileSystems": [{"Lifecycle": "CREATING"}]},
     ]
+    file_system_id = "fs-123"
+    mock_fsx_client.create_file_system.return_value = {
+        "FileSystem": {"FileSystemId": file_system_id}
+    }
     patched_boto3.client.return_value = mock_fsx_client
     pending_clusters = [
         Cluster(project_id="proj1", vlab_id="testing"),
@@ -471,18 +476,107 @@ def test_dra_check_no_fs_created_yet(
         "hpc_provisioner.handlers.get_unclaimed_clusters",
         return_value=pending_clusters,
     ):
-        handlers.dra_check_handler({})
+        return_value = handlers.dra_check_handler({})
+        assert return_value == {
+            "statusCode": 200,
+            "body": f"Precreating fsx for cluster {pending_clusters[0].name}",
+        }
     patched_do_cluster_create.assert_not_called()
+    mock_fsx_client.create_file_system.assert_called_once_with(
+        ClientRequestToken="projects",
+        FileSystemType="LUSTRE",
+        StorageCapacity=19200,
+        StorageType="SSD",
+        SubnetIds=json.loads(os.environ["FS_SUBNET_IDS"]),
+        SecurityGroupIds=[os.environ["FS_SG_ID"]],
+        Tags=[
+            {"Key": "SBO_Billing", "Value": "hpc:parallelcluster"},
+            {"Key": "Name", "Value": FILESYSTEMS[0]["name"]},
+        ],
+        LustreConfiguration={
+            "WeeklyMaintenanceStartTime": "6:05:00",
+            "DeploymentType": "PERSISTENT_2",
+            "PerUnitStorageThroughput": 250,
+            "DataCompressionType": "LZ4",
+            "EfaEnabled": True,
+            "MetadataConfiguration": {"Mode": "AUTOMATIC"},
+        },
+    )
+    mock_fsx_client.create_data_repository_association.assert_called_once_with(
+        FileSystemId=file_system_id,
+        FileSystemPath=FILESYSTEMS[0]["mountpoint"],
+        DataRepositoryPath=os.environ["SBO_NEXUSDATA_BUCKET"],
+        BatchImportMetaDataOnCreate=True,
+        ImportedFileChunkSize=1024,
+        S3={"AutoImportPolicy": {"Events": ["NEW", "CHANGED", "DELETED"]}},
+        ClientRequestToken=f"{file_system_id}-testing-proj1",
+        Tags=[
+            {
+                "Key": "Name",
+                "Value": f"{file_system_id}-{FILESYSTEMS[0]['mountpoint']}",
+            },
+            {"Key": "SBO_Billing", "Value": "hpc:parallelcluster"},
+            {"Key": "obp:costcenter:vlabid", "Value": pending_clusters[0].vlab_id},
+            {"Key": "obp:costcenter:project", "Value": pending_clusters[0].project_id},
+        ],
+    )
 
 
-@patch("hpc_provisioner.handlers.dynamodb_resource")
-@patch("hpc_provisioner.handlers.boto3")
+@patch("hpc_provisioner.pcluster_manager.boto3")
 @patch("hpc_provisioner.handlers.do_cluster_create")
-@patch("hpc_provisioner.handlers.fsx_precreate")
-def test_dra_check_fs_creating(
-    patched_fsx_precreate, patched_do_cluster_create, patched_boto3, patched_dynamodb_resource
-):
-    pass
+def test_dra_check_common_fs_creating(patched_do_cluster_create, patched_boto3):
+    mock_fsx_client = MagicMock()
+    mock_fsx_client.describe_file_systems.return_value = {
+        "FileSystems": [{"Lifecycle": "CREATING", "Tags": [{"Key": "Name", "Value": "projects"}]}]
+    }
+    patched_boto3.client.return_value = mock_fsx_client
+    pending_clusters = [
+        Cluster(project_id="proj1", vlab_id="testing"),
+        Cluster(project_id="proj2", vlab_id="testing"),
+    ]
+    with patch(
+        "hpc_provisioner.handlers.get_unclaimed_clusters",
+        return_value=pending_clusters,
+    ):
+        return_value = handlers.dra_check_handler({})
+        assert return_value == {
+            "statusCode": 200,
+            "body": f"A filesystem is being created - skipping cluster {pending_clusters[0].name} for now",
+        }
+    patched_do_cluster_create.assert_not_called()
+    mock_fsx_client.create_file_system.assert_not_called()
+    mock_fsx_client.create_data_repository_association.assert_not_called()
+
+
+@patch("hpc_provisioner.pcluster_manager.boto3")
+@patch("hpc_provisioner.handlers.do_cluster_create")
+def test_dra_check_fs_for_other_cluster_creating(patched_do_cluster_create, patched_boto3):
+    mock_fsx_client = MagicMock()
+    mock_fsx_client.describe_file_systems.return_value = {
+        "FileSystems": [
+            {
+                "Lifecycle": "CREATING",
+                "Tags": [{"Key": "Name", "Value": "scratch-pcluster-testing-proj2"}],
+            }
+        ]
+    }
+    patched_boto3.client.return_value = mock_fsx_client
+    pending_clusters = [
+        Cluster(project_id="proj1", vlab_id="testing"),
+        Cluster(project_id="proj2", vlab_id="testing"),
+    ]
+    with patch(
+        "hpc_provisioner.handlers.get_unclaimed_clusters",
+        return_value=pending_clusters,
+    ):
+        return_value = handlers.dra_check_handler({})
+        assert return_value == {
+            "statusCode": 200,
+            "body": f"A filesystem is being created - skipping cluster {pending_clusters[0].name} for now",
+        }
+    patched_do_cluster_create.assert_not_called()
+    mock_fsx_client.create_file_system.assert_not_called()
+    mock_fsx_client.create_data_repository_association.assert_not_called()
 
 
 def test_dra_check_dra_creating():
