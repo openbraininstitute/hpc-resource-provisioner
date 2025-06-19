@@ -96,15 +96,16 @@ def dra_check_handler(event, _context=None):
     """
     logger.debug(f"event: {event}, _context: {_context}")
     dynamo = dynamodb_resource()
+    response = {}
     for cluster in get_unclaimed_clusters(dynamodb_resource=dynamo):
         logger.debug(f"Unclaimed cluster: {cluster}")
         if all_dras_for_cluster_done(cluster):
             logger.debug(f"All filesystems for {cluster.name} ready - creating cluster")
-            return response_json(do_cluster_create(cluster))
+            response[cluster.name] = do_cluster_create(cluster)
         elif any_fs_creating():
             msg = f"A filesystem is being created - skipping cluster {cluster.name} for now"
             logger.debug(msg)
-            return response_text(msg)
+            response[cluster.name] = msg
         else:
             logger.debug(f"No filesystems being created - precreating for {cluster.name}")
             creating_fsx = fsx_precreate(cluster=cluster, filesystems=FILESYSTEMS)
@@ -112,7 +113,9 @@ def dra_check_handler(event, _context=None):
                 msg = f"Precreating fsx for cluster {cluster.name}"
             else:
                 msg = "No filesystems to create"
-            return response_text(msg)
+                response[cluster.name] = msg
+
+    return response_json(response)
 
 
 def pcluster_do_create_handler(event, _context=None):
