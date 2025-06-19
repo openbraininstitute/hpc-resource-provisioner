@@ -6,15 +6,18 @@ The HPC Resource Provisioner is a small application that offers an API to manage
 
 There's a GitHub workflow called `Build and Release HPC Resource Provisioner` that allows for very easy releasing of new versions. Select the branch you want to create a release from, and an AWS environment to push the image to, and run the workflow.
 
+Once released, you'll still have to deploy it - this is not done automatically!
+
 ## Manual Usage
 
 If you have awscli configured to connect to the sandbox environment, it's fairly easy to get the necessary variables in your shell. Make sure the keypair for sandbox is the first entry in `~/.aws/credentials`
 
-`source ./sandbox.sh`
+Adapt `sandbox.sh` to fit your sandbox environment, then run `source ./sandbox.sh`
 
 Deploying a new cluster. You can run this command multiple times, as long as you specify the same `vlab_id` and `project_id` it will not deploy additional clusters.
 
 Parameters (specify them in alphabetical order!):
+* benchmark: optional: benchmark mode. This will give you access to the full scratch bucket and metrics
 * dev: optional: dev mode, when you need features that are currently still in development
 * include_lustre: optional: defaults to true: set to false if you don't need lustre, it speeds up deployment and is a lot cheaper
 * project_id: required: string to identify your project. Will be part of the cluster name.
@@ -104,6 +107,23 @@ python3.12 -m venv venv
 pip install -e 'hpc_provisioner[test]'
 pytest hpc_provisioner
 ```
+
+### Architecture
+
+Resource provisioner is set up as a pair of lambdas behind an API gateway. The API gateway forwards to one of the lambdas which takes care of most of the work. When the time comes to actually deploy the cluster, it will call the second lambda async to perform the actual create_cluster command. The reason for this is that the call blocks longer than an API gateway is allowed to take to respond.
+
+What happens when a user requests a cluster:
+* handlers.py: the main handler function `pcluster_handler` inspects the request and routes it to the correct function based on the HTTP method and the path
+* handlers.py: `pcluster_create_request_handler` will :
+  * register the cluster in dynamodb,
+  * create the EventBridge rule to check at regular intervals whether a filesystem or a cluster needs to be created (not implemented yet)
+  * pre-create the necessary SSH keys (one for the admin user, one for the sim user) and store them in secretsmanager.
+  * It will return a response to the user containing the secretsmanager ARNs for these SSH keys
+
+At this point the interaction with the user is done and the lambda ends. The next activity will be triggered by the EventBridge rule: it will call the /pcluster/dra endpoint to trigger a check:
+* handlers.py: the main handler function `pcluster_handler` inspects the request and routes it to the correct function based on the HTTP method and the path
+
+
 # Acknowledgment
 
 The development of this software was supported by funding to the Blue Brain Project,
