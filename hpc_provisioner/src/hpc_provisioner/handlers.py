@@ -89,7 +89,7 @@ def pcluster_handler(event, _context=None):
 
 def dra_check_handler(event, _context=None):
     """
-    1. Check which clusters are pending (claimed=False) creation and have include_lustre=True
+    1. Check which clusters are pending (provisioning_launched=False) creation and have include_lustre=True
     2. For each of them:
         check whether any DRAs are still pending
         if not: call do_cluster_create
