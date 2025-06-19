@@ -302,42 +302,34 @@ def list_existing_stacks(cf_client):
     return existing_stack_names
 
 
-def get_fsx_name(shared: bool, fs_name: str, cluster: Optional[Cluster]) -> str:
-    if shared:
-        return fs_name
-    else:
-        return f"{fs_name}-{cluster.name}"
+def get_fsx_name(fs_name: str, cluster: Optional[Cluster]) -> str:
+    return f"{fs_name}-{cluster.name}"
 
 
 def create_fsx(
     fsx_client,
     fs_name: str,
-    shared: bool = True,
     cluster: Optional[Cluster] = None,
 ) -> Dict:
     """
     Create an FSX filesystem if it doesn't exist yet
 
     :param fs_name: name to identify the filesystem (e.g. "scratch", "projects", ...)
-    :param shared: whether the filesystem is shared among all pclusters or specific to one cluster
     :param vlab_id: vlab of the cluster to which the filesystem will be attached.
     :param project_id: project of the cluster to which the filesystem will be attached.
     """
 
     logger.debug(
-        f"Creating fsx with name {fs_name}, shared {shared}, and cluster {cluster}",
+        f"Creating fsx with name {fs_name} and cluster {cluster}",
     )
     tags = [
         {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+        {"Key": VLAB_TAG_KEY, "Value": cluster.vlab_id},
+        {"Key": PROJECT_TAG_KEY, "Value": cluster.project_id},
     ]
-    token = get_fsx_name(shared, fs_name, cluster)
+    token = get_fsx_name(fs_name, cluster)
     logger.debug(f"Token: {token}")
     tags.append({"Key": "Name", "Value": token})
-
-    if not shared:
-        tags.append({"Key": VLAB_TAG_KEY, "Value": cluster.vlab_id})
-        tags.append({"Key": PROJECT_TAG_KEY, "Value": cluster.project_id})
-
     logger.debug(f"Tags: {tags}")
 
     fs = fsx_client.create_file_system(
@@ -405,8 +397,8 @@ def list_all_dras_for_fsx(fsx_client, filesystem_id) -> list:
     ).get("Associations", [])
 
 
-def get_fsx(fsx_client, shared: bool, fs_name: str, cluster: Cluster) -> Optional[dict]:
-    full_fs_name = get_fsx_name(shared, fs_name, cluster)
+def get_fsx(fsx_client, fs_name: str, cluster: Cluster) -> Optional[dict]:
+    full_fs_name = get_fsx_name(fs_name, cluster)
     for fsx in list_all_fsx(fsx_client):
         if any([t["Value"] == full_fs_name for t in fsx["Tags"] if t["Key"] == "Name"]):
             return fsx
