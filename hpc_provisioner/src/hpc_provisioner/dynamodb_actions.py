@@ -99,7 +99,9 @@ def free_subnet(dynamodb_client, subnet_id: str) -> None:
 
 def get_unclaimed_clusters(dynamodb_resource) -> list:
     table = dynamodb_resource.Table(CLUSTER_TABLE_NAME)
-    result = table.query(IndexName="ClaimIndex", KeyConditionExpression=Key("claimed").eq(0))
+    result = table.query(
+        IndexName="ClaimIndex", KeyConditionExpression=Key("provisioning_launched").eq(0)
+    )
     logger.debug(f"Clusters in dynamo: {result}")
     retval = []
     for item in result.get("Items", []):
@@ -136,7 +138,7 @@ def _update_cluster_claim(dynamodb_resource, cluster: Cluster, new_value: int) -
     if not stored_cluster:
         raise ClusterNotRegistered(f"Cluster {cluster} is not registered - cannot claim it")
 
-    if stored_cluster.get("claimed") == new_value:
+    if stored_cluster.get("provisioning_launched") == new_value:
         raise ClusterAlreadyInClaimState(f"Cluster {cluster} already has claim state {new_value}")
 
     table = dynamodb_resource.Table(CLUSTER_TABLE_NAME)

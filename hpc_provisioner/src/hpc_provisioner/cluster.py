@@ -2,7 +2,7 @@ import copy
 from json import JSONEncoder
 from typing import Optional
 
-BOOL_VALUES = ["benchmark", "dev", "include_lustre", "claimed"]
+BOOL_VALUES = ["benchmark", "dev", "include_lustre", "provisioning_launched"]
 
 
 class ClusterJSONEncoder(JSONEncoder):
@@ -19,7 +19,7 @@ class Cluster:
     admin_ssh_key_name: Optional[str]
     tier: str
     vlab_id: str
-    claimed: bool
+    provisioning_launched: bool
 
     def __init__(
         self,
@@ -31,7 +31,7 @@ class Cluster:
         include_lustre: bool = True,
         sim_pubkey: Optional[str] = None,
         admin_ssh_key_name: Optional[str] = None,
-        claimed: bool = False,
+        provisioning_launched: bool = False,
     ):
         self.benchmark = benchmark
         self.dev = dev
@@ -44,7 +44,7 @@ class Cluster:
             self.admin_ssh_key_name = admin_ssh_key_name
         else:
             self.admin_ssh_key_name = self.name
-        self.claimed = claimed
+        self.provisioning_launched = provisioning_launched
 
     @property
     def name(self):

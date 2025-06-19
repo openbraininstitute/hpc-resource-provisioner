@@ -105,5 +105,5 @@ def test_get_unclaimed_clusters():
         benchmark=True,
         dev=True,
         include_lustre=False,
-        claimed=False,
+        provisioning_launched=False,
     )
