@@ -2,10 +2,13 @@ import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+from hpc_provisioner.cluster import Cluster
 from hpc_provisioner.dynamodb_actions import (
     SubnetAlreadyRegisteredException,
     free_subnet,
     get_subnet,
+    get_unclaimed_clusters,
     register_subnet,
 )
 
@@ -71,4 +74,36 @@ def test_free_subnet():
     free_subnet(mock_dynamodb_client, subnet_id)
     mock_dynamodb_client.delete_item.assert_called_once_with(
         TableName="sbo-parallelcluster-subnets", Key={"subnet_id": {"S": subnet_id}}
+    )
+
+
+def test_get_unclaimed_clusters():
+    mock_dynamodb_resource = MagicMock()
+    mock_table = MagicMock()
+    mock_table.query.return_value = {
+        "Items": [
+            {
+                "name": "pcluster-test-dynamo_actions",
+                "benchmark": 1,
+                "dev": 1,
+                "include_lustre": 0,
+                "project_id": "dynamo_actions",
+                "sim_pubkey": None,
+                "admin_ssh_key_name": None,
+                "tier": "debug",
+                "vlab_id": "test",
+                "claimed": 0,
+            }
+        ]
+    }
+    mock_dynamodb_resource.Table.return_value = mock_table
+    unclaimed_clusters = get_unclaimed_clusters(mock_dynamodb_resource)
+    assert unclaimed_clusters[0] == Cluster(
+        project_id="dynamo_actions",
+        vlab_id="test",
+        tier="debug",
+        benchmark=True,
+        dev=True,
+        include_lustre=False,
+        claimed=False,
     )
