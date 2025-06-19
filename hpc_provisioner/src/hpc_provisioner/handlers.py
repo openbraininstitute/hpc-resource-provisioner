@@ -16,7 +16,7 @@ from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
     BILLING_TAG_VALUE,
     DEFAULTS,
-    FILESYSTEMS,
+    DRAS,
     PROJECT_TAG_KEY,
     VLAB_TAG_KEY,
 )
@@ -108,7 +108,7 @@ def dra_check_handler(event, _context=None):
             response[cluster.name] = msg
         else:
             logger.debug(f"No filesystems being created - precreating for {cluster.name}")
-            creating_fsx = fsx_precreate(cluster=cluster, filesystems=FILESYSTEMS)
+            creating_fsx = fsx_precreate(cluster=cluster, filesystems=DRAS)
             if creating_fsx:
                 msg = f"Precreating fsx for cluster {cluster.name}"
             else:
@@ -125,9 +125,9 @@ def pcluster_do_create_handler(event, _context=None):
     logger.debug(f"event: {event}, _context: {_context}")
     cluster = Cluster.from_dict(event["cluster"])
     if not cluster.include_lustre:
-        for fs in FILESYSTEMS:
-            fs["expected"] = False
-    pcluster_create(cluster, FILESYSTEMS)
+        for dra in DRAS:
+            dra["expected"] = False
+    pcluster_create(cluster, DRAS)
 
 
 def pcluster_create_request_handler(event, _context=None):

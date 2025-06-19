@@ -35,7 +35,7 @@ from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
     BILLING_TAG_VALUE,
     CONFIG_VALUES,
-    FILESYSTEMS,
+    DRAS,
     PCLUSTER_CONFIG_TPL,
     PCLUSTER_DEV_CONFIG_TPL,
     PROJECT_TAG_KEY,
@@ -173,28 +173,29 @@ def fsx_precreate(cluster: Cluster, filesystems: list) -> bool:
     """
     fsx_client = boto3.client("fsx")
     logger.debug(f"Precreating filesystems for {cluster.name}")
-    for filesystem in filesystems:
-        logger.debug(f"Checking for filesystem {filesystem}")
-        fs = get_fsx(
-            fsx_client=fsx_client, shared=True, fs_name=filesystem["name"], cluster=cluster
-        )
-        if not fs:
-            logger.debug(f"Creating filesystem {filesystem}")
-            fs = create_fsx(
-                fsx_client=fsx_client,
-                fs_name=filesystem["name"],
-                shared=filesystem["shared"],
-                cluster=cluster,
-            )["FileSystem"]
-            logger.debug("Creating DRA")
+    fs = get_fsx(fsx_client=fsx_client, fs_name=cluster.name, cluster=cluster)
+    if not fs:
+        logger.debug(f"Creating filesystem for {cluster.name}")
+        fs = create_fsx(
+            fsx_client=fsx_client,
+            fs_name=cluster.name,
+            cluster=cluster,
+        )["FileSystem"]
+        logger.debug("Creating DRA")
+    for dra in filesystems:
+        if get_dra(
+            fsx_client=fsx_client, filesystem_id=fs["FileSystemId"], mountpoint=dra["mountpoint"]
+        ):
+            continue
+        else:
             create_dra(
                 fsx_client=fsx_client,
                 filesystem_id=fs["FileSystemId"],
-                mountpoint=filesystem["mountpoint"],
-                bucket=get_fs_bucket(filesystem["name"], cluster),
+                mountpoint=dra["mountpoint"],
+                bucket=get_fs_bucket(dra["name"], cluster),
                 vlab_id=cluster.vlab_id,
                 project_id=cluster.project_id,
-                writable=filesystem["writable"],
+                writable=dra["writable"],
             )
             return True
 
@@ -238,7 +239,6 @@ def pcluster_create(cluster: Cluster, filesystems: list):
         if filesystem.get("expected", True):
             fs = get_fsx(
                 fsx_client=fsx_client,
-                shared=filesystem["shared"],
                 fs_name=filesystem["name"],
                 cluster=cluster,
             )
@@ -313,21 +313,19 @@ def all_dras_for_cluster_done(cluster: Cluster) -> bool:
     logger.debug(f"Checking all DRAs for cluster: {cluster}")
     if cluster.include_lustre:
         fsx_client = boto3.client("fsx")
-        for filesystem in FILESYSTEMS:
-            logger.debug(f"Getting fs {filesystem['name']}")
-            fsx = get_fsx(
-                fsx_client, shared=filesystem["shared"], fs_name=filesystem["name"], cluster=cluster
-            )
+        for dra_data in DRAS:
+            logger.debug(f"Getting fs {dra_data['name']}")
+            fsx = get_fsx(fsx_client, fs_name=dra_data["name"], cluster=cluster)
             if not fsx or fsx["Lifecycle"] != "AVAILABLE":
-                logger.debug(f"Filesystem {filesystem['name']} not found or not ready yet")
+                logger.debug(f"Filesystem {dra_data['name']} not found or not ready yet")
                 return False
-            dra = get_dra(
+            created_dra = get_dra(
                 fsx_client=fsx_client,
                 filesystem_id=fsx["FileSystemId"],
-                mountpoint=filesystem["mountpoint"],
+                mountpoint=dra_data["mountpoint"],
             )
-            if not dra or dra["Lifecycle"] != "AVAILABLE":
-                logger.debug(f"DRA for fileysstem {filesystem['name']} not found or not ready yet")
+            if not created_dra or created_dra["Lifecycle"] != "AVAILABLE":
+                logger.debug(f"DRA for filesystem {dra_data['name']} not found or not ready yet")
                 return False
     logger.debug(f"All filesystems for cluster{cluster.name} ready!")
     return True
@@ -373,7 +371,7 @@ def do_cluster_create(cluster):
     """Actually create the cluster - it assumes that all the necessary filesystems have been created"""
     # if cluster.include_lustre:
     #     logger.debug(f"precreate filesystems for cluster {cluster.name}")
-    #     if fsx_precreate(cluster, FILESYSTEMS):
+    #     if fsx_precreate(cluster, DRAS):
     #         logger.debug("Created FSx - not proceeding to cluster creation yet")
     #         create_eventbridge_dra_checking_rule(eb_client=boto3.client("events"))
     #         return
@@ -381,11 +379,11 @@ def do_cluster_create(cluster):
     #         logger.debug("All FSx filesystems created - proceeding to cluster create")
     # else:
     #     # the filesystems don't really need to exist - later code will check for this
-    #     for fs in FILESYSTEMS:
+    #     for fs in DRAS:
     #         fs["expected"] = False
 
     logger.debug(f"create pcluster {cluster.name}")
     claim_cluster(dynamodb_resource(), cluster)
     return call_async_lambda(cluster)
-    # pcluster_create(cluster, FILESYSTEMS)
+    # pcluster_create(cluster, DRA)
     # logger.debug(f"created pcluster {cluster.name}")
