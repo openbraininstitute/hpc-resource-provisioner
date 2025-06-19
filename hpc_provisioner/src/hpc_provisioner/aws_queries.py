@@ -503,3 +503,23 @@ def create_eventbridge_target(eb_client):
             },
         ],
     )
+
+
+def delete_eventbridge_dra_checking_rule(eb_client):
+    logger.debug("Deleting eventbridge DRA checking rule")
+    existing_targets = eb_client.list_targets_by_rule(Rule=DRA_CHECKING_RULE_NAME).get(
+        "Targets", []
+    )
+    if len(existing_targets) > 0:
+        logger.debug(f"Clearing targets first: {existing_targets}")
+        eb_client.remove_targets(
+            Rule=DRA_CHECKING_RULE_NAME, Ids=[target["Id"] for target in existing_targets]
+        )
+
+    logger.debug("Deleting rule")
+    response = eb_client.delete_rule(Name=DRA_CHECKING_RULE_NAME)
+    logger.debug(f"Delete response: {response}")
+
+
+def delete_fsx(fsx_client, filesystem_id: str) -> None:
+    fsx_client.delete_file_system(FileSystemId=filesystem_id, ClientRequestToken=filesystem_id)
