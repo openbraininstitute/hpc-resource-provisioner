@@ -430,7 +430,7 @@ def test_http_method_not_specified():
     response = handlers.pcluster_handler({})
     assert response == {
         "statusCode": 400,
-        "body": "Could not determine HTTP method - make sure to GET, POST or DELETE",
+        "body": "Unclear what to do with event {}",
     }
 
 
@@ -450,7 +450,7 @@ def test_load_tier(tier, is_valid):
 
 
 @patch("hpc_provisioner.handlers.dynamodb_resource")
-@patch("hpc_provisioner.handlers.boto3")
+@patch("hpc_provisioner.pcluster_manager.boto3")
 @patch("hpc_provisioner.handlers.do_cluster_create")
 def test_dra_check_no_fs_created_yet(
     patched_do_cluster_create, patched_boto3, patched_dynamodb_resource
