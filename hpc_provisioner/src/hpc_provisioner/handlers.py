@@ -8,7 +8,10 @@ import boto3
 from pcluster.api.errors import NotFoundException
 
 from hpc_provisioner.aws_queries import (
+    create_eventbridge_dra_checking_rule,
     create_keypair,
+    delete_eventbridge_dra_checking_rule,
+    eventbridge_dra_checking_rule_exists,
     store_private_key,
 )
 from hpc_provisioner.cluster import Cluster
@@ -115,6 +118,9 @@ def dra_check_handler(event, _context=None):
                 msg = "No filesystems to create"
             response[cluster.name] = msg
 
+    if len(get_unclaimed_clusters(dynamodb_resource=dynamodb_resource)) == 0:
+        eb_client = boto3.client("events")
+        delete_eventbridge_dra_checking_rule(eb_client)
     return response_json(response)
 
 
@@ -193,6 +199,10 @@ def pcluster_create_request_handler(event, _context=None):
             f"Something went wrong retrieving the sim user private key: {sim_user_secret['ARN']}"
         )
     logger.debug(f"Cluster: {cluster}")
+
+    eb_client = boto3.client("events")
+    if not eventbridge_dra_checking_rule_exists(eb_client=eb_client):
+        create_eventbridge_dra_checking_rule(eb_client=eb_client)
 
     return response_json(response)
 

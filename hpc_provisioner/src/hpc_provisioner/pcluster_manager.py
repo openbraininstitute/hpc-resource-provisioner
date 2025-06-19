@@ -18,6 +18,7 @@ from pcluster.api.errors import CreateClusterBadRequestException, InternalServic
 from hpc_provisioner.aws_queries import (
     create_dra,
     create_fsx,
+    delete_fsx,
     get_available_subnet,
     get_dra,
     get_efs,
@@ -301,6 +302,10 @@ def pcluster_describe(cluster: Cluster):
 def pcluster_delete(cluster: Cluster):
     """Destroy a cluster, given the vlab_id and project_id"""
     release_subnets(cluster.name)
+    fsx_client = boto3.client("fsx")
+    fs = get_fsx(fsx_client=fsx_client, fs_name=cluster.name, cluster=cluster)
+    if fs:
+        delete_fsx(fsx_client, fs["FileSystemId"])
     remove_key(get_keypair_name(cluster))
     remove_key(get_keypair_name(cluster, "sim"))
     return pc.delete_cluster(cluster_name=cluster.name, region=REGION)
