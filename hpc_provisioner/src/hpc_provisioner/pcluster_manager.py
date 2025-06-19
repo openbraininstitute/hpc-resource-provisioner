@@ -304,9 +304,11 @@ def all_dras_for_cluster_done(cluster: Cluster) -> bool:
     """
     Check whether all filesystems for the cluster are created and their DRAs all available
     """
+    logger.debug(f"Checking all DRAs for cluster: {cluster}")
     if cluster.include_lustre:
         fsx_client = boto3.client("fsx")
         for filesystem in FILESYSTEMS:
+            logger.debug(f"Getting fs {filesystem['name']}")
             fsx = get_fsx(
                 fsx_client, shared=filesystem["shared"], fs_name=filesystem["name"], cluster=cluster
             )
