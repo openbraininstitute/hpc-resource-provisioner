@@ -113,7 +113,7 @@ def dra_check_handler(event, _context=None):
                 msg = f"Precreating fsx for cluster {cluster.name}"
             else:
                 msg = "No filesystems to create"
-                response[cluster.name] = msg
+            response[cluster.name] = msg
 
     return response_json(response)
 
