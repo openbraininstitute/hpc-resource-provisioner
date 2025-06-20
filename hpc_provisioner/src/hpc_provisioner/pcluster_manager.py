@@ -174,7 +174,7 @@ def fsx_precreate(cluster: Cluster, filesystems: list) -> bool:
     """
     fsx_client = boto3.client("fsx")
     logger.debug(f"Precreating filesystems for {cluster.name}")
-    fs = get_fsx(fsx_client=fsx_client, fs_name=cluster.name, cluster=cluster)
+    fs = get_fsx(fsx_client=fsx_client, fs_name=cluster.name)
     if not fs:
         logger.debug(f"Creating filesystem for {cluster.name}")
         fs = create_fsx(
@@ -240,8 +240,7 @@ def pcluster_create(cluster: Cluster, filesystems: list):
         if filesystem.get("expected", True):
             fs = get_fsx(
                 fsx_client=fsx_client,
-                fs_name=filesystem["name"],
-                cluster=cluster,
+                fs_name=cluster.name,
             )
             if not fs:
                 raise RuntimeError(f"Filesystem {filesystem} not created when it should have been")
@@ -303,7 +302,7 @@ def pcluster_delete(cluster: Cluster):
     """Destroy a cluster, given the vlab_id and project_id"""
     release_subnets(cluster.name)
     fsx_client = boto3.client("fsx")
-    fs = get_fsx(fsx_client=fsx_client, fs_name=cluster.name, cluster=cluster)
+    fs = get_fsx(fsx_client=fsx_client, fs_name=cluster.name)
     if fs:
         delete_fsx(fsx_client, fs["FileSystemId"])
     remove_key(get_keypair_name(cluster))
@@ -320,7 +319,7 @@ def all_dras_for_cluster_done(cluster: Cluster) -> bool:
         fsx_client = boto3.client("fsx")
         for dra_data in DRAS:
             logger.debug(f"Getting fs {dra_data['name']}")
-            fsx = get_fsx(fsx_client, fs_name=dra_data["name"], cluster=cluster)
+            fsx = get_fsx(fsx_client, fs_name=cluster.name)
             if not fsx or fsx["Lifecycle"] != "AVAILABLE":
                 logger.debug(f"Filesystem {dra_data['name']} not found or not ready yet")
                 return False

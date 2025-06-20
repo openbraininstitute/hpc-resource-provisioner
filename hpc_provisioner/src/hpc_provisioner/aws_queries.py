@@ -302,10 +302,6 @@ def list_existing_stacks(cf_client):
     return existing_stack_names
 
 
-def get_fsx_name(fs_name: str, cluster: Optional[Cluster]) -> str:
-    return f"{fs_name}-{cluster.name}"
-
-
 def create_fsx(
     fsx_client,
     fs_name: str,
@@ -327,13 +323,11 @@ def create_fsx(
         {"Key": VLAB_TAG_KEY, "Value": cluster.vlab_id},
         {"Key": PROJECT_TAG_KEY, "Value": cluster.project_id},
     ]
-    token = get_fsx_name(fs_name, cluster)
-    logger.debug(f"Token: {token}")
-    tags.append({"Key": "Name", "Value": token})
+    tags.append({"Key": "Name", "Value": fs_name})
     logger.debug(f"Tags: {tags}")
 
     fs = fsx_client.create_file_system(
-        ClientRequestToken=token,
+        ClientRequestToken=fs_name,
         FileSystemType="LUSTRE",
         StorageCapacity=19200,
         StorageType="SSD",
@@ -397,10 +391,9 @@ def list_all_dras_for_fsx(fsx_client, filesystem_id) -> list:
     ).get("Associations", [])
 
 
-def get_fsx(fsx_client, fs_name: str, cluster: Cluster) -> Optional[dict]:
-    full_fs_name = get_fsx_name(fs_name, cluster)
+def get_fsx(fsx_client, fs_name: str) -> Optional[dict]:
     for fsx in list_all_fsx(fsx_client):
-        if any([t["Value"] == full_fs_name for t in fsx["Tags"] if t["Key"] == "Name"]):
+        if any([t["Value"] == fs_name for t in fsx["Tags"] if t["Key"] == "Name"]):
             return fsx
     return None
 
