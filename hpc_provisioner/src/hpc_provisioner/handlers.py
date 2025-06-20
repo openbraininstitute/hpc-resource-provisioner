@@ -130,10 +130,7 @@ def pcluster_do_create_handler(event, _context=None):
     """
     logger.debug(f"event: {event}, _context: {_context}")
     cluster = Cluster.from_dict(event["cluster"])
-    if not cluster.include_lustre:
-        for dra in DRAS:
-            dra["expected"] = False
-    pcluster_create(cluster, DRAS)
+    pcluster_create(cluster)
 
 
 def pcluster_create_request_handler(event, _context=None):
