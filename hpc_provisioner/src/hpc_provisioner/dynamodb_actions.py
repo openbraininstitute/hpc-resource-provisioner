@@ -1,6 +1,6 @@
 import logging
 import logging.config
-from typing import Optional
+from typing import Optional, Union
 
 import boto3
 from boto3.dynamodb.conditions import Key
@@ -133,25 +133,35 @@ def delete_cluster(dynamodb_resource, cluster: Cluster) -> None:
     table.delete_item(Key={"name": cluster.name})
 
 
-def _update_cluster_claim(dynamodb_resource, cluster: Cluster, new_value: int) -> None:
+def _update_cluster_field(
+    dynamodb_resource, cluster: Cluster, update_field: str, new_value: Union[int, str]
+) -> None:
     stored_cluster = get_cluster_by_name(dynamodb_resource, cluster.name)
     if not stored_cluster:
-        raise ClusterNotRegistered(f"Cluster {cluster} is not registered - cannot claim it")
+        raise ClusterNotRegistered(f"Cluster {cluster} is not registered - cannot update it")
 
-    if stored_cluster.get("provisioning_launched") == new_value:
-        raise ClusterAlreadyInClaimState(f"Cluster {cluster} already has claim state {new_value}")
+    if update_field == "provisioning_launched" and stored_cluster.get(update_field) == new_value:
+        raise ClusterAlreadyInClaimState(
+            f"Cluster {cluster} already has {update_field} set to {new_value}"
+        )
 
     table = dynamodb_resource.Table(CLUSTER_TABLE_NAME)
     table.update_item(
         Key={"name": cluster.name},
-        UpdateExpression="SET provisioning_launched = :claim",
-        ExpressionAttributeValues={":claim": new_value},
+        UpdateExpression=f"SET {update_field} = :new_value",
+        ExpressionAttributeValues={":new_value": new_value},
     )
 
 
 def claim_cluster(dynamodb_resource, cluster: Cluster) -> None:
-    _update_cluster_claim(dynamodb_resource, cluster, 1)
+    _update_cluster_field(dynamodb_resource, cluster, "provisioning_launched", 1)
 
 
 def release_cluster(dynamodb_resource, cluster: Cluster) -> None:
-    _update_cluster_claim(dynamodb_resource, cluster, 0)
+    _update_cluster_field(dynamodb_resource, cluster, "provisioning_launched", 0)
+
+
+def set_cluster_sim_user_ssh_key(
+    dynamodb_resource, cluster: Cluster, sim_user_ssh_key: str
+) -> None:
+    _update_cluster_field(dynamodb_resource, cluster, "sim_pubkey", sim_user_ssh_key)
