@@ -118,7 +118,7 @@ def dra_check_handler(event, _context=None):
                 msg = "No filesystems to create"
             response[cluster.name] = msg
 
-    if len(get_unclaimed_clusters(dynamodb_resource=dynamodb_resource)) == 0:
+    if len(get_unclaimed_clusters(dynamodb_resource=dynamo)) == 0:
         eb_client = boto3.client("events")
         delete_eventbridge_dra_checking_rule(eb_client)
     return response_json(response)
