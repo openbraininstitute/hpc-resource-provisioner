@@ -105,6 +105,20 @@ def create_secret(sm_client, vlab_id, project_id, secret_name, secret_value):
     return secret
 
 
+def get_secrets_for_cluster(sm_client, cluster_name: str) -> dict:
+    response = {"ssh_user": "sim"}
+    for secret_data in [
+        {"response_key": "admin_user_private_ssh_key_arn", "secret_suffix": ""},
+        {"response_key": "private_ssh_key_arn", "secret_suffix": "_sim"},
+    ]:
+        secret = get_secret(
+            sm_client=sm_client, secret_name=f"{cluster_name}{secret_data['secret_suffix']}"
+        )
+        response[secret_data["response_key"]] = secret["ARN"]
+
+    return response
+
+
 def get_secret(sm_client, secret_name):
     existing_secrets = sm_client.list_secrets(Filters=[{"Key": "name", "Values": [secret_name]}])
     if secret_list := existing_secrets.get("SecretList", []):
