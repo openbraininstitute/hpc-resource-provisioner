@@ -11,6 +11,7 @@ from hpc_provisioner.aws_queries import (
     create_eventbridge_dra_checking_rule,
     create_keypair,
     eventbridge_dra_checking_rule_exists,
+    get_secrets_for_cluster,
     store_private_key,
 )
 from hpc_provisioner.cluster import Cluster
@@ -208,15 +209,24 @@ def pcluster_create_request_handler(event, _context=None):
 
 def pcluster_describe_handler(event, _context=None):
     """Describe a cluster given the vlab_id and project_id"""
+    sm_client = boto3.client("secretsmanager")
     try:
         cluster = _get_vlab_query_params(event)
     except InvalidRequest:
         logger.debug("No vlab_id specified - listing pclusters")
         pc_output = pcluster_list()
+        for pcluster in pc_output["clusters"]:
+            cluster_secrets = get_secrets_for_cluster(
+                sm_client=sm_client, cluster_name=pcluster["clusterName"]
+            )
+            pcluster.update(cluster_secrets)
     else:
         logger.debug(f"describe pcluster {cluster}")
         try:
             pc_output = pcluster_describe(cluster)
+            pc_output.update(
+                get_secrets_for_cluster(sm_client=sm_client, cluster_name=cluster.name)
+            )
             logger.debug(f"described pcluster {cluster}")
         except NotFoundException as e:
             return {"statusCode": 404, "body": e.content.message}
