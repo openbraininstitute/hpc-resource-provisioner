@@ -30,6 +30,7 @@ from hpc_provisioner.dynamodb_actions import (
     get_cluster_by_name,
     get_unclaimed_clusters,
     register_cluster,
+    set_cluster_sim_user_ssh_key,
 )
 from hpc_provisioner.utils import (
     generate_public_key,
@@ -192,6 +193,7 @@ def pcluster_create_request_handler(event, _context=None):
 
     if key_material := sm_client.get_secret_value(SecretId=sim_user_secret["ARN"]):
         cluster.sim_pubkey = generate_public_key(key_material["SecretString"])
+        set_cluster_sim_user_ssh_key(dynamo, cluster, cluster.sim_pubkey)
     else:
         raise RuntimeError(
             f"Something went wrong retrieving the sim user private key: {sim_user_secret['ARN']}"
