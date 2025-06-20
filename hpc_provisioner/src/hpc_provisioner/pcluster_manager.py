@@ -203,7 +203,7 @@ def fsx_precreate(cluster: Cluster, filesystems: list) -> bool:
     return False
 
 
-def pcluster_create(cluster: Cluster, filesystems: list):
+def pcluster_create(cluster: Cluster):
     """Create a pcluster for a given vlab
 
     Args:
@@ -236,22 +236,22 @@ def pcluster_create(cluster: Cluster, filesystems: list):
 
     populate_config(cluster=cluster, create_users_args=create_users_args)
     fsx_client = boto3.client("fsx")
-    for filesystem in filesystems:
-        if filesystem.get("expected", True):
-            fs = get_fsx(
-                fsx_client=fsx_client,
-                fs_name=cluster.name,
-            )
-            if not fs:
-                raise RuntimeError(f"Filesystem {filesystem} not created when it should have been")
-            CONFIG_VALUES["fsx"] = {
-                "Name": filesystem["name"],
-                "StorageType": "FsxLustre",
-                "MountDir": filesystem["mountpoint"],
-                "FsxLustreSettings": {"FileSystemId": fs["FileSystemId"]},
-            }
-        else:
-            CONFIG_VALUES["fsx"] = {}
+    if cluster.include_lustre:
+        fs = get_fsx(
+            fsx_client=fsx_client,
+            fs_name=cluster.name,
+        )
+
+        if not fs:
+            raise RuntimeError(f"Filesystem {cluster.name} not created when it should have been")
+        CONFIG_VALUES["fsx"] = {
+            "Name": next(tag for tag in fs["Tags"] if tag["Key"] == "Name")["Value"],
+            "MountDir": "/obi/data",
+            "StorageType": "FsxLustre",
+            "FsxLustreSettings": {"FileSystemId": fs["FileSystemId"]},
+        }
+    else:
+        CONFIG_VALUES["fsx"] = {}
 
     pcluster_config = load_pcluster_config(cluster.dev)
     if not cluster.include_lustre:
