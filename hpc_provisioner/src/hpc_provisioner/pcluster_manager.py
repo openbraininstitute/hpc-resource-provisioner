@@ -244,14 +244,14 @@ def pcluster_create(cluster: Cluster, filesystems: list):
             )
             if not fs:
                 raise RuntimeError(f"Filesystem {filesystem} not created when it should have been")
-            CONFIG_VALUES[f"{filesystem['name']}_fsx"] = {
+            CONFIG_VALUES["fsx"] = {
                 "Name": filesystem["name"],
                 "StorageType": "FsxLustre",
                 "MountDir": filesystem["mountpoint"],
                 "FsxLustreSettings": {"FileSystemId": fs["FileSystemId"]},
             }
         else:
-            CONFIG_VALUES[f"{filesystem['name']}_fsx"] = {}
+            CONFIG_VALUES["fsx"] = {}
 
     pcluster_config = load_pcluster_config(cluster.dev)
     if not cluster.include_lustre:
