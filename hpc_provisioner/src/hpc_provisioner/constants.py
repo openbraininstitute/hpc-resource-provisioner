@@ -23,12 +23,12 @@ DRA_CHECKING_RULE_NAME = "resource_provisioner_check_for_dra"
 DRAS = [
     {
         "name": "projects",
-        "mountpoint": "/sbo/data/projects",
+        "mountpoint": "/projects",
         "writable": False,
     },
     {
         "name": "scratch",
-        "mountpoint": "/sbo/data/scratch",
+        "mountpoint": "/scratch",
         "writable": True,
     },
 ]
