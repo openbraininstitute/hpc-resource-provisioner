@@ -493,14 +493,16 @@ def create_eventbridge_dra_checking_rule(eb_client):
 
 
 def create_eventbridge_target(eb_client):
+    target = {
+        "Id": "hpc-resource-provisioner",
+        "Arn": f"{get_api_gw_arn()}production/POST/hpc-provisioner/dra",
+        "RoleArn": get_eventbridge_role_arn(),
+    }
+    logger.debug(f"Creating eventbridge target: {target}")
     eb_client.put_targets(
         Rule=DRA_CHECKING_RULE_NAME,
         Targets=[
-            {
-                "Id": "hpc-resource-provisioner",
-                "Arn": f"{get_api_gw_arn()}production/POST/hpc-provisioner/dra",
-                "RoleArn": get_eventbridge_role_arn(),
-            },
+            target,
         ],
     )
 
