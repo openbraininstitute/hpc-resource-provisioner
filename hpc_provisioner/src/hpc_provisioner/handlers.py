@@ -27,6 +27,7 @@ from hpc_provisioner.dynamodb_actions import (
     ClusterAlreadyRegistered,
     delete_cluster,
     dynamodb_resource,
+    get_cluster_by_name,
     get_unclaimed_clusters,
     register_cluster,
 )
@@ -220,11 +221,24 @@ def pcluster_describe_handler(event, _context=None):
     else:
         logger.debug(f"describe pcluster {cluster}")
         try:
-            pc_output = pcluster_describe(cluster)
-            pc_output.update(
-                get_secrets_for_cluster(sm_client=sm_client, cluster_name=cluster.name)
+            dynamo_output = get_cluster_by_name(
+                dynamodb_resource=dynamodb_resource(), cluster_name=cluster.name
             )
-            logger.debug(f"described pcluster {cluster}")
+            if dynamo_output and dynamo_output.get("provisioning_launched", 0) == 0:
+                cluster_from_dynamo = Cluster.from_dynamo_dict(dynamo_output)
+                pc_output = cluster_from_dynamo.as_dict()
+                cluster_secrets = get_secrets_for_cluster(
+                    sm_client=sm_client, cluster_name=cluster_from_dynamo.name
+                )
+                pc_output.update(cluster_secrets)
+
+            else:
+                pc_output = pcluster_describe(cluster)
+                pc_output.update(
+                    get_secrets_for_cluster(sm_client=sm_client, cluster_name=cluster.name)
+                )
+                logger.debug(f"described pcluster {cluster}")
+
         except NotFoundException as e:
             return {"statusCode": 404, "body": e.content.message}
         except Exception as e:
