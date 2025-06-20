@@ -7,20 +7,42 @@ from importlib.metadata import version
 import boto3
 from pcluster.api.errors import NotFoundException
 
-from hpc_provisioner.aws_queries import create_keypair, list_existing_stacks, store_private_key
-from hpc_provisioner.cluster import Cluster, ClusterJSONEncoder
+from hpc_provisioner.aws_queries import (
+    create_eventbridge_dra_checking_rule,
+    create_keypair,
+    eventbridge_dra_checking_rule_exists,
+    get_secrets_for_cluster,
+    store_private_key,
+)
+from hpc_provisioner.cluster import Cluster
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
     BILLING_TAG_VALUE,
     DEFAULTS,
+    DRAS,
     PROJECT_TAG_KEY,
     VLAB_TAG_KEY,
 )
-from hpc_provisioner.utils import generate_public_key, get_suffix
+from hpc_provisioner.dynamodb_actions import (
+    ClusterAlreadyRegistered,
+    delete_cluster,
+    dynamodb_resource,
+    get_cluster_by_name,
+    get_unclaimed_clusters,
+    register_cluster,
+    set_cluster_sim_user_ssh_key,
+)
+from hpc_provisioner.utils import (
+    generate_public_key,
+)
 
 from .logging_config import LOGGING_CONFIG
 from .pcluster_manager import (
     InvalidRequest,
+    all_dras_for_cluster_done,
+    any_fs_creating,
+    do_cluster_create,
+    fsx_precreate,
     pcluster_create,
     pcluster_delete,
     pcluster_describe,
@@ -31,50 +53,106 @@ logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("hpc-resource-provisioner")
 
 
-def pcluster_do_create_handler(event, _context=None):
-    logger.debug(f"event: {event}, _context: {_context}")
-    cluster = Cluster.from_dict(event["cluster"])
-
-    logger.debug(f"handler: create pcluster {cluster}")
-    pcluster_create(cluster)
-    logger.debug(f"created pcluster {cluster}")
-
-
 def pcluster_handler(event, _context=None):
     """
     * Check whether we have a GET, a POST or a DELETE method
     * Pass on to pcluster_*_handler
     """
+    logger.debug(f"pcluster handler: event: {event}")
     if event.get("httpMethod"):
         if event["httpMethod"] == "GET":
             if event["path"] == "/hpc-provisioner/pcluster":
                 logger.debug("GET pcluster")
-                return pcluster_describe_handler(event, _context)
+                response = pcluster_describe_handler(event, _context)
             elif event["path"] == "/hpc-provisioner/version":
                 logger.debug("GET version")
-                return response_text(text=version("hpc_provisioner"))
+                response = response_text(text=version("hpc_provisioner"))
+            else:
+                response = response_text(f"Unclear what to do with GET {event['path']}", code=400)
         elif event["httpMethod"] == "POST":
-            logger.debug("POST pcluster")
-            return pcluster_create_request_handler(event, _context)
+            logger.debug(
+                f"POST with path {event['path']} startswith /hpc-provisioner/dra: {event['path'].startswith('/hpc-provisioner/dra')}"
+            )
+            if event["path"] == "/hpc-provisioner/pcluster":
+                logger.debug("POST pcluster")
+                response = pcluster_create_request_handler(event, _context)
+            elif event["path"].startswith("/hpc-provisioner/dra"):
+                logger.debug("POST DRA")
+                response = dra_check_handler(event, _context)
+            else:
+                response = response_text(f"Unclear what to do with POST {event['path']}", code=400)
         elif event["httpMethod"] == "DELETE":
             logger.debug("DELETE pcluster")
-            return pcluster_delete_handler(event, _context)
+            response = pcluster_delete_handler(event, _context)
         else:
-            return response_text(f"{event['httpMethod']} not supported", code=400)
+            response = response_text(f"{event['httpMethod']} not supported", code=400)
+    else:
+        response = response_text(f"Unclear what to do with event {event}", code=400)
+    logger.debug(f"Response: {response}")
+    return response
 
-    return response_text(
-        "Could not determine HTTP method - make sure to GET, POST or DELETE", code=400
-    )
+
+def dra_check_handler(event, _context=None):
+    """
+    1. Check which clusters are pending (provisioning_launched=False) creation and have include_lustre=True
+    2. For each of them:
+        check whether any DRAs are still pending
+        if not: call do_cluster_create
+    """
+    logger.debug(f"event: {event}, _context: {_context}")
+    dynamo = dynamodb_resource()
+    response = {}
+    for cluster in get_unclaimed_clusters(dynamodb_resource=dynamo):
+        logger.debug(f"Unclaimed cluster: {cluster}")
+        if all_dras_for_cluster_done(cluster):
+            logger.debug(f"All filesystems for {cluster.name} ready - creating cluster")
+            response[cluster.name] = do_cluster_create(cluster)
+        elif any_fs_creating():
+            msg = f"A filesystem is being created - skipping cluster {cluster.name} for now"
+            logger.debug(msg)
+            response[cluster.name] = msg
+        else:
+            logger.debug(f"No filesystems being created - precreating for {cluster.name}")
+            creating_fsx = fsx_precreate(cluster=cluster, filesystems=DRAS)
+            if creating_fsx:
+                msg = f"Precreating fsx for cluster {cluster.name}"
+            else:
+                msg = "No filesystems to create"
+            response[cluster.name] = msg
+
+    # if len(get_unclaimed_clusters(dynamodb_resource=dynamo)) == 0:
+    #     eb_client = boto3.client("events")
+    #     delete_eventbridge_dra_checking_rule(eb_client)
+    return response_json(response)
+
+
+def pcluster_do_create_handler(event, _context=None):
+    """
+    The handler for the async lambda which will do the actual create
+    """
+    logger.debug(f"event: {event}, _context: {_context}")
+    cluster = Cluster.from_dict(event["cluster"])
+    pcluster_create(cluster)
 
 
 def pcluster_create_request_handler(event, _context=None):
-    """Request the creation of an HPC cluster for a given vlab_id and project_id"""
+    """
+    Handles the initial cluster create request.
+      * register the cluster in dynamo
+      * precreate ssh keys
+    """
 
     cluster = _get_vlab_query_params(event)
+    dynamo = dynamodb_resource()
+    try:
+        register_cluster(dynamo, cluster)
+    except ClusterAlreadyRegistered as e:
+        return response_text(text=e.__str__(), code=500)
+    else:
+        logger.debug(f"Cluster {cluster.name} registered successfully; proceeding")
 
     ec2_client = boto3.client("ec2")
     sm_client = boto3.client("secretsmanager")
-    cf_client = boto3.client("cloudformation")
 
     admin_ssh_keypair = create_keypair(
         ec2_client,
@@ -93,10 +171,6 @@ def pcluster_create_request_handler(event, _context=None):
             "clusterName": cluster.name,
             "clusterStatus": "CREATE_REQUEST_RECEIVED",
         }
-    }
-
-    create_args = {
-        "cluster": cluster,
     }
 
     sim_user_ssh_keypair = create_keypair(
@@ -119,38 +193,54 @@ def pcluster_create_request_handler(event, _context=None):
 
     if key_material := sm_client.get_secret_value(SecretId=sim_user_secret["ARN"]):
         cluster.sim_pubkey = generate_public_key(key_material["SecretString"])
+        set_cluster_sim_user_ssh_key(dynamo, cluster, cluster.sim_pubkey)
     else:
         raise RuntimeError(
             f"Something went wrong retrieving the sim user private key: {sim_user_secret['ARN']}"
         )
     logger.debug(f"Cluster: {cluster}")
 
-    if cluster.name in list_existing_stacks(cf_client):
-        print(f"Stack {cluster.name} already exists - exiting")
-        return response_json(response)
-
-    logger.debug(f"calling create lambda async with arguments {create_args}")
-    boto3.client("lambda").invoke_async(
-        FunctionName=f"hpc-resource-provisioner-creator-{get_suffix()}",
-        InvokeArgs=json.dumps(create_args, cls=ClusterJSONEncoder),
-    )
-    logger.debug("called create lambda async")
+    eb_client = boto3.client("events")
+    if not eventbridge_dra_checking_rule_exists(eb_client=eb_client):
+        create_eventbridge_dra_checking_rule(eb_client=eb_client)
 
     return response_json(response)
 
 
 def pcluster_describe_handler(event, _context=None):
     """Describe a cluster given the vlab_id and project_id"""
+    sm_client = boto3.client("secretsmanager")
     try:
         cluster = _get_vlab_query_params(event)
     except InvalidRequest:
         logger.debug("No vlab_id specified - listing pclusters")
         pc_output = pcluster_list()
+        for pcluster in pc_output["clusters"]:
+            cluster_secrets = get_secrets_for_cluster(
+                sm_client=sm_client, cluster_name=pcluster["clusterName"]
+            )
+            pcluster.update(cluster_secrets)
     else:
         logger.debug(f"describe pcluster {cluster}")
         try:
-            pc_output = pcluster_describe(cluster)
-            logger.debug(f"described pcluster {cluster}")
+            dynamo_output = get_cluster_by_name(
+                dynamodb_resource=dynamodb_resource(), cluster_name=cluster.name
+            )
+            if dynamo_output and dynamo_output.get("provisioning_launched", 0) == 0:
+                cluster_from_dynamo = Cluster.from_dynamo_dict(dynamo_output)
+                pc_output = cluster_from_dynamo.as_dict()
+                cluster_secrets = get_secrets_for_cluster(
+                    sm_client=sm_client, cluster_name=cluster_from_dynamo.name
+                )
+                pc_output.update(cluster_secrets)
+
+            else:
+                pc_output = pcluster_describe(cluster)
+                pc_output.update(
+                    get_secrets_for_cluster(sm_client=sm_client, cluster_name=cluster.name)
+                )
+                logger.debug(f"described pcluster {cluster}")
+
         except NotFoundException as e:
             return {"statusCode": 404, "body": e.content.message}
         except Exception as e:
@@ -165,6 +255,8 @@ def pcluster_delete_handler(event, _context=None):
 
     logger.debug(f"delete pcluster {cluster}")
     try:
+        dynamo = dynamodb_resource()
+        delete_cluster(dynamo, cluster)
         pc_output = pcluster_delete(cluster)
         logger.debug(f"deleted pcluster {cluster.vlab_id}-{cluster.project_id}")
     except NotFoundException as e:

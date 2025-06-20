@@ -18,33 +18,43 @@ from pcluster.api.errors import CreateClusterBadRequestException, InternalServic
 from hpc_provisioner.aws_queries import (
     create_dra,
     create_fsx,
+    delete_fsx,
     get_available_subnet,
+    get_dra,
     get_efs,
     get_fsx,
     get_keypair_name,
     get_security_group,
+    list_all_dras_for_fsx,
+    list_all_fsx,
+    list_existing_stacks,
     release_subnets,
     remove_key,
-    wait_for_dra,
 )
-from hpc_provisioner.cluster import Cluster
+from hpc_provisioner.cluster import Cluster, ClusterJSONEncoder
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
     BILLING_TAG_VALUE,
     CONFIG_VALUES,
+    DRAS,
     PCLUSTER_CONFIG_TPL,
     PCLUSTER_DEV_CONFIG_TPL,
     PROJECT_TAG_KEY,
     REGION,
     VLAB_TAG_KEY,
 )
+from hpc_provisioner.dynamodb_actions import claim_cluster, dynamodb_resource
 from hpc_provisioner.logging_config import LOGGING_CONFIG
 from hpc_provisioner.utils import (
+    get_ami_id,
     get_containers_bucket,
     get_efa_security_group_id,
+    get_fs_bucket,
     get_fsx_policy_arn,
+    get_infra_bucket,
     get_sbonexusdata_bucket,
     get_scratch_bucket,
+    get_suffix,
 )
 from hpc_provisioner.yaml_loader import load_yaml_extended
 
@@ -92,6 +102,10 @@ def populate_config(
     if create_users_args:
         CONFIG_VALUES["create_users_args"] = create_users_args
     CONFIG_VALUES["environment_args"] = [cluster.name]
+    CONFIG_VALUES["ami_id"] = get_ami_id()
+    CONFIG_VALUES["infra_assets_bucket"] = get_infra_bucket().replace("s3://", "")
+    CONFIG_VALUES["create_users_script"] = f"{get_infra_bucket()}/scripts/create_users.py"
+    CONFIG_VALUES["environment_script"] = f"{get_infra_bucket()}/scripts/environment.sh"
     logger.debug(f"Config values: {CONFIG_VALUES}")
 
 
@@ -154,6 +168,41 @@ def write_config(cluster_name: str, pcluster_config: dict) -> str:
     return output_file.name
 
 
+def fsx_precreate(cluster: Cluster, filesystems: list) -> bool:
+    """
+    Return True if creating a filesystem, False if nothing to do
+    """
+    fsx_client = boto3.client("fsx")
+    logger.debug(f"Precreating filesystems for {cluster.name}")
+    fs = get_fsx(fsx_client=fsx_client, fs_name=cluster.name)
+    if not fs:
+        logger.debug(f"Creating filesystem for {cluster.name}")
+        fs = create_fsx(
+            fsx_client=fsx_client,
+            fs_name=cluster.name,
+            cluster=cluster,
+        )["FileSystem"]
+        logger.debug("Creating DRA")
+    for dra in filesystems:
+        if get_dra(
+            fsx_client=fsx_client, filesystem_id=fs["FileSystemId"], mountpoint=dra["mountpoint"]
+        ):
+            continue
+        else:
+            create_dra(
+                fsx_client=fsx_client,
+                filesystem_id=fs["FileSystemId"],
+                mountpoint=dra["mountpoint"],
+                bucket=get_fs_bucket(dra["name"], cluster),
+                vlab_id=cluster.vlab_id,
+                project_id=cluster.project_id,
+                writable=dra["writable"],
+            )
+            return True
+
+    return False
+
+
 def pcluster_create(cluster: Cluster):
     """Create a pcluster for a given vlab
 
@@ -169,7 +218,6 @@ def pcluster_create(cluster: Cluster):
     if cluster_already_exists(cluster.name):
         return
 
-    fsx_client = boto3.client("fsx")
     cluster_users = json.dumps(
         [
             {
@@ -187,70 +235,34 @@ def pcluster_create(cluster: Cluster):
     ]
 
     populate_config(cluster=cluster, create_users_args=create_users_args)
+    fsx_client = boto3.client("fsx")
+    if cluster.include_lustre:
+        fs = get_fsx(
+            fsx_client=fsx_client,
+            fs_name=cluster.name,
+        )
 
-    if cluster.dev:
-        filesystems = [
-            {
-                "name": "projects",
-                "shared": True,
-                "mountpoint": "/sbo/data/projects",
-                "bucket": get_sbonexusdata_bucket(),
-                "writable": False,
-            },
-            {
-                "name": "scratch",
-                "shared": False,
-                "mountpoint": "/sbo/data/scratch",
-                "bucket": f"{get_scratch_bucket()}/{cluster.vlab_id}/{cluster.project_id}",
-                "writable": True,
-            },
-        ]
-        for filesystem in filesystems:
-            logger.debug(f"Checking for filesystem {filesystem}")
-            fs = get_fsx(
-                fsx_client=fsx_client,
-                shared=True,
-                fs_name=filesystem["name"],
-                vlab_id=cluster.vlab_id,
-                project_id=cluster.project_id,
-            )
-            if not fs:
-                logger.debug(f"Creating filesystem {filesystem}")
-                fs = create_fsx(
-                    fsx_client=fsx_client,
-                    fs_name=filesystem["name"],
-                    shared=True,
-                    vlab_id=cluster.vlab_id,
-                    project_id=cluster.project_id,
-                )["FileSystem"]
-                logger.debug("Creating DRA")
-                dra = create_dra(
-                    fsx_client=fsx_client,
-                    filesystem_id=fs["FileSystemId"],
-                    mountpoint=filesystem["mountpoint"],
-                    bucket=filesystem["bucket"],
-                    vlab_id=cluster.vlab_id,
-                    project_id=cluster.project_id,
-                    writable=filesystem["writable"],
-                )
-                wait_for_dra(fsx_client=fsx_client, dra_id=dra["Association"]["AssociationId"])
-            CONFIG_VALUES[f"{filesystem['name']}_fsx"] = {
-                "Name": next(tag["Value"] for tag in fs["Tags"] if tag["Key"] == "Name"),
-                "StorageType": "FsxLustre",
-                "MountDir": filesystem["mountpoint"],
-                "FsxLustreSettings": {"FileSystemId": fs["FileSystemId"]},
-            }
+        if not fs:
+            raise RuntimeError(f"Filesystem {cluster.name} not created when it should have been")
+        CONFIG_VALUES["fsx"] = {
+            "Name": next(tag for tag in fs["Tags"] if tag["Key"] == "Name")["Value"],
+            "MountDir": "/obi/data",
+            "StorageType": "FsxLustre",
+            "FsxLustreSettings": {"FileSystemId": fs["FileSystemId"]},
+        }
+    else:
+        CONFIG_VALUES["fsx"] = {}
 
     pcluster_config = load_pcluster_config(cluster.dev)
+    if not cluster.include_lustre:
+        pcluster_config["SharedStorage"] = pcluster_config["SharedStorage"][:1]  # keep only EFS
     pcluster_config["Tags"] = populate_tags(pcluster_config, cluster.vlab_id, cluster.project_id)
     pcluster_config["Scheduling"]["SlurmQueues"] = get_tier_config(pcluster_config, cluster.tier)
-    if cluster.include_lustre is False:
-        pcluster_config["SharedStorage"].pop(1)  # TODO: should probably pop more
     if cluster.benchmark:
         pcluster_config["HeadNode"]["CustomActions"]["OnNodeConfigured"]["Sequence"].append(
             {
-                "Script": "s3://sboinfrastructureassets-sandbox/scripts/80_cloudwatch_agent_config_prolog.sh",
-                "Args": [cluster_name],
+                "Script": f"{get_infra_bucket()}/scripts/80_cloudwatch_agent_config_prolog.sh",
+                "Args": [cluster.name],
             }
         )
 
@@ -289,6 +301,93 @@ def pcluster_describe(cluster: Cluster):
 def pcluster_delete(cluster: Cluster):
     """Destroy a cluster, given the vlab_id and project_id"""
     release_subnets(cluster.name)
+    fsx_client = boto3.client("fsx")
+    fs = get_fsx(fsx_client=fsx_client, fs_name=cluster.name)
+    if fs:
+        delete_fsx(fsx_client, fs["FileSystemId"])
     remove_key(get_keypair_name(cluster))
     remove_key(get_keypair_name(cluster, "sim"))
     return pc.delete_cluster(cluster_name=cluster.name, region=REGION)
+
+
+def all_dras_for_cluster_done(cluster: Cluster) -> bool:
+    """
+    Check whether all filesystems for the cluster are created and their DRAs all available
+    """
+    logger.debug(f"Checking all DRAs for cluster: {cluster}")
+    if cluster.include_lustre:
+        fsx_client = boto3.client("fsx")
+        for dra_data in DRAS:
+            logger.debug(f"Getting fs {dra_data['name']}")
+            fsx = get_fsx(fsx_client, fs_name=cluster.name)
+            if not fsx or fsx["Lifecycle"] != "AVAILABLE":
+                logger.debug(f"Filesystem {dra_data['name']} not found or not ready yet")
+                return False
+            created_dra = get_dra(
+                fsx_client=fsx_client,
+                filesystem_id=fsx["FileSystemId"],
+                mountpoint=dra_data["mountpoint"],
+            )
+            if not created_dra or created_dra["Lifecycle"] != "AVAILABLE":
+                logger.debug(f"DRA for filesystem {dra_data['name']} not found or not ready yet")
+                return False
+    logger.debug(f"All filesystems for cluster{cluster.name} ready!")
+    return True
+
+
+def any_fs_creating() -> bool:
+    fsx_client = boto3.client("fsx")
+    for fsx in list_all_fsx(fsx_client=fsx_client):
+        if fsx["Lifecycle"] not in ["AVAILABLE", "FAILED"]:
+            return True
+        for dra in list_all_dras_for_fsx(fsx_client=fsx_client, filesystem_id=fsx["FileSystemId"]):
+            if dra["Lifecycle"] not in ["AVAILABLE", "FAILED"]:
+                return True
+    return False
+
+
+def call_async_lambda(cluster: Cluster):
+    cf_client = boto3.client("cloudformation")
+
+    create_args = {
+        "cluster": cluster,
+    }
+
+    if cluster.name in list_existing_stacks(cf_client):
+        print(f"Stack {cluster.name} already exists - exiting")
+        return pcluster_describe(cluster)
+
+    logger.debug(f"calling create lambda async with arguments {create_args}")
+    boto3.client("lambda").invoke_async(
+        FunctionName=f"hpc-resource-provisioner-creator-{get_suffix()}",
+        InvokeArgs=json.dumps(create_args, cls=ClusterJSONEncoder),
+    )
+    logger.debug("called create lambda async")
+    return {
+        "cluster": {
+            "clusterName": cluster.name,
+            "clusterStatus": "CREATE_REQUEST_RECEIVED",
+        }
+    }
+
+
+def do_cluster_create(cluster):
+    """Actually create the cluster - it assumes that all the necessary filesystems have been created"""
+    # if cluster.include_lustre:
+    #     logger.debug(f"precreate filesystems for cluster {cluster.name}")
+    #     if fsx_precreate(cluster, DRAS):
+    #         logger.debug("Created FSx - not proceeding to cluster creation yet")
+    #         create_eventbridge_dra_checking_rule(eb_client=boto3.client("events"))
+    #         return
+    #     else:
+    #         logger.debug("All FSx filesystems created - proceeding to cluster create")
+    # else:
+    #     # the filesystems don't really need to exist - later code will check for this
+    #     for fs in DRAS:
+    #         fs["expected"] = False
+
+    logger.debug(f"create pcluster {cluster.name}")
+    claim_cluster(dynamodb_resource(), cluster)
+    return call_async_lambda(cluster)
+    # pcluster_create(cluster, DRA)
+    # logger.debug(f"created pcluster {cluster.name}")
