@@ -1,3 +1,9 @@
+"""This script creates/Update a Grafana dashboard JSON model for monitoring AWS ParallelCluster and FSx performance metrics.
+Example usage:
+python grafana_dashboard.py create --clustername pcluster-weji-2025-06-17-14h03 --fsid fs-049aa0c3151500962 --tstart 2025-06-17T14:03Z --output dashboard.json
+python grafana_dashboard.py update --input dashboard.json --tend 2025-06-17T16:03Z
+"""
+
 from dataclasses import dataclass, asdict
 import argparse
 import json
