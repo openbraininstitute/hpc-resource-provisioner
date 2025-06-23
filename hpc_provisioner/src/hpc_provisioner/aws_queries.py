@@ -394,6 +394,7 @@ def list_all_fsx(fsx_client) -> list:
         else:
             file_systems = fsx_client.describe_file_systems()
         next_token = file_systems.get("NextToken")
+        logger.debug(f"Checking for next_token in file systems: {file_systems}")
         go_on = next_token is not None
         all_fsx.extend(file_systems["FileSystems"])
     return all_fsx
