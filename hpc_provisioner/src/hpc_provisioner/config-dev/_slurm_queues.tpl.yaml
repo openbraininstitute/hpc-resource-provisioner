@@ -168,6 +168,33 @@
     S3Access:
       - BucketName: sboinfrastructureassets-sandbox
 
+# ================================
+# prod-mpi-hpc queue, for HPC jobs
+# ================================
+- Name: prod-mpi-hpc
+  AllocationStrategy: lowest-price  # usually on-demand
+  ComputeResources:
+    - Name: cpu-hpc7a
+      Instances:
+        - InstanceType: hpc7a.48xlarge  # HPC nodes
+      MinCount: 0
+      MaxCount: 20  # least number of nodes needed to simulate the full O1 circuit x2
+      Efa:  # low-latency, high BW network
+        Enabled: true  # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/efa-start.html#efa-start-security
+  Networking:
+    PlacementGroup:  # try to place nodes close to each other
+      Enabled: true
+    SubnetIds: [!config base_subnet_id]
+    SecurityGroups:
+      - !config base_security_group_id
+      - !config efa_security_group_id  # Efa
+  CustomSlurmSettings:
+    MaxNodes: 20
+    MaxTime: 720
+  Iam:
+    S3Access:
+      - BucketName: sboinfrastructureassets-sandbox
+
 # ====================================
 # prod-batch queue, for benchmarking
 # ====================================
