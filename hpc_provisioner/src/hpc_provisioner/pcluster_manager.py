@@ -303,8 +303,11 @@ def pcluster_delete(cluster: Cluster):
     release_subnets(cluster.name)
     fsx_client = boto3.client("fsx")
     fs = get_fsx(fsx_client=fsx_client, fs_name=cluster.name)
+    logger.debug(f"Filesystems: {fs}")
     if fs:
+        logger.debug("Found filesystem - deleting")
         delete_fsx(fsx_client, fs["FileSystemId"])
+    logger.debug("Filesystem deleted")
     remove_key(get_keypair_name(cluster))
     remove_key(get_keypair_name(cluster, "sim"))
     return pc.delete_cluster(cluster_name=cluster.name, region=REGION)

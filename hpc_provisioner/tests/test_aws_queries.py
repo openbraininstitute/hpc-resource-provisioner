@@ -18,7 +18,6 @@ from hpc_provisioner.aws_queries import (
     get_available_subnet,
     get_efs,
     get_fsx_by_id,
-    get_fsx_name,
     get_secret,
     get_security_group,
     remove_key,
@@ -426,40 +425,18 @@ def test_remove_key(patched_boto3):
     )
 
 
-@pytest.mark.parametrize("shared", [True, False])
-def test_get_fsx_name(shared, test_cluster):
-    test_fs_name = "test"
-    fsx_name = get_fsx_name(shared=shared, fs_name=test_fs_name, cluster=test_cluster)
-
-    if shared:
-        assert fsx_name == test_fs_name
-    else:
-        assert (
-            fsx_name == f"{test_fs_name}-pcluster-{test_cluster.vlab_id}-{test_cluster.project_id}"
-        )
-
-
-@pytest.mark.parametrize("shared", [True, False])
-def test_create_fsx(shared, test_cluster):
+def test_create_fsx(test_cluster):
     patched_fsx_client = MagicMock()
     retval = {"fs": "fs"}
     patched_fsx_client.create_file_system.return_value = retval
     test_fs_name = "test"
-    if shared:
-        expected_args = {"ClientRequestToken": test_fs_name}
-        expected_tags = [
-            {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
-            {"Key": "Name", "Value": test_fs_name},
-        ]
-    else:
-        token = f"{test_fs_name}-{test_cluster.name}"
-        expected_args = {"ClientRequestToken": token}
-        expected_tags = [
-            {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
-            {"Key": "Name", "Value": token},
-            {"Key": VLAB_TAG_KEY, "Value": test_cluster.vlab_id},
-            {"Key": PROJECT_TAG_KEY, "Value": test_cluster.project_id},
-        ]
+    expected_args = {"ClientRequestToken": test_fs_name}
+    expected_tags = [
+        {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+        {"Key": VLAB_TAG_KEY, "Value": test_cluster.vlab_id},
+        {"Key": PROJECT_TAG_KEY, "Value": test_cluster.project_id},
+        {"Key": "Name", "Value": test_fs_name},
+    ]
 
     expected_args["FileSystemType"] = "LUSTRE"
     expected_args["StorageCapacity"] = 19200
@@ -475,10 +452,7 @@ def test_create_fsx(shared, test_cluster):
         "EfaEnabled": True,
         "MetadataConfiguration": {"Mode": "AUTOMATIC"},
     }
-    if shared:
-        fsx = create_fsx(patched_fsx_client, test_fs_name, shared)
-    else:
-        fsx = create_fsx(patched_fsx_client, test_fs_name, shared, test_cluster)
+    fsx = create_fsx(patched_fsx_client, test_fs_name, test_cluster)
 
     patched_fsx_client.create_file_system.assert_called_once_with(**expected_args)
     assert fsx == retval
