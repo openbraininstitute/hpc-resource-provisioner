@@ -213,6 +213,8 @@ def main():
         dashboard_data["time"]["to"] = args.tend
         with open(args.input, "w") as f:
             json.dump(dashboard_data, f, indent=2)
+    else:
+        raise NotImplementedError(f"Command {args.command} not implemented")
 
 
 if __name__ == "__main__":
