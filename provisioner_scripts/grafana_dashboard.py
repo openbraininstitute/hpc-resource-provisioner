@@ -203,29 +203,29 @@ def validate_iso8601(dt_str):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Manage a Grafana dashboard JSON model for monitoring AWS ParallelCluster and FSx performance metrics."
+        description="Manage a Grafana dashboard for monitoring AWS ParallelCluster and FSx performance metrics."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # Create subcommand
     create_parser = subparsers.add_parser(
-        "create", help="Create a new dashboard JSON model"
+        "create", help="Create a new Grafana dashboard"
     )
     create_parser.add_argument(
-        "--clustername", required=True, help="The name of the current parallel cluster"
+        "--clustername", required=True, help="Name of the parallel cluster"
     )
     create_parser.add_argument(
         "--fsid",
         required=True,
-        help="The FileSystemID for the FSx associated with the cluster",
+        help="FileSystemID of the FSx associated with the cluster",
     )
     create_parser.add_argument(
-        "--tstart", required=True, help="Start time for the dashboard (ISO format)"
+        "--tstart", required=True, help="Start (UTC) time for the dashboard, in ISO format (e.g., 2025-06-17T14:03Z)"
     )
 
     # Update subcommand
     update_parser = subparsers.add_parser(
-        "update", help="Update the end time of an existing dashboard JSON model"
+        "update", help="Update the end time of an existing Grafana dashboard"
     )
     update_parser.add_argument(
         "--title", required=True, help="Title of the dashboard to update"
@@ -233,7 +233,7 @@ def main():
     update_parser.add_argument(
         "--tend",
         required=True,
-        help="New end time for the dashboard, in ISO format (e.g., 2025-06-17T14:03Z)",
+        help="New end (UTC) time for the dashboard, in ISO format (e.g., 2025-06-17T14:03Z)",
     )
 
     args = parser.parse_args()
