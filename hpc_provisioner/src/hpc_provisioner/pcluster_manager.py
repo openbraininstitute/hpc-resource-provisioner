@@ -54,7 +54,6 @@ from hpc_provisioner.utils import (
     get_infra_bucket,
     get_sbonexusdata_bucket,
     get_scratch_bucket,
-    get_suffix,
 )
 from hpc_provisioner.yaml_loader import load_yaml_extended
 
@@ -362,7 +361,7 @@ def call_async_lambda(cluster: Cluster):
 
     logger.debug(f"calling create lambda async with arguments {create_args}")
     boto3.client("lambda").invoke_async(
-        FunctionName=f"hpc-resource-provisioner-creator-{get_suffix()}",
+        FunctionName="hpc-resource-provisioner-creator",
         InvokeArgs=json.dumps(create_args, cls=ClusterJSONEncoder),
     )
     logger.debug("called create lambda async")
