@@ -447,7 +447,7 @@ def create_dra(
         BatchImportMetaDataOnCreate=True,
         ImportedFileChunkSize=1024,
         S3=s3_config,
-        ClientRequestToken=f"{filesystem_id}-{vlab_id}-{project_id}-{mountpoint.split('/')[-1]}",
+        ClientRequestToken=f"{vlab_id}-{project_id}-{mountpoint.split('/')[-1]}",
         Tags=[
             {"Key": "Name", "Value": f"{filesystem_id}-{mountpoint}"},
             {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
