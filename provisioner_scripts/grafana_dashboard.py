@@ -1,16 +1,21 @@
 """This script creates/Update a Grafana dashboard JSON model for monitoring AWS ParallelCluster and FSx performance metrics.
 Example usage:
-python grafana_dashboard.py create --clustername pcluster-weji-2025-06-17-14h03 --fsid fs-049aa0c3151500962 --tstart 2025-06-17T14:03Z --output dashboard.json
-python grafana_dashboard.py update --input dashboard.json --tend 2025-06-17T16:03Z
+python grafana_dashboard.py create --clustername pcluster-weji-2025-06-17-14h03 --fsid fs-049aa0c3151500962 --tstart 2025-06-17T14:03Z
+python grafana_dashboard.py update --title pcluster-weji-2025-06-17-14h03 --tend 2025-06-17T16:03Z
 """
 
 from dataclasses import dataclass, asdict
 import argparse
 import json
+import requests
+import os
+from datetime import datetime
 
 from typing import Optional
 
 CLW_UID = "fep83zm6l8074d"
+GRAFANA_URL = os.getenv("GRAFANA_SERVER")
+API_KEY = os.getenv("GRAFANA_API_KEY")
 
 
 @dataclass
@@ -149,9 +154,51 @@ def create_dashboard(
     return dashboard
 
 
-def dump_json_model(dashboard: GrafanaDashboard, filename: str):
-    with open(filename, "w") as f:
-        json.dump(dashboard.to_dict(), f, indent=2)
+def get_uid(base_url, api_key, title):
+    headers = {"Authorization": f"Bearer {api_key}"}
+    resp = requests.get(f"{base_url}/api/search?query={title}", headers=headers)
+    resp.raise_for_status()
+    for dashboard in resp.json():
+        if dashboard.get("title") == title and dashboard.get("type") == "dash-db":
+            return dashboard["uid"]
+    return None
+
+
+def get_json_model(base_url, api_key, title):
+    uid = get_uid(base_url, api_key, title)
+    assert uid is not None, f"Dashboard with title {title} not found"
+    # Fetch the dashboard JSON model using the UID
+    headers = {"Authorization": f"Bearer {api_key}"}
+    resp = requests.get(f"{base_url}/api/dashboards/uid/{uid}", headers=headers)
+    resp.raise_for_status()
+    return resp.json()["dashboard"]
+
+
+def update_endtime(json_model, tend):
+    json_model["time"]["to"] = tend
+
+
+def push_to_grafana(content: dict, base_url, api_key):
+    """
+    Push a dashboard JSON model to Grafana, either create or update.
+    """
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    payload = {"dashboard": content, "folderId": 0, "overwrite": True}
+    payload_str = json.dumps(payload)
+    r = requests.post(
+        f"{base_url}/api/dashboards/db", data=payload_str, headers=headers
+    )
+    r.raise_for_status()
+    print(f"Dashboard pushed successfully: {r.json().get('slug', 'unknown')}")
+
+
+def validate_iso8601(dt_str):
+    """Validate ISO 8601 format like 2025-06-17T14:03Z."""
+    try:
+        datetime.strptime(dt_str, "%Y-%m-%dT%H:%MZ")
+        return True
+    except ValueError:
+        return False
 
 
 def main():
@@ -175,27 +222,31 @@ def main():
     create_parser.add_argument(
         "--tstart", required=True, help="Start time for the dashboard (ISO format)"
     )
-    create_parser.add_argument("--output", required=True, help="Output JSON model file")
 
     # Update subcommand
     update_parser = subparsers.add_parser(
-        "update", help="Update an existing dashboard JSON model"
+        "update", help="Update the end time of an existing dashboard JSON model"
     )
     update_parser.add_argument(
-        "--input", required=True, help="The input JSON model file to update"
+        "--title", required=True, help="Title of the dashboard to update"
     )
     update_parser.add_argument(
         "--tend",
         required=True,
         help="New end time for the dashboard, in ISO format (e.g., 2025-06-17T14:03Z)",
     )
+
     args = parser.parse_args()
 
     if args.command == "create":
         # Example values for testing
         # cluster_name = "pcluster-weji-2025-06-17-14h03"
         # fs_id = "fs-049aa0c3151500962"
-        # tstart = "2025-06-17-14:03Z"
+        # tstart = "2025-06-17T14:03Z"
+        if not validate_iso8601(args.tstart):
+            raise ValueError(
+                f"tstart {args.tstart} is not in ISO format (YYYY-MM-DDTHH:MMZ)"
+            )
         cloudwatch_source = DataSource(type="cloudwatch", uid=CLW_UID)
         dashboard = create_dashboard(
             data_source=cloudwatch_source,
@@ -204,15 +255,20 @@ def main():
             tstart=args.tstart,
             tend="now",
         )
-        dump_json_model(dashboard, args.output)
+        push_to_grafana(
+            content=dashboard.to_dict(), base_url=GRAFANA_URL, api_key=API_KEY
+        )
     elif args.command == "update":
         # Example values for testing
-        # tend = "2025-06-17-16:03Z"
-        with open(args.input, "r") as f:
-            dashboard_data = json.load(f)
-        dashboard_data["time"]["to"] = args.tend
-        with open(args.input, "w") as f:
-            json.dump(dashboard_data, f, indent=2)
+        # title = "pcluster-weji-2025-06-17-14h03"
+        # tend = "2025-06-17T16:03Z"
+        if not validate_iso8601(args.tend):
+            raise ValueError(
+                f"tend {args.tend} is not in ISO format (YYYY-MM-DDTHH:MMZ)"
+            )
+        json_model = get_json_model(GRAFANA_URL, API_KEY, args.title)
+        update_endtime(json_model, args.tend)
+        push_to_grafana(content=json_model, base_url=GRAFANA_URL, api_key=API_KEY)
     else:
         raise NotImplementedError(f"Command {args.command} not implemented")
 
