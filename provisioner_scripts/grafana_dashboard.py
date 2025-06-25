@@ -62,7 +62,16 @@ class Panel:
     id: int
     targets: list[Target]
     title: str
+    unit: Optional[str] = ""
     type: Optional[int] = "timeseries"
+
+    def to_dict(self):
+        d = asdict(self)
+        # replace unit key with fieldConfig if unit is present, otherwise remove it
+        unit_value = d.pop("unit", "")
+        if unit_value:
+            d["fieldConfig"] = {"defaults": {"unit": unit_value}}
+        return d
 
 
 @dataclass
@@ -81,6 +90,7 @@ class GrafanaDashboard:
     def to_dict(self):
         d = asdict(self)
         d["time"] = self.time.to_dict()
+        d["panels"] = [panel.to_dict() for panel in self.panels]
         return d
 
 
@@ -100,6 +110,7 @@ def create_dashboard(
                 statistic="Average",
             )
         ],
+        unit="percent",
     )
     panel_cpu = Panel(
         title="cpu_usage_active",
@@ -114,6 +125,7 @@ def create_dashboard(
                 statistic="Average",
             )
         ],
+        unit="percent",
     )
     panel_fsx_write = Panel(
         title="FSX/DataWriteBytes",
@@ -128,6 +140,7 @@ def create_dashboard(
                 statistic="Sum",
             )
         ],
+        unit="bytes",
     )
     panel_fsx_read = Panel(
         title="FSX/DataWriteBytes",
@@ -142,6 +155,7 @@ def create_dashboard(
                 statistic="Sum",
             )
         ],
+        unit="bytes",
     )
     dashboard = GrafanaDashboard(
         tags=["benchmark"],
@@ -220,7 +234,9 @@ def main():
         help="FileSystemID of the FSx associated with the cluster",
     )
     create_parser.add_argument(
-        "--tstart", required=True, help="Start (UTC) time for the dashboard, in ISO format (e.g., 2025-06-17T14:03Z)"
+        "--tstart",
+        required=True,
+        help="Start (UTC) time for the dashboard, in ISO format (e.g., 2025-06-17T14:03Z)",
     )
 
     # Update subcommand
