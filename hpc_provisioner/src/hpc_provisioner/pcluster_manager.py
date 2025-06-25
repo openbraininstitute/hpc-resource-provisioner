@@ -244,7 +244,7 @@ def pcluster_create(cluster: Cluster):
         if not fs:
             raise RuntimeError(f"Filesystem {cluster.name} not created when it should have been")
         CONFIG_VALUES["fsx"] = {
-            "Name": next(tag for tag in fs["Tags"] if tag["Key"] == "Name")["Value"],
+            "Name": "LustreFSX",
             "MountDir": "/obi/data",
             "StorageType": "FsxLustre",
             "FsxLustreSettings": {"FileSystemId": fs["FileSystemId"]},
