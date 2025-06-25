@@ -62,7 +62,10 @@ def get_fs_bucket(bucket_name: str, cluster: Cluster) -> str:
     if bucket_name == "projects":
         return get_sbonexusdata_bucket()
     elif bucket_name == "scratch":
-        return f"{get_scratch_bucket()}/{cluster.vlab_id}/{cluster.project_id}"
+        if cluster.benchmark:
+            return get_scratch_bucket()
+        else:
+            return f"{get_scratch_bucket()}/{cluster.vlab_id}/{cluster.project_id}"
     else:
         raise NotImplementedError(f"Can't get fs bucket for {bucket_name}")
 
