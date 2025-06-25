@@ -143,14 +143,14 @@ def create_dashboard(
         unit="bytes",
     )
     panel_fsx_read = Panel(
-        title="FSX/DataWriteBytes",
+        title="FSX/DataReadBytes",
         datasource=data_source,
         gridPos=GridPosition(h=8, w=12, x=0, y=24),
         id=4,
         targets=[
             Target(
                 dimensions={"FileSystemId": fsid},
-                metricName="DataWriteBytes",
+                metricName="DataReadBytes",
                 namespace="AWS/FSx",
                 statistic="Sum",
             )
