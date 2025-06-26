@@ -2,6 +2,7 @@ import copy
 import json
 import logging
 import logging.config
+import time
 from importlib.metadata import version
 
 import boto3
@@ -142,7 +143,7 @@ def pcluster_create_request_handler(event, _context=None):
       * precreate ssh keys
     """
 
-    cluster = _get_vlab_query_params(event)
+    cluster = _get_vlab_query_params(event, set_creation_time=True)
     dynamo = dynamodb_resource()
     try:
         register_cluster(dynamo, cluster)
@@ -267,7 +268,13 @@ def pcluster_delete_handler(event, _context=None):
     return response_json(pc_output)
 
 
-def _get_vlab_query_params(incoming_event) -> Cluster:
+def _get_vlab_query_params(incoming_event, set_creation_time=False) -> Cluster:
+    """
+    Retrieve the query parameters from the incoming event and create a Cluster object based on them.
+    If set_creation_time is set, this implies that this is the first time creating this Cluster object
+    (ie. we're being called from pcluster_create_request_handler) - this helps us keep track of
+    when the cluster was requested.
+    """
     logger.debug(f"Getting query params from event {incoming_event}")
     event = copy.deepcopy(incoming_event)
 
@@ -292,6 +299,9 @@ def _get_vlab_query_params(incoming_event) -> Cluster:
                 )
                 if param in event.get("queryStringParameters", {}):
                     params[param] = event["queryStringParameters"][param]
+    # we set creation_time to 0 if this is not the initial request
+    # this shouldn't even be necessary as we only use it in a context where it was retrieved from dynamo
+    # but it will allow us to check for a "suspicious" value if we ever need it somewhere else
     cluster = Cluster(
         project_id=params["project_id"],
         vlab_id=params["vlab_id"],
@@ -299,6 +309,7 @@ def _get_vlab_query_params(incoming_event) -> Cluster:
         benchmark=params.get("benchmark", "").lower() == "true",
         dev=params.get("dev", "").lower() == "true",
         include_lustre=params.get("include_lustre", "").lower() == "true",
+        creation_time=int(time.time()) if set_creation_time else 0,
     )
 
     logger.debug(f"Params: {params}")
