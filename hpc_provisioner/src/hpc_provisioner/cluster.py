@@ -84,6 +84,7 @@ class Cluster:
         """
         for bool_value in BOOL_VALUES:
             cluster_data[bool_value] = True if cluster_data[bool_value] == 1 else False
+        cluster_data["creation_time"] = int(cluster_data["creation_time"])
 
         return Cluster.from_dict(cluster_data)
 
