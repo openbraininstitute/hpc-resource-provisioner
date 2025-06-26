@@ -5,11 +5,11 @@ python grafana_dashboard.py update --title pcluster-weji-2025-06-17-14h03 --tend
 """
 
 from dataclasses import dataclass, asdict
+from datetime import datetime, timezone
 import argparse
 import json
 import requests
 import os
-from datetime import datetime
 
 from typing import Optional
 
@@ -215,6 +215,10 @@ def validate_iso8601(dt_str):
         return False
 
 
+def current_datetime_utc_iso8601():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Manage a Grafana dashboard for monitoring AWS ParallelCluster and FSx performance metrics."
@@ -235,8 +239,8 @@ def main():
     )
     create_parser.add_argument(
         "--tstart",
-        required=True,
-        help="Start (UTC) time for the dashboard, in ISO format (e.g., 2025-06-17T14:03Z)",
+        default="",
+        help="Start (UTC) time for the dashboard, in ISO format (e.g., 2025-06-17T14:03Z), default is the current timestamp",
     )
 
     # Update subcommand
@@ -248,8 +252,8 @@ def main():
     )
     update_parser.add_argument(
         "--tend",
-        required=True,
-        help="New end (UTC) time for the dashboard, in ISO format (e.g., 2025-06-17T14:03Z)",
+        default="",
+        help="New end (UTC) time for the dashboard, in ISO format (e.g., 2025-06-17T14:03Z), default is the current timestamp",
     )
 
     args = parser.parse_args()
@@ -259,32 +263,34 @@ def main():
         # cluster_name = "pcluster-weji-2025-06-17-14h03"
         # fs_id = "fs-049aa0c3151500962"
         # tstart = "2025-06-17T14:03Z"
-        if not validate_iso8601(args.tstart):
+        tstart = args.tstart or current_datetime_utc_iso8601()
+        if not validate_iso8601(tstart):
             raise ValueError(
-                f"tstart {args.tstart} is not in ISO format (YYYY-MM-DDTHH:MMZ)"
+                f"tstart {tstart} is not in ISO format (YYYY-MM-DDTHH:MMZ)"
             )
         cloudwatch_source = DataSource(type="cloudwatch", uid=CLW_UID)
         dashboard = create_dashboard(
             data_source=cloudwatch_source,
             cluster_name=args.clustername,
             fsid=args.fsid,
-            tstart=args.tstart,
+            tstart=tstart,
             tend="now",
         )
         push_to_grafana(
             content=dashboard.to_dict(), base_url=GRAFANA_URL, api_key=API_KEY
         )
+        print(f"Create dashboard {dashboard.title} successfully from {tstart} to now")
     elif args.command == "update":
         # Example values for testing
         # title = "pcluster-weji-2025-06-17-14h03"
         # tend = "2025-06-17T16:03Z"
-        if not validate_iso8601(args.tend):
-            raise ValueError(
-                f"tend {args.tend} is not in ISO format (YYYY-MM-DDTHH:MMZ)"
-            )
+        tend = args.tend or current_datetime_utc_iso8601()
+        if not validate_iso8601(tend):
+            raise ValueError(f"tend {tend} is not in ISO format (YYYY-MM-DDTHH:MMZ)")
         json_model = get_json_model(GRAFANA_URL, API_KEY, args.title)
-        update_endtime(json_model, args.tend)
+        update_endtime(json_model, tend)
         push_to_grafana(content=json_model, base_url=GRAFANA_URL, api_key=API_KEY)
+        print(f"Update endtime of dashboard {args.title} successfully to {tend}")
     else:
         raise NotImplementedError(f"Command {args.command} not implemented")
 
