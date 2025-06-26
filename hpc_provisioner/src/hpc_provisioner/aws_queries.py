@@ -424,7 +424,7 @@ def create_dra(
     writable: bool = False,
 ) -> dict:
     logger.debug(
-        f"Creating DRA for fs {filesystem_id}, mount {bucket} at {mountpoint}, for {vlab_id}-{project_id}, writable {writable}"
+        f"Creating DRA for fs {filesystem_id}, mount {bucket} at {mountpoint}, for {cluster.vlab_id}-{cluster.project_id}, writable {writable}"
     )
     s3_config = {
         "AutoImportPolicy": {  # from S3 to FS
