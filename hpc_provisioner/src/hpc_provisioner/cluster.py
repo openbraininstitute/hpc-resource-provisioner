@@ -20,11 +20,13 @@ class Cluster:
     tier: str
     vlab_id: str
     provisioning_launched: bool
+    creation_time: int
 
     def __init__(
         self,
         project_id: str,
         vlab_id: str,
+        creation_time: int,
         tier: str = "debug",
         benchmark: bool = False,
         dev: bool = False,
@@ -45,6 +47,7 @@ class Cluster:
         else:
             self.admin_ssh_key_name = self.name
         self.provisioning_launched = provisioning_launched
+        self.creation_time = creation_time
 
     @property
     def name(self):

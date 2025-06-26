@@ -17,7 +17,9 @@ from hpc_provisioner.constants import (
 from hpc_provisioner.dynamodb_actions import (
     SubnetAlreadyRegisteredException,
     dynamodb_client,
+    dynamodb_resource,
     free_subnet,
+    get_cluster_by_name,
     get_registered_subnets,
     get_subnet,
     register_subnet,
@@ -418,8 +420,7 @@ def create_dra(
     filesystem_id: str,
     mountpoint: str,
     bucket: str,
-    vlab_id: str,
-    project_id: str,
+    cluster: Cluster,
     writable: bool = False,
 ) -> dict:
     logger.debug(
@@ -439,6 +440,13 @@ def create_dra(
         s3_config["AutoExportPolicy"] = {"Events": ["NEW", "CHANGED", "DELETED"]}
 
     logger.debug(f"s3 config: {s3_config}")
+    dynamo_cluster = get_cluster_by_name(
+        dynamodb_resource=dynamodb_resource(), cluster_name=cluster.name
+    )
+    if not dynamo_cluster:
+        raise RuntimeError(f"Clould not retrieve cluster {cluster.name} from dynamodb")
+    if dynamo_cluster["creation_time"] == 0:
+        raise ValueError(f"Creation time for {cluster.name} is 0; something is wrong")
 
     dra = fsx_client.create_data_repository_association(
         FileSystemId=filesystem_id,
@@ -447,12 +455,12 @@ def create_dra(
         BatchImportMetaDataOnCreate=True,
         ImportedFileChunkSize=1024,
         S3=s3_config,
-        ClientRequestToken=f"{vlab_id}-{project_id}-{mountpoint.split('/')[-1]}",
+        ClientRequestToken=f"{dynamo_cluster['creation_time']}-{cluster.vlab_id[:21]}-{cluster.project_id[:21]}-{mountpoint.split('/')[-1]}",
         Tags=[
             {"Key": "Name", "Value": f"{filesystem_id}-{mountpoint}"},
             {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
-            {"Key": VLAB_TAG_KEY, "Value": vlab_id},
-            {"Key": PROJECT_TAG_KEY, "Value": project_id},
+            {"Key": VLAB_TAG_KEY, "Value": cluster.vlab_id},
+            {"Key": PROJECT_TAG_KEY, "Value": cluster.project_id},
         ],
     )
 

@@ -193,8 +193,7 @@ def fsx_precreate(cluster: Cluster, filesystems: list) -> bool:
                 filesystem_id=fs["FileSystemId"],
                 mountpoint=dra["mountpoint"],
                 bucket=get_fs_bucket(dra["name"], cluster),
-                vlab_id=cluster.vlab_id,
-                project_id=cluster.project_id,
+                cluste=cluster,
                 writable=dra["writable"],
             )
             return True
