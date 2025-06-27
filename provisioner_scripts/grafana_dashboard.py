@@ -129,8 +129,8 @@ def create_dashboard(
         ],
         unit="percent",
     )
-    panel_fsx_io = Panel(
-        title="FSx Data Read/Write",
+    panel_fsx_read = Panel(
+        title="FSX/DataReadBytes",
         datasource=data_source,
         gridPos=GridPosition(h=8, w=12, x=0, y=8),
         id=3,
@@ -140,19 +140,28 @@ def create_dashboard(
                 metricName="DataReadBytes",
                 namespace="AWS/FSx",
                 statistic="Sum",
-            ),
+            )
+        ],
+        unit="bytes",
+    )
+    panel_fsx_write = Panel(
+        title="FSX/DataWriteBytes",
+        datasource=data_source,
+        gridPos=GridPosition(h=8, w=12, x=12, y=8),
+        id=4,
+        targets=[
             Target(
                 dimensions={"FileSystemId": fsid},
                 metricName="DataWriteBytes",
                 namespace="AWS/FSx",
                 statistic="Sum",
-            ),
+            )
         ],
         unit="bytes",
     )
     dashboard = GrafanaDashboard(
         tags=["benchmark"],
-        panels=[panel_mem, panel_cpu, panel_fsx_io],
+        panels=[panel_mem, panel_cpu, panel_fsx_read, panel_fsx_write],
         time=TimeRange(tstart, tend),
         timezone="browser",
         title=cluster_name,
