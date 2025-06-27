@@ -16,6 +16,8 @@ from typing import Optional
 CLW_UID = "fep83zm6l8074d"
 GRAFANA_URL = os.getenv("GRAFANA_SERVER")
 API_KEY = os.getenv("GRAFANA_API_KEY")
+assert GRAFANA_URL is not None, "GRAFANA_SERVER environment variable is not set"
+assert API_KEY is not None, "GRAFANA_API_KEY environment variable is not set"
 
 
 @dataclass
@@ -97,26 +99,11 @@ class GrafanaDashboard:
 def create_dashboard(
     data_source, cluster_name: str, fsid: str, tstart: str, tend: str
 ) -> GrafanaDashboard:
-    panel_mem = Panel(
-        title="mem_used_percent",
-        datasource=data_source,
-        gridPos=GridPosition(h=8, w=12, x=0, y=0),
-        id=1,
-        targets=[
-            Target(
-                dimensions={"ClusterName": cluster_name},
-                metricName="mem_used_percent",
-                namespace="CustomMetrics_test",
-                statistic="Average",
-            )
-        ],
-        unit="percent",
-    )
     panel_cpu = Panel(
         title="cpu_usage_active",
         datasource=data_source,
-        gridPos=GridPosition(h=8, w=12, x=0, y=8),
-        id=2,
+        gridPos=GridPosition(h=8, w=12, x=0, y=0),
+        id=1,
         targets=[
             Target(
                 dimensions={"ClusterName": cluster_name, "cpu": "cpu-total"},
@@ -127,10 +114,25 @@ def create_dashboard(
         ],
         unit="percent",
     )
-    panel_fsx_write = Panel(
-        title="FSX/DataWriteBytes",
+    panel_mem = Panel(
+        title="mem_used_percent",
         datasource=data_source,
-        gridPos=GridPosition(h=8, w=12, x=0, y=16),
+        gridPos=GridPosition(h=8, w=12, x=12, y=0),
+        id=2,
+        targets=[
+            Target(
+                dimensions={"ClusterName": cluster_name},
+                metricName="mem_used_percent",
+                namespace="CustomMetrics_test",
+                statistic="Average",
+            )
+        ],
+        unit="percent",
+    )
+    panel_fsx_io = Panel(
+        title="FSx Data Read/Write",
+        datasource=data_source,
+        gridPos=GridPosition(h=8, w=12, x=0, y=8),
         id=3,
         targets=[
             Target(
@@ -138,28 +140,19 @@ def create_dashboard(
                 metricName="DataWriteBytes",
                 namespace="AWS/FSx",
                 statistic="Sum",
-            )
-        ],
-        unit="bytes",
-    )
-    panel_fsx_read = Panel(
-        title="FSX/DataReadBytes",
-        datasource=data_source,
-        gridPos=GridPosition(h=8, w=12, x=0, y=24),
-        id=4,
-        targets=[
+            ),
             Target(
                 dimensions={"FileSystemId": fsid},
                 metricName="DataReadBytes",
                 namespace="AWS/FSx",
                 statistic="Sum",
-            )
+            ),
         ],
         unit="bytes",
     )
     dashboard = GrafanaDashboard(
         tags=["benchmark"],
-        panels=[panel_mem, panel_cpu, panel_fsx_write, panel_fsx_read],
+        panels=[panel_mem, panel_cpu, panel_fsx_io],
         time=TimeRange(tstart, tend),
         timezone="browser",
         title=cluster_name,
