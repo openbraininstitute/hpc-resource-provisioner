@@ -9,6 +9,13 @@ from pcluster.api.errors import NotFoundException
 
 from hpc_provisioner import handlers, pcluster_manager
 from hpc_provisioner.cluster import Cluster, ClusterJSONEncoder
+from hpc_provisioner.constants import (
+    BILLING_TAG_KEY,
+    BILLING_TAG_VALUE,
+    DRAS,
+    PROJECT_TAG_KEY,
+    VLAB_TAG_KEY,
+)
 from hpc_provisioner.pcluster_manager import InvalidRequest
 
 logger = logging.getLogger("test_logger")
@@ -107,19 +114,28 @@ def test_get_all_clusters(data):
 
 
 @patch("hpc_provisioner.handlers.boto3")
+@patch("hpc_provisioner.handlers.dynamodb_resource")
 @pytest.mark.parametrize("key_exists", [True, False])
-def test_post(patched_boto3, post_event, key_exists, test_cluster):
+def test_post(patched_boto3, patched_dynamodb_resource, post_event, key_exists, test_cluster):
     test_cluster_name = test_cluster.name
     mock_ec2_client = MagicMock()
     mock_sm_client = MagicMock()
     mock_cf_client = MagicMock()
     mock_lambda_client = MagicMock()
-    patched_boto3.client.side_effect = [
+    patched_boto3_client = MagicMock()
+    patched_boto3_client.side_effect = [
         mock_ec2_client,
         mock_sm_client,
         mock_cf_client,
         mock_lambda_client,
     ]
+    patched_boto3.client = patched_boto3_client
+    # patched_boto3.client.side_effect = [
+    #     mock_ec2_client,
+    #     mock_sm_client,
+    #     mock_cf_client,
+    #     mock_lambda_client,
+    # ]
     sim_private_key = """-----BEGIN RSA PRIVATE KEY-----
 MIIEogIBAAKCAQEAvfvswsbNBM05kutLby0DZEl+tWx62yqMU0IgKqEoPamtgS3s
 V6S5xOLqYItd5UAMLf4pAGbvqXNy8BbVNmiKfPEXRfBq1hC4t/FmILIh5uyTRqEe
@@ -155,6 +171,8 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
     }
     mock_sm_client.get_secret_value.return_value = sim_key_secret
 
+    patched_dynamodb_table = MagicMock()
+    patched_dynamodb_resource.Table.return_value = patched_dynamodb_table
     with patch("hpc_provisioner.handlers.create_keypair") as patched_create_keypair:
         if key_exists:
             patched_create_keypair.side_effect = [
@@ -181,8 +199,17 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
                     {"ARN": "secret ARN sim"},
                 ]
                 patched_generate_public_key.return_value = sim_pubkey
-                actual_response = handlers.pcluster_create_request_handler(post_event)
-                patched_generate_public_key.assert_called_once_with(sim_private_key)
+                with patch(
+                    "hpc_provisioner.dynamodb_actions.get_cluster_by_name"
+                ) as patched_get_cluster:
+                    patched_get_cluster.return_value = None
+                    logger.debug(f"Post event: {post_event}")
+                    actual_response = handlers.pcluster_create_request_handler(post_event)
+                    logger.debug(80 * "*")
+                    logger.debug(f"Boto3 mock calls: {patched_boto3.mock_calls}")
+                    logger.debug(f"client mock calls: {patched_boto3.client.mock_calls}")
+                    logger.debug(80 * "*")
+                    patched_generate_public_key.assert_called_once_with(sim_private_key)
     cluster = Cluster(
         project_id=post_event["project_id"], vlab_id=post_event["vlab_id"], sim_pubkey=sim_pubkey
     )
@@ -205,6 +232,7 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
         )
     )
     assert actual_response == expected_response
+    patched_dynamodb_table.put_item.assert_called_with(Item=test_cluster.as_dict())
 
 
 @patch(
@@ -212,7 +240,11 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
 )
 @patch("hpc_provisioner.aws_queries.free_subnet")
 @patch("hpc_provisioner.pcluster_manager.remove_key")
+@patch("hpc_provisioner.pcluster_manager.boto3")
+@patch("hpc_provisioner.handlers.dynamodb_resource")
 def test_delete(
+    patched_dynamodb_resource,
+    patched_boto3,
     patched_remove_key,
     patched_free_subnet,
     patched_dynamodb_client,
@@ -220,8 +252,24 @@ def test_delete(
     delete_event,
     test_cluster,
 ):
-    mock_client = MagicMock()
-    patched_dynamodb_client.return_value = mock_client
+    mock_fsx_client = MagicMock()
+    mock_fsx_client.describe_file_systems.return_value = {
+        "FileSystems": [
+            {"FileSystemId": "fs-123", "Tags": [{"Key": "Name", "Value": test_cluster.name}]},
+            {
+                "FileSystemId": "fs-234",
+                "Tags": [{"Key": "Name", "Value": f"{test_cluster.name}-2"}],
+            },
+        ]
+    }
+    patched_boto3.client.return_value = mock_fsx_client
+    mock_resource = MagicMock()
+    mock_table = MagicMock()
+    mock_resource.Table.return_value = mock_table
+    patched_dynamodb_resource.return_value = mock_resource
+
+    mock_dynamodb_client = MagicMock()
+    patched_dynamodb_client.return_value = mock_dynamodb_client
     with patch(
         "hpc_provisioner.pcluster_manager.pc.delete_cluster", return_value=data["deletingCluster"]
     ) as patched_delete_cluster:
@@ -241,9 +289,13 @@ def test_delete(
     assert actual_response == expected_response
     patched_get_registered_subnets.assert_called_once()
     assert patched_remove_key.call_count == 2
-    call1 = call(mock_client, "subnet-123")
-    call2 = call(mock_client, "subnet-234")
+    call1 = call(mock_dynamodb_client, "subnet-123")
+    call2 = call(mock_dynamodb_client, "subnet-234")
     patched_free_subnet.assert_has_calls([call1, call2], any_order=True)
+    mock_table.delete_item.assert_called_once_with(Key={"name": test_cluster.name})
+    mock_fsx_client.delete_file_system.assert_called_once_with(
+        FileSystemId="fs-123", ClientRequestToken="fs-123"
+    )
 
 
 def test_get_not_found(get_event):
@@ -273,7 +325,23 @@ def test_get_internal_server_error(get_event):
     "hpc_provisioner.aws_queries.dynamodb_client",
 )
 @patch("hpc_provisioner.pcluster_manager.remove_key")
-def test_delete_not_found(patched_remove_key, patched_dynamodb_client, delete_event):
+@patch("hpc_provisioner.pcluster_manager.boto3")
+@patch("hpc_provisioner.handlers.dynamodb_resource")
+def test_delete_not_found(
+    patched_dynamodb_resource,
+    patched_boto3,
+    patched_remove_key,
+    patched_dynamodb_client,
+    delete_event,
+    test_cluster,
+):
+    mock_fsx_client = MagicMock()
+    mock_fsx_client.describe_file_systems.return_value = {"FileSystems": []}
+    patched_boto3.client.return_value = mock_fsx_client
+    mock_resource = MagicMock()
+    mock_table = MagicMock()
+    mock_resource.Table.return_value = mock_table
+    patched_dynamodb_resource.return_value = mock_resource
     error_message = f"Cluster {delete_event['vlab_id']}-{delete_event['project_id']} does not exist"
     with patch(
         "hpc_provisioner.pcluster_manager.pc.delete_cluster",
@@ -284,13 +352,30 @@ def test_delete_not_found(patched_remove_key, patched_dynamodb_client, delete_ev
     assert result == {"statusCode": 404, "body": error_message}
     patched_dynamodb_client.assert_called_once()
     assert patched_remove_key.call_count == 2
+    mock_table.delete_item.assert_called_once_with(Key={"name": test_cluster.name})
 
 
 @patch(
     "hpc_provisioner.aws_queries.dynamodb_client",
 )
 @patch("hpc_provisioner.pcluster_manager.remove_key")
-def test_delete_internal_server_error(patched_remove_key, patched_dynamodb_client, delete_event):
+@patch("hpc_provisioner.pcluster_manager.boto3")
+@patch("hpc_provisioner.handlers.dynamodb_resource")
+def test_delete_internal_server_error(
+    patched_dynamodb_resource,
+    patched_boto3,
+    patched_remove_key,
+    patched_dynamodb_client,
+    delete_event,
+    test_cluster,
+):
+    mock_fsx_client = MagicMock()
+    mock_fsx_client.describe_file_systems.return_value = {"FileSystems": []}
+    patched_boto3.client.return_value = mock_fsx_client
+    mock_resource = MagicMock()
+    mock_table = MagicMock()
+    mock_resource.Table.return_value = mock_table
+    patched_dynamodb_resource.return_value = mock_resource
     with patch(
         "hpc_provisioner.pcluster_manager.pc.delete_cluster",
         side_effect=RuntimeError,
@@ -300,6 +385,7 @@ def test_delete_internal_server_error(patched_remove_key, patched_dynamodb_clien
     assert result == {"statusCode": 500, "body": "<class 'RuntimeError'>"}
     patched_dynamodb_client.assert_called_once()
     assert patched_remove_key.call_count == 2
+    mock_table.delete_item.assert_called_once_with(Key={"name": test_cluster.name})
 
 
 @patch("hpc_provisioner.pcluster_manager.pc.create_cluster")
@@ -362,20 +448,22 @@ def test_invalid_http_method(put_event):
 @pytest.mark.parametrize("method", ["POST", "DELETE"])
 def test_vlab_id_not_specified(method):
     with pytest.raises(InvalidRequest):
-        handlers.pcluster_handler({"httpMethod": method})
+        handlers.pcluster_handler({"httpMethod": method, "path": "/hpc-provisioner/pcluster"})
 
 
 @pytest.mark.parametrize("method", ["POST", "DELETE"])
 def test_project_id_not_specified(method):
     with pytest.raises(InvalidRequest):
-        handlers.pcluster_handler({"httpMethod": method, "vlab_id": "test_vlab"})
+        handlers.pcluster_handler(
+            {"httpMethod": method, "vlab_id": "test_vlab", "path": "/hpc-provisioner/pcluster"}
+        )
 
 
 def test_http_method_not_specified():
     response = handlers.pcluster_handler({})
     assert response == {
         "statusCode": 400,
-        "body": "Could not determine HTTP method - make sure to GET, POST or DELETE",
+        "body": "Unclear what to do with event {}",
     }
 
 
@@ -392,3 +480,160 @@ def test_load_tier(tier, is_valid):
     else:
         with pytest.raises(ValueError):
             pcluster_manager.get_tier_config(pcluster_config, tier)
+
+
+@patch("hpc_provisioner.handlers.dynamodb_resource")
+@patch("hpc_provisioner.pcluster_manager.boto3")
+@patch("hpc_provisioner.handlers.do_cluster_create")
+def test_dra_check_no_fs_created_yet(
+    patched_do_cluster_create, patched_boto3, patched_dynamodb_resource
+):
+    pending_clusters = [
+        Cluster(project_id="proj1", vlab_id="testing"),
+        Cluster(project_id="proj2", vlab_id="testing"),
+    ]
+    mock_fsx_client = MagicMock()
+    mock_fsx_client.describe_file_systems.side_effect = [
+        {"FileSystems": []},
+        {"FileSystems": []},
+        {"FileSystems": []},
+        {"FileSystems": []},
+        {
+            "FileSystems": [
+                {
+                    "Lifecycle": "CREATING",
+                    "Tags": [{"Key": "Name", "Value": pending_clusters[0].name}],
+                }
+            ]
+        },
+    ]
+    file_system_id = "fs-123"
+    mock_fsx_client.create_file_system.return_value = {
+        "FileSystem": {"FileSystemId": file_system_id}
+    }
+    patched_boto3.client.return_value = mock_fsx_client
+    with patch(
+        "hpc_provisioner.handlers.get_unclaimed_clusters",
+        return_value=pending_clusters,
+    ):
+        return_value = handlers.dra_check_handler({})
+        assert return_value == {
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps(
+                {
+                    pending_clusters[
+                        0
+                    ].name: f"Precreating fsx for cluster {pending_clusters[0].name}",
+                    pending_clusters[
+                        1
+                    ].name: f"A filesystem is being created - skipping cluster {pending_clusters[1].name} for now",
+                }
+            ),
+        }
+    patched_do_cluster_create.assert_not_called()
+    mock_fsx_client.create_file_system.assert_called_once_with(
+        ClientRequestToken=pending_clusters[0].name,
+        FileSystemType="LUSTRE",
+        StorageCapacity=19200,
+        StorageType="SSD",
+        SubnetIds=json.loads(os.environ["FS_SUBNET_IDS"]),
+        SecurityGroupIds=[os.environ["FS_SG_ID"]],
+        Tags=[
+            {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+            {"Key": VLAB_TAG_KEY, "Value": pending_clusters[0].vlab_id},
+            {"Key": PROJECT_TAG_KEY, "Value": pending_clusters[0].project_id},
+            {"Key": "Name", "Value": pending_clusters[0].name},
+        ],
+        LustreConfiguration={
+            "WeeklyMaintenanceStartTime": "6:05:00",
+            "DeploymentType": "PERSISTENT_2",
+            "PerUnitStorageThroughput": 250,
+            "DataCompressionType": "LZ4",
+            "EfaEnabled": True,
+            "MetadataConfiguration": {"Mode": "AUTOMATIC"},
+        },
+    )
+    mock_fsx_client.create_data_repository_association.assert_called_once_with(
+        FileSystemId=file_system_id,
+        FileSystemPath=DRAS[0]["mountpoint"],
+        DataRepositoryPath=os.environ["SBO_NEXUSDATA_BUCKET"],
+        BatchImportMetaDataOnCreate=True,
+        ImportedFileChunkSize=1024,
+        S3={"AutoImportPolicy": {"Events": ["NEW", "CHANGED", "DELETED"]}},
+        ClientRequestToken=f"{file_system_id}-testing-proj1-projects",
+        Tags=[
+            {
+                "Key": "Name",
+                "Value": f"{file_system_id}-{DRAS[0]['mountpoint']}",
+            },
+            {"Key": "SBO_Billing", "Value": "hpc:parallelcluster"},
+            {"Key": "obp:costcenter:vlabid", "Value": pending_clusters[0].vlab_id},
+            {"Key": "obp:costcenter:project", "Value": pending_clusters[0].project_id},
+        ],
+    )
+
+
+@patch("hpc_provisioner.pcluster_manager.boto3")
+@patch("hpc_provisioner.handlers.do_cluster_create")
+def test_dra_check_fs_for_other_cluster_creating(patched_do_cluster_create, patched_boto3):
+    mock_fsx_client = MagicMock()
+    mock_fsx_client.describe_file_systems.return_value = {
+        "FileSystems": [
+            {
+                "Lifecycle": "CREATING",
+                "Tags": [{"Key": "Name", "Value": "pcluster-testing-proj2"}],
+            }
+        ]
+    }
+    patched_boto3.client.return_value = mock_fsx_client
+    pending_clusters = [
+        Cluster(project_id="proj1", vlab_id="testing"),
+        Cluster(project_id="proj2", vlab_id="testing"),
+    ]
+    with patch(
+        "hpc_provisioner.handlers.get_unclaimed_clusters",
+        return_value=pending_clusters,
+    ):
+        return_value = handlers.dra_check_handler({})
+        assert return_value == {
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps(
+                {
+                    pending_clusters[
+                        0
+                    ].name: f"A filesystem is being created - skipping cluster {pending_clusters[0].name} for now",
+                    pending_clusters[
+                        1
+                    ].name: f"A filesystem is being created - skipping cluster {pending_clusters[1].name} for now",
+                }
+            ),
+        }
+    patched_do_cluster_create.assert_not_called()
+    mock_fsx_client.create_file_system.assert_not_called()
+    mock_fsx_client.create_data_repository_association.assert_not_called()
+
+
+def test_dra_check_dra_creating():
+    pass
+
+
+def test_dra_check_fs_failed():
+    pass
+
+
+def test_dra_check_dra_failed():
+    pass
+
+
+def test_dra_check_multiple_clusters_ready_to_go():
+    pass
+
+
+def test_dra_check_no_unclaimed_clusters():
+    pass
+
+
+def test_dra_check_one_cluster_ready_one_not_done():
+    pass
