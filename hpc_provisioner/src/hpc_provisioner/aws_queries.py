@@ -357,7 +357,7 @@ def create_fsx(
             "DeploymentType": "PERSISTENT_2",
             "PerUnitStorageThroughput": 250,
             "DataCompressionType": "LZ4",
-            "EfaEnabled": True,
+            "EfaEnabled": False,
             # "LogConfiguration": {  # TODO do we want this?
             #     "Level": "DISABLED" | "WARN_ONLY" | "ERROR_ONLY" | "WARN_ERROR",
             #     "Destination": "string",
