@@ -137,13 +137,13 @@ def create_dashboard(
         targets=[
             Target(
                 dimensions={"FileSystemId": fsid},
-                metricName="DataWriteBytes",
+                metricName="DataReadBytes",
                 namespace="AWS/FSx",
                 statistic="Sum",
             ),
             Target(
                 dimensions={"FileSystemId": fsid},
-                metricName="DataReadBytes",
+                metricName="DataWriteBytes",
                 namespace="AWS/FSx",
                 statistic="Sum",
             ),
