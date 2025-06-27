@@ -321,7 +321,7 @@ def list_existing_stacks(cf_client):
 def create_fsx(
     fsx_client,
     fs_name: str,
-    cluster: Optional[Cluster] = None,
+    cluster: Cluster,
 ) -> Dict:
     """
     Create an FSX filesystem if it doesn't exist yet
@@ -338,6 +338,7 @@ def create_fsx(
         {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
         {"Key": VLAB_TAG_KEY, "Value": cluster.vlab_id},
         {"Key": PROJECT_TAG_KEY, "Value": cluster.project_id},
+        {"Key": "parallelcluster:cluster-name", "Value": cluster.name},
     ]
     tags.append({"Key": "Name", "Value": fs_name})
     logger.debug(f"Tags: {tags}")
@@ -461,6 +462,7 @@ def create_dra(
             {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
             {"Key": VLAB_TAG_KEY, "Value": cluster.vlab_id},
             {"Key": PROJECT_TAG_KEY, "Value": cluster.project_id},
+            {"Key": "parallelcluster:cluster-name", "Value": cluster.name},
         ],
     )
 
