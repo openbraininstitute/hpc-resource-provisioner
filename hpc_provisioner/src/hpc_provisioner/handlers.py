@@ -244,7 +244,7 @@ def pcluster_describe_handler(event, _context=None):
                 pc_output.update(cluster_secrets)
 
             else:
-                pc_output = pcluster_describe(cluster)
+                pc_output.update(pcluster_describe(cluster))
                 pc_output.update(
                     get_secrets_for_cluster(sm_client=sm_client, cluster_name=cluster.name)
                 )
