@@ -12,6 +12,7 @@ from hpc_provisioner.aws_queries import (
     create_eventbridge_dra_checking_rule,
     create_keypair,
     eventbridge_dra_checking_rule_exists,
+    get_fsx,
     get_secrets_for_cluster,
     store_private_key,
 )
@@ -224,12 +225,19 @@ def pcluster_describe_handler(event, _context=None):
     else:
         logger.debug(f"describe pcluster {cluster}")
         try:
+            pc_output = {}
+            fsx_client = boto3.client("fsx")
+            cluster_fsx = get_fsx(fsx_client, cluster.name)
+            if cluster_fsx:
+                pc_output["clusterFsxId"] = cluster_fsx["FileSystemId"]
+            else:
+                pc_output["clusterFsxId"] = "NOTFOUND"
             dynamo_output = get_cluster_by_name(
                 dynamodb_resource=dynamodb_resource(), cluster_name=cluster.name
             )
             if dynamo_output and dynamo_output.get("provisioning_launched", 0) == 0:
                 cluster_from_dynamo = Cluster.from_dynamo_dict(dynamo_output)
-                pc_output = cluster_from_dynamo.as_dict()
+                pc_output.update(cluster_from_dynamo.as_dict())
                 cluster_secrets = get_secrets_for_cluster(
                     sm_client=sm_client, cluster_name=cluster_from_dynamo.name
                 )
