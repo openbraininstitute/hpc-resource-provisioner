@@ -346,7 +346,7 @@ def create_fsx(
     fs = fsx_client.create_file_system(
         ClientRequestToken=fs_name,
         FileSystemType="LUSTRE",
-        StorageCapacity=19200,
+        StorageCapacity=1200,
         StorageType="SSD",
         SubnetIds=get_fs_subnet_ids(),
         SecurityGroupIds=[get_fs_sg_id()],
