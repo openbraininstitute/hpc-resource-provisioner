@@ -10,19 +10,27 @@ from hpc_provisioner.cluster import Cluster
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
     BILLING_TAG_VALUE,
+    DRA_CHECKING_RULE_NAME,
     PROJECT_TAG_KEY,
     VLAB_TAG_KEY,
 )
 from hpc_provisioner.dynamodb_actions import (
     SubnetAlreadyRegisteredException,
     dynamodb_client,
+    dynamodb_resource,
     free_subnet,
+    get_cluster_by_name,
     get_registered_subnets,
     get_subnet,
     register_subnet,
 )
 from hpc_provisioner.logging_config import LOGGING_CONFIG
-from hpc_provisioner.utils import get_fs_sg_id, get_fs_subnet_ids
+from hpc_provisioner.utils import (
+    get_api_gw_arn,
+    get_eventbridge_role_arn,
+    get_fs_sg_id,
+    get_fs_subnet_ids,
+)
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("hpc-resource-provisioner")
@@ -99,6 +107,20 @@ def create_secret(sm_client, vlab_id, project_id, secret_name, secret_value):
     return secret
 
 
+def get_secrets_for_cluster(sm_client, cluster_name: str) -> dict:
+    response = {"ssh_user": "sim"}
+    for secret_data in [
+        {"response_key": "admin_user_private_ssh_key_arn", "secret_suffix": ""},
+        {"response_key": "private_ssh_key_arn", "secret_suffix": "_sim"},
+    ]:
+        secret = get_secret(
+            sm_client=sm_client, secret_name=f"{cluster_name}{secret_data['secret_suffix']}"
+        )
+        response[secret_data["response_key"]] = secret["ARN"]
+
+    return response
+
+
 def get_secret(sm_client, secret_name):
     existing_secrets = sm_client.list_secrets(Filters=[{"Key": "name", "Values": [secret_name]}])
     if secret_list := existing_secrets.get("SecretList", []):
@@ -142,8 +164,10 @@ def get_security_group(ec2_client) -> str:
 
 
 def release_subnets(cluster_name: str) -> None:
+    logger.debug(f"Releasing subnets for {cluster_name}")
     client = dynamodb_client()
     registered_subnets = get_registered_subnets(client)
+    logger.debug(f"Registered subnets: {registered_subnets}")
     claimed_subnets = [
         subnet for subnet in registered_subnets if registered_subnets[subnet] == cluster_name
     ]
@@ -294,48 +318,35 @@ def list_existing_stacks(cf_client):
     return existing_stack_names
 
 
-def get_fsx_name(shared: bool, fs_name: str, cluster: Optional[Cluster]) -> str:
-    if shared:
-        return fs_name
-    else:
-        return f"{fs_name}-{cluster.name}"
-
-
 def create_fsx(
     fsx_client,
     fs_name: str,
-    shared: bool = True,
-    cluster: Optional[Cluster] = None,
+    cluster: Cluster,
 ) -> Dict:
     """
     Create an FSX filesystem if it doesn't exist yet
 
     :param fs_name: name to identify the filesystem (e.g. "scratch", "projects", ...)
-    :param shared: whether the filesystem is shared among all pclusters or specific to one cluster
     :param vlab_id: vlab of the cluster to which the filesystem will be attached.
     :param project_id: project of the cluster to which the filesystem will be attached.
     """
 
     logger.debug(
-        f"Creating fsx with name {fs_name}, shared {shared}, and cluster {cluster}",
+        f"Creating fsx with name {fs_name} and cluster {cluster}",
     )
     tags = [
         {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+        {"Key": VLAB_TAG_KEY, "Value": cluster.vlab_id},
+        {"Key": PROJECT_TAG_KEY, "Value": cluster.project_id},
+        {"Key": "parallelcluster:cluster-name", "Value": cluster.name},
     ]
-    token = get_fsx_name(shared, fs_name, cluster)
-    logger.debug(f"Token: {token}")
-    tags.append({"Key": "Name", "Value": token})
-
-    if not shared:
-        tags.append({"Key": VLAB_TAG_KEY, "Value": cluster.vlab_id})
-        tags.append({"Key": PROJECT_TAG_KEY, "Value": cluster.project_id})
-
+    tags.append({"Key": "Name", "Value": fs_name})
     logger.debug(f"Tags: {tags}")
 
     fs = fsx_client.create_file_system(
-        ClientRequestToken=token,
+        ClientRequestToken=fs_name,
         FileSystemType="LUSTRE",
-        StorageCapacity=19200,
+        StorageCapacity=1200,
         StorageType="SSD",
         SubnetIds=get_fs_subnet_ids(),
         SecurityGroupIds=[get_fs_sg_id()],
@@ -346,7 +357,7 @@ def create_fsx(
             "DeploymentType": "PERSISTENT_2",
             "PerUnitStorageThroughput": 250,
             "DataCompressionType": "LZ4",
-            "EfaEnabled": True,
+            "EfaEnabled": False,
             # "LogConfiguration": {  # TODO do we want this?
             #     "Level": "DISABLED" | "WARN_ONLY" | "ERROR_ONLY" | "WARN_ERROR",
             #     "Destination": "string",
@@ -376,10 +387,8 @@ def get_fsx_by_id(fsx_client, filesystem_id: str) -> Optional[dict]:
             go_on = next_token is not None
 
 
-def get_fsx(
-    fsx_client, shared: bool, fs_name: str, vlab_id: str, project_id: str
-) -> Optional[dict]:
-    full_fs_name = get_fsx_name(shared, fs_name, vlab_id, project_id)
+def list_all_fsx(fsx_client) -> list:
+    all_fsx = []
     go_on = True
     next_token = None
     while go_on:
@@ -387,11 +396,23 @@ def get_fsx(
             file_systems = fsx_client.describe_file_systems(NextToken=next_token)
         else:
             file_systems = fsx_client.describe_file_systems()
-        for fs in file_systems["FileSystems"]:
-            if any([t["Value"] == full_fs_name for t in fs["Tags"] if t["Key"] == "Name"]):
-                return fs
         next_token = file_systems.get("NextToken")
+        logger.debug(f"Checking for next_token in file systems: {file_systems}")
         go_on = next_token is not None
+        all_fsx.extend(file_systems["FileSystems"])
+    return all_fsx
+
+
+def list_all_dras_for_fsx(fsx_client, filesystem_id) -> list:
+    return fsx_client.describe_data_repository_associations(
+        Filters=[{"Name": "file-system-id", "Values": [filesystem_id]}]
+    ).get("Associations", [])
+
+
+def get_fsx(fsx_client, fs_name: str) -> Optional[dict]:
+    for fsx in list_all_fsx(fsx_client):
+        if any([t["Value"] == fs_name for t in fsx["Tags"] if t["Key"] == "Name"]):
+            return fsx
     return None
 
 
@@ -400,12 +421,11 @@ def create_dra(
     filesystem_id: str,
     mountpoint: str,
     bucket: str,
-    vlab_id: str,
-    project_id: str,
+    cluster: Cluster,
     writable: bool = False,
 ) -> dict:
     logger.debug(
-        f"Creating DRA for fs {filesystem_id}, mount {bucket} at {mountpoint}, for {vlab_id}-{project_id}, writable {writable}"
+        f"Creating DRA for fs {filesystem_id}, mount {bucket} at {mountpoint}, for {cluster.vlab_id}-{cluster.project_id}, writable {writable}"
     )
     s3_config = {
         "AutoImportPolicy": {  # from S3 to FS
@@ -421,6 +441,13 @@ def create_dra(
         s3_config["AutoExportPolicy"] = {"Events": ["NEW", "CHANGED", "DELETED"]}
 
     logger.debug(f"s3 config: {s3_config}")
+    dynamo_cluster = get_cluster_by_name(
+        dynamodb_resource=dynamodb_resource(), cluster_name=cluster.name
+    )
+    if not dynamo_cluster:
+        raise RuntimeError(f"Clould not retrieve cluster {cluster.name} from dynamodb")
+    if dynamo_cluster["creation_time"] == 0:
+        raise ValueError(f"Creation time for {cluster.name} is 0; something is wrong")
 
     dra = fsx_client.create_data_repository_association(
         FileSystemId=filesystem_id,
@@ -429,12 +456,13 @@ def create_dra(
         BatchImportMetaDataOnCreate=True,
         ImportedFileChunkSize=1024,
         S3=s3_config,
-        ClientRequestToken=f"{filesystem_id}-{vlab_id}-{project_id}",
+        ClientRequestToken=f"{dynamo_cluster['creation_time']}-{cluster.vlab_id[:21]}-{cluster.project_id[:21]}-{mountpoint.split('/')[-1]}",
         Tags=[
             {"Key": "Name", "Value": f"{filesystem_id}-{mountpoint}"},
             {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
-            {"Key": VLAB_TAG_KEY, "Value": vlab_id},
-            {"Key": PROJECT_TAG_KEY, "Value": project_id},
+            {"Key": VLAB_TAG_KEY, "Value": cluster.vlab_id},
+            {"Key": PROJECT_TAG_KEY, "Value": cluster.project_id},
+            {"Key": "parallelcluster:cluster-name", "Value": cluster.name},
         ],
     )
 
@@ -450,9 +478,7 @@ def get_dra_by_id(fsx_client, dra_id: str) -> Optional[dict]:
 
 
 def get_dra(fsx_client, filesystem_id: str, mountpoint: str) -> Optional[dict]:
-    dras = fsx_client.describe_data_repository_associations(
-        Filters=[{"Name": "file-system-id", "Values": [filesystem_id]}]
-    )
+    dras = list_all_dras_for_fsx(fsx_client=fsx_client, filesystem_id=filesystem_id)
 
     try:
         dra = next(dra for dra in dras if dra["FileSystemPath"] == mountpoint)
@@ -461,32 +487,59 @@ def get_dra(fsx_client, filesystem_id: str, mountpoint: str) -> Optional[dict]:
         return None
 
 
-def wait_for_fsx(fsx_client, filesystem_id, target_status="AVAILABLE", timeout=300) -> None:
-    fsx = {"Lifecycle": "UNKNOWN"}
-    start = time.time()
-    while fsx["Lifecycle"] != target_status and time.time() < start + timeout:
-        fsx = get_fsx_by_id(fsx_client=fsx_client, filesystem_id=filesystem_id)
-        if not fsx:
-            raise RuntimeError(f"FSx with id {filesystem_id} not found")
+def eventbridge_dra_checking_rule_exists(eb_client):
+    response = eb_client.list_rules(NamePrefix="resource_provisioner", Limit=100)
+    return any(rule["Name"] == DRA_CHECKING_RULE_NAME for rule in response.get("Rules", []))
 
-    if fsx["Lifecycle"] != target_status:
-        raise RuntimeError(
-            f"FSx {filesystem_id} did not reach status {target_status} within {timeout} seconds"
+
+def create_eventbridge_dra_checking_rule(eb_client):
+    if eventbridge_dra_checking_rule_exists(eb_client):
+        return
+
+    eb_client.put_rule(
+        Name=DRA_CHECKING_RULE_NAME,
+        ScheduleExpression="rate(5 minutes)",
+        State="ENABLED",
+        Description="Periodically check for DRAs and fire resource creator",
+        RoleArn=get_eventbridge_role_arn(),
+        Tags=[
+            {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
+        ],
+    )
+
+    create_eventbridge_target(eb_client)
+
+
+def create_eventbridge_target(eb_client):
+    target = {
+        "Id": "hpc-resource-provisioner",
+        "Arn": f"{get_api_gw_arn()}production/POST/hpc-provisioner/dra",
+        "RoleArn": get_eventbridge_role_arn(),
+    }
+    logger.debug(f"Creating eventbridge target: {target}")
+    eb_client.put_targets(
+        Rule=DRA_CHECKING_RULE_NAME,
+        Targets=[
+            target,
+        ],
+    )
+
+
+def delete_eventbridge_dra_checking_rule(eb_client):
+    logger.debug("Deleting eventbridge DRA checking rule")
+    existing_targets = eb_client.list_targets_by_rule(Rule=DRA_CHECKING_RULE_NAME).get(
+        "Targets", []
+    )
+    if len(existing_targets) > 0:
+        logger.debug(f"Clearing targets first: {existing_targets}")
+        eb_client.remove_targets(
+            Rule=DRA_CHECKING_RULE_NAME, Ids=[target["Id"] for target in existing_targets]
         )
 
+    logger.debug("Deleting rule")
+    response = eb_client.delete_rule(Name=DRA_CHECKING_RULE_NAME)
+    logger.debug(f"Delete response: {response}")
 
-def wait_for_dra(fsx_client, dra_id, target_status="AVAILABLE", timeout=600) -> None:
-    dra = {"Lifecycle": "UNKNOWN"}
-    logger.debug(f"Waiting for dra {dra_id} for {timeout} seconds")
-    start = time.time()
-    while dra.get("Lifecycle") != target_status and time.time() < start + timeout:
-        dra = get_dra_by_id(fsx_client=fsx_client, dra_id=dra_id)
-        logger.debug(f"DRA: {dra}")
-        if not dra:
-            raise RuntimeError(f"DRA with id {dra_id} not found")
-        time.sleep(10)
 
-    if dra["Lifecycle"] != target_status:
-        raise RuntimeError(
-            f"DRA {dra_id} did not reach status {target_status} within {timeout} seconds"
-        )
+def delete_fsx(fsx_client, filesystem_id: str) -> None:
+    fsx_client.delete_file_system(FileSystemId=filesystem_id, ClientRequestToken=filesystem_id)

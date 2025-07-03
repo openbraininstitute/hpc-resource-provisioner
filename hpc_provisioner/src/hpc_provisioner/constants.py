@@ -18,3 +18,17 @@ DEFAULTS = {
 }
 
 CONFIG_VALUES = {}
+
+DRA_CHECKING_RULE_NAME = "resource_provisioner_check_for_dra"
+DRAS = [
+    {
+        "name": "projects",
+        "mountpoint": "/projects",
+        "writable": False,
+    },
+    {
+        "name": "scratch",
+        "mountpoint": "/scratch",
+        "writable": True,
+    },
+]
