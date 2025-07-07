@@ -28,7 +28,7 @@ dynamic = ["version"]
 version_file = "_version.py"
 local_scheme = "no-local-version"
 relative_to = "pyproject.toml"
-root = ".."
+root = "../.."
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov", "pytest-env"]
