@@ -217,7 +217,7 @@ def create_dashboard(
                 statistic="Average",
             )
         ],
-        unit="bytes/second",
+        unit="binBps",
     )
     panel_efs_totalio = Panel(
         title="EFS/TotalIOBytes",
