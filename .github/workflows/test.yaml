@@ -11,17 +11,19 @@ jobs:
         uses: actions/checkout@v4
       - name: Install dependencies
         run: |
+          cd aws
           python3 -m venv venv
           source venv/bin/activate
           pip3 install -e 'hpc_provisioner[test]'
       - name: Run tests
         run: |-
+          cd aws
           source venv/bin/activate
           pytest hpc_provisioner
       - name: Code Coverage Report
         uses: irongut/CodeCoverageSummary@v1.3.0
         with:
-          filename: coverage.xml
+          filename: aws/coverage.xml
           badge: true
           fail_below_min: true
           format: markdown
@@ -32,4 +34,4 @@ jobs:
         if: github.event_name == 'pull_request'
         with:
           recreate: true
-          path: code-coverage-results.md
+          path: aws/code-coverage-results.md

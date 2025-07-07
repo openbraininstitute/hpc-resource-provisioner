@@ -1,5 +1,5 @@
 ---
-name: Build and Release HPC Resource Provisioner
+name: 'AWS: Build and Release HPC Resource Provisioner'
 on:
   workflow_dispatch:
     inputs:
@@ -25,11 +25,13 @@ jobs:
           fetch-depth: 0
       - name: Install resource provisioner
         run: |-
+          cd aws
           python3 -m venv venv
           source venv/bin/activate
           pip install ./hpc_provisioner
       - name: Determine version
         run: |
+          cd aws
           echo REL_TAG=$(ls -d venv/lib/python3*/site-packages/hpc_provisioner*dist-info | awk -F- '{print $3}' | sed 's/.dist//') >> $GITHUB_ENV
         working-directory: ${{runner.workspace}}/hpc-resource-provisioner
       - name: Configure AWS Credentials
@@ -45,6 +47,7 @@ jobs:
           registries: ${{ secrets.AWS_ACCOUNT_ID }}
       - name: Build and push container
         run: |
+          cd aws
           SOURCE_CHECKSUM=$(find hpc_provisioner -type f -exec sha256sum {} \; | sha256sum | awk '{print $1}')
           AWS_PATH=hpc/resource-provisioner
           docker build --build-arg SETUPTOOLS_SCM_PRETEND_VERSION=${REL_TAG} --label "org.opencontainers.image.checksum=${SOURCE_CHECKSUM}" --label "org.opencontainers.image.software_version=${REL_TAG}" -t ${AWS_PATH}:${REL_TAG} .
@@ -65,6 +68,7 @@ jobs:
           AWS_ECR_URI: ${{ secrets.AWS_ECR_URI }}
       - name: Upload to S3
         run: |
+          cd aws
           aws s3 cp provisioner_scripts/create_users.py s3://${{ secrets.S3_BUCKET }}/scripts/create_users.py
           aws s3 cp provisioner_scripts/environment.sh s3://${{ secrets.S3_BUCKET }}/scripts/environment.sh
           aws s3 cp provisioner_scripts/80_cloudwatch_agent_config_prolog.sh s3://${{ secrets.S3_BUCKET }}/scripts/80_cloudwatch_agent_config_prolog.sh
