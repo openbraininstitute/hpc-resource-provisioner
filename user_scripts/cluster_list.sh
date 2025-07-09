@@ -17,6 +17,7 @@ export COMMAND="curl -X GET --user \""${AWS_ACCESS_KEY_ID}":"${AWS_SECRET_ACCESS
 
 echo "+ ${COMMAND} | jq"
 export CLUSTER_LIST=$(eval "${COMMAND}")
+echo ${CLUSTER_LIST}
 
 # Check for errors: if 'message' field is present, there's an error
 export ERROR=$(echo ${CLUSTER_LIST} | jq -r '.message')
