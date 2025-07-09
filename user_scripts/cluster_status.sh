@@ -22,24 +22,27 @@ if [ -z "$1" ]; then
   exit 1
 fi
 
+export CFG_FILE="$1.config"
+
 # AWS credentials and needed data
 export AWS_ACCESS_KEY_ID=$(awk '/^aws_access_key_id/ {print $3}' ~/.aws/credentials)
 export AWS_SECRET_ACCESS_KEY=$(awk '/^aws_secret/ {print $3}' ~/.aws/credentials)
-export AWS_APIGW_DEPLOY_ID=""
-export AWS_REGION="us-east-1"
+export AWS_APIGW_DEPLOY_ID="$(cat ${CFG_FILE} | jq -r '.aws | .aws_api_gw')" #"033upmtu0d"
+export AWS_REGION="$(cat ${CFG_FILE} | jq -r '.aws | .aws_region')"
 
-# Get the VLAB ID and the Project ID from the cluster name
-IFS='_' read -r -a ARG <<< "$1"
-export VLAB_ID="${ARG[0]}"
-export PROJECT_ID="${ARG[1]}"
+# Get the VLAB ID and the Project ID from the config file
+export VLAB_ID="$(cat ${CFG_FILE} | jq -r '.config | .vlab_id')"
+export PROJECT_ID="$(cat ${CFG_FILE} | jq -r '.config | .project_id')"
 
-export SSH_KEY_FILE=$1
+export SSH_KEY_FILE="$(cat ${CFG_FILE} | jq -r '.aws | .ssh_key_file')"
+export SSH_ADMIN_FILE="$(cat ${CFG_FILE} | jq -r '.aws | .ssh_admin_file')"
 
 # Query for cluster status
 echo "Checking the status of cluster '${VLAB_ID}_${PROJECT_ID}'"
 export COMMAND="curl -X GET --user \""${AWS_ACCESS_KEY_ID}":"${AWS_SECRET_ACCESS_KEY}"\" --aws-sigv4 \"aws:amz:"${AWS_REGION}":execute-api\" https://"${AWS_APIGW_DEPLOY_ID}".execute-api."${AWS_REGION}".amazonaws.com/production/hpc-provisioner/pcluster\?project_id\="${PROJECT_ID}"\&vlab_id\="${VLAB_ID}
 echo "+ ${COMMAND} | jq"
 export CLUSTER_STATUS=$(eval "${COMMAND}")
+echo ${CLUSTER_STATUS}
 
 # Check for errors: if 'message' field is present, there's an error
 export ERROR=$(echo ${CLUSTER_STATUS} | jq -r '.message')
@@ -67,14 +70,14 @@ then
 	else
 		echo "Head node is ready, copying secret key..."
 		scp ${SSH_KEY_FILE} ec2-user@${BASTION_IP}:~/.ssh
-		scp ${SSH_KEY_FILE}.admin ec2-user@${BASTION_IP}:~/.ssh
+		scp ${SSH_ADMIN_FILE} ec2-user@${BASTION_IP}:~/.ssh
 		echo "Saving head node IP in ${SSH_KEY_FILE}.ip"
 		echo $IP_ADDR > ${SSH_KEY_FILE}.ip
 	fi
 
 	echo "You can now login to the head node:"
 	echo "ssh ec2-user@${BASTION_IP}"
-	echo "ssh -i ~/.ssh/${SSH_KEY_FILE}.admin ${IP_ADDR}"
+	echo "ssh -i ~/.ssh/${SSH_ADMIN_FILE} ${IP_ADDR}"
 else
 	echo "Head node not ready yet"
 fi

@@ -104,3 +104,20 @@ else
 	echo "Secret key stored in ${ADMIN_KEY_FILE}"
 fi
 
+export CFG_FILE="${SSH_KEY_FILE}.config"
+echo "{" > ${CFG_FILE}
+echo "  \"config\": {" >> ${CFG_FILE}
+echo "    \"vlab_id\": \"${VLAB_ID}\"," >> ${CFG_FILE}
+echo "    \"project_id\": \"${PROJECT_ID}\"," >> ${CFG_FILE}
+echo "    \"lustre\": ${LUSTRE}," >> ${CFG_FILE}
+echo "    \"benchmark\": ${BENCHMARK}," >> ${CFG_FILE}
+echo "    \"tier\": \"${TIER}\"" >> ${CFG_FILE}
+echo "  }," >> ${CFG_FILE}
+echo "  \"aws\": {" >> ${CFG_FILE}
+echo "    \"aws_api_gw\": \"${AWS_APIGW_DEPLOY_ID}\"," >> ${CFG_FILE}
+echo "    \"aws_region\": \"${AWS_REGION}\"," >> ${CFG_FILE}
+echo "    \"ssh_key_file\": \"${SSH_KEY_FILE}\"," >> ${CFG_FILE}
+echo "    \"ssh_admin_file\": \"${ADMIN_KEY_FILE}\"" >> ${CFG_FILE}
+echo "  }" >> ${CFG_FILE}
+echo "}" >> ${CFG_FILE}
+
