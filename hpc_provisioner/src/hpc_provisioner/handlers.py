@@ -16,7 +16,7 @@ from hpc_provisioner.constants import (
     PROJECT_TAG_KEY,
     VLAB_TAG_KEY,
 )
-from hpc_provisioner.utils import generate_public_key, get_suffix
+from hpc_provisioner.utils import generate_public_key
 
 from .logging_config import LOGGING_CONFIG
 from .pcluster_manager import (
@@ -131,7 +131,7 @@ def pcluster_create_request_handler(event, _context=None):
 
     logger.debug(f"calling create lambda async with arguments {create_args}")
     boto3.client("lambda").invoke_async(
-        FunctionName=f"hpc-resource-provisioner-creator-{get_suffix()}",
+        FunctionName="hpc-resource-provisioner-creator",
         InvokeArgs=json.dumps(create_args, cls=ClusterJSONEncoder),
     )
     logger.debug("called create lambda async")

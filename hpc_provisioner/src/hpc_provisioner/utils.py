@@ -36,20 +36,12 @@ def get_fsx_policy_arn() -> str:
     return _get_env_var("FSX_POLICY_ARN")
 
 
-def get_suffix() -> str:
-    return _get_env_var("SUFFIX")
-
-
 def get_fs_subnet_ids() -> List[str]:
     return json.loads(_get_env_var("FS_SUBNET_IDS"))
 
 
 def get_fs_sg_id() -> str:
     return _get_env_var("FS_SG_ID")
-
-
-def get_suffix() -> str:
-    return _get_env_var("SUFFIX")
 
 
 def generate_public_key(key_material):
