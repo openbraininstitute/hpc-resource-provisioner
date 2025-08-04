@@ -49,22 +49,26 @@ def pcluster_handler(event, _context=None):
         if event["httpMethod"] == "GET":
             if event["path"] == "/hpc-provisioner/pcluster":
                 logger.debug("GET pcluster")
-                return pcluster_describe_handler(event, _context)
+                response = pcluster_describe_handler(event, _context)
             elif event["path"] == "/hpc-provisioner/version":
                 logger.debug("GET version")
-                return response_text(text=version("hpc_provisioner"))
+                response = response_text(text=version("hpc_provisioner"))
+            else:
+                response = response_text(text=f"Path {event['path']} not implemented", code=400)
         elif event["httpMethod"] == "POST":
             logger.debug("POST pcluster")
-            return pcluster_create_request_handler(event, _context)
+            response = pcluster_create_request_handler(event, _context)
         elif event["httpMethod"] == "DELETE":
             logger.debug("DELETE pcluster")
-            return pcluster_delete_handler(event, _context)
+            response = pcluster_delete_handler(event, _context)
         else:
-            return response_text(f"{event['httpMethod']} not supported", code=400)
+            response = response_text(f"{event['httpMethod']} not supported", code=400)
+    else:
+        response = response_text(
+            "Could not determine HTTP method - make sure to GET, POST or DELETE", code=400
+        )
 
-    return response_text(
-        "Could not determine HTTP method - make sure to GET, POST or DELETE", code=400
-    )
+    return response
 
 
 def pcluster_create_request_handler(event, _context=None):

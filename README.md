@@ -6,6 +6,8 @@ The HPC Resource Provisioner is a small application that offers an API to manage
 
 There's a GitHub workflow called `Build and Release HPC Resource Provisioner` that allows for very easy releasing of new versions. Select the branch you want to create a release from, and an AWS environment to push the image to, and run the workflow.
 
+Once released, you'll still have to deploy it - this is not done automatically!
+
 ## Manual Usage
 
 If you have awscli configured to connect to the sandbox environment, it's fairly easy to get the necessary variables in your shell. Make sure the keypair for sandbox is the first entry in `~/.aws/credentials`

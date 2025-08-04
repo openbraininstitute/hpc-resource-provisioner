@@ -20,6 +20,10 @@ def get_containers_bucket() -> str:
     return _get_env_var("CONTAINERS_BUCKET")
 
 
+def get_infra_bucket() -> str:
+    return _get_env_var("INFRA_ASSETS_BUCKET")
+
+
 def get_scratch_bucket() -> str:
     return _get_env_var("SCRATCH_BUCKET")
 
@@ -42,6 +46,10 @@ def get_fs_subnet_ids() -> List[str]:
 
 def get_fs_sg_id() -> str:
     return _get_env_var("FS_SG_ID")
+
+
+def get_ami_id() -> str:
+    return _get_env_var("PCLUSTER_AMI_ID")
 
 
 def generate_public_key(key_material):

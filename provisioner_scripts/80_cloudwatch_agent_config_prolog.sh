@@ -61,9 +61,9 @@ cat << _EOF_ >> /opt/slurm/CWAgent_config_$CLUSTER_NAME.json
                                 "append_dimensions":{
                                         "ClusterName": "$CLUSTER_NAME"
                                 },
-                                        "measurement": [
-                                                "mem_used_percent"
-                                        ]
+                                "measurement": [
+                                        "mem_used_percent"
+                                ]
                                 },
                         "cpu": {
                                 "append_dimensions":{

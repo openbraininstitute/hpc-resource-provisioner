@@ -58,9 +58,11 @@ addopts = ["--import-mode=importlib", "-vv", "--disable-warnings", "--cov=hpc_pr
 [tool.pytest_env]
 SBO_NEXUSDATA_BUCKET = "s3://sbonexusdata-test"
 CONTAINERS_BUCKET = "s3://sboinfrastructureassets-test/containers"
+INFRA_ASSETS_BUCKET = "sboinfrastructureassets-test"
 SCRATCH_BUCKET = "s3://scratch-test"
 EFA_SG_ID = "sg-123456789"
 FSX_POLICY_ARN = "arn:aws:iam::123456:policy/fsx_policy"
 SUFFIX = "dev"
 FS_SUBNET_IDS = '["subnet-1234"]'
 FS_SG_ID = "sg-123456789"
+PCLUSTER_AMI_ID = "ami-12345"
