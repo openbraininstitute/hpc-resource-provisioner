@@ -52,9 +52,11 @@ def pcluster_handler(event, _context=None):
                 response = pcluster_describe_handler(event, _context)
             elif event["path"] == "/hpc-provisioner/version":
                 logger.debug("GET version")
-                response = response_text(text=version("hpc_provisioner"))
+                response = response_json({"version": version("hpc_provisioner")})
             else:
-                response = response_text(text=f"Path {event['path']} not implemented", code=400)
+                response = response_json(
+                    {"message": f"Path {event['path']} not implemented"}, code=400
+                )
         elif event["httpMethod"] == "POST":
             logger.debug("POST pcluster")
             response = pcluster_create_request_handler(event, _context)
@@ -62,10 +64,11 @@ def pcluster_handler(event, _context=None):
             logger.debug("DELETE pcluster")
             response = pcluster_delete_handler(event, _context)
         else:
-            response = response_text(f"{event['httpMethod']} not supported", code=400)
+            response = response_json({"message": f"{event['httpMethod']} not supported"}, code=400)
     else:
-        response = response_text(
-            "Could not determine HTTP method - make sure to GET, POST or DELETE", code=400
+        response = response_json(
+            {"message": "Could not determine HTTP method - make sure to GET, POST or DELETE"},
+            code=400,
         )
 
     return response
@@ -229,10 +232,6 @@ def _get_vlab_query_params(incoming_event) -> Cluster:
     logger.debug(f"Parameters: {params}")
     logger.debug(f"Cluster: {cluster}")
     return cluster
-
-
-def response_text(text: str, code: int = 200):
-    return {"statusCode": code, "body": text}
 
 
 def response_json(data: dict, code: int = 200):
