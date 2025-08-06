@@ -121,8 +121,8 @@ def pcluster_create_request_handler(event, _context=None):
     logger.debug(f"Created sim user keypair: {sim_user_ssh_keypair}")
 
     response["cluster"]["ssh_user"] = "sim"
-    response["cluster"]["sim_private_ssh_key_arn"] = sim_user_secret["ARN"]
-    response["cluster"]["ec2-user_private_ssh_key_arn"] = admin_user_secret["ARN"]
+    response["cluster"]["user_private_ssh_key_arn"] = sim_user_secret["ARN"]
+    response["cluster"]["admin_private_ssh_key_arn"] = admin_user_secret["ARN"]
 
     if key_material := sm_client.get_secret_value(SecretId=sim_user_secret["ARN"]):
         cluster.sim_pubkey = generate_public_key(key_material["SecretString"])
