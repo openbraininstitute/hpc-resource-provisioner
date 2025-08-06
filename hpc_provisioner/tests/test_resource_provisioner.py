@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -186,9 +185,8 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
     cluster = Cluster(
         project_id=post_event["project_id"], vlab_id=post_event["vlab_id"], sim_pubkey=sim_pubkey
     )
-    suffix = os.environ["SUFFIX"]
     mock_lambda_client.invoke_async.assert_called_with(
-        FunctionName=f"hpc-resource-provisioner-creator-{suffix}",
+        FunctionName="hpc-resource-provisioner-creator",
         InvokeArgs=json.dumps({"cluster": cluster}, cls=ClusterJSONEncoder),
     )
     expected_response = expected_response_template(
@@ -198,8 +196,8 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
                     "clusterName": test_cluster_name,
                     "clusterStatus": "CREATE_REQUEST_RECEIVED",
                     "ssh_user": "sim",
-                    "private_ssh_key_arn": "secret ARN sim",
-                    "admin_user_private_ssh_key_arn": "secret ARN",
+                    "sim_private_ssh_key_arn": "secret ARN sim",
+                    "ec2-user_private_ssh_key_arn": "secret ARN",
                 },
             }
         )
@@ -355,7 +353,8 @@ def test_invalid_http_method(put_event):
     actual_response = handlers.pcluster_handler(put_event)
     assert actual_response == {
         "statusCode": 400,
-        "body": f"{put_event['httpMethod']} not supported",
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps({"message": f"{put_event['httpMethod']} not supported"}),
     }
 
 
@@ -375,7 +374,10 @@ def test_http_method_not_specified():
     response = handlers.pcluster_handler({})
     assert response == {
         "statusCode": 400,
-        "body": "Could not determine HTTP method - make sure to GET, POST or DELETE",
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps(
+            {"message": "Could not determine HTTP method - make sure to GET, POST or DELETE"}
+        ),
     }
 
 
