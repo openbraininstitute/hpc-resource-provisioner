@@ -174,9 +174,9 @@ def pcluster_describe_handler(event, _context=None):
                 pc_output["clusterFsxId"] = None
             logger.debug(f"described pcluster {cluster}")
         except NotFoundException as e:
-            return {"statusCode": 404, "body": e.content.message}
+            return response_json({"message": e.content.message}, code=404)
         except Exception as e:
-            return {"statusCode": 500, "body": str(type(e))}
+            return response_json({"message": str(type(e))}, code=500)
 
     return response_json(pc_output)
 
