@@ -1,5 +1,6 @@
 import json
 import logging
+from copy import deepcopy
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -78,7 +79,9 @@ def test_pcluster_handler_routing(  # noqa PLR0913
             patched_handler.assert_not_called()
 
 
-def test_get(data, get_event):
+@patch("hpc_provisioner.handlers.boto3")
+@pytest.mark.parametrize("fsx_exists", [True, False])
+def test_get(patched_boto3, data, get_event, fsx_exists):
     with patch(
         "hpc_provisioner.pcluster_manager.pc.describe_cluster",
         return_value=data["existingCluster"],
@@ -86,12 +89,21 @@ def test_get(data, get_event):
         cluster_name = (
             f"pcluster-{get_event['queryStringParameters']['vlab_id']}-{get_event['project_id']}"
         )
-        result = handlers.pcluster_describe_handler(get_event)
+        with patch("hpc_provisioner.handlers.get_fsx") as patched_get_fsx:
+            response_dict = deepcopy(data["existingCluster"])
+            if fsx_exists:
+                patched_get_fsx.return_value = {"FileSystemId": "fsx-123"}
+                response_dict["clusterFsxId"] = "fsx-123"
+                expected_response = expected_response_template(text=json.dumps(response_dict))
+            else:
+                patched_get_fsx.return_value = None
+                response_dict["clusterFsxId"] = None
+                expected_response = expected_response_template(text=json.dumps(response_dict))
+            result = handlers.pcluster_describe_handler(get_event)
         describe_cluster.assert_called_once_with(
             cluster_name=cluster_name,
             region="us-east-1",
         )
-    expected_response = expected_response_template(text=json.dumps(data["existingCluster"]))
     assert result == expected_response
 
 
@@ -196,8 +208,8 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
                     "clusterName": test_cluster_name,
                     "clusterStatus": "CREATE_REQUEST_RECEIVED",
                     "ssh_user": "sim",
-                    "sim_private_ssh_key_arn": "secret ARN sim",
-                    "ec2-user_private_ssh_key_arn": "secret ARN",
+                    "user_private_ssh_key_arn": "secret ARN sim",
+                    "admin_private_ssh_key_arn": "secret ARN",
                 },
             }
         )

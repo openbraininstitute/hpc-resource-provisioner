@@ -1,5 +1,5 @@
 ---
-Name: FsxLustre-Persistent
+Name: !config lustre_name
 StorageType: FsxLustre
 MountDir: /sbo/data
 FsxLustreSettings:

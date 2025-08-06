@@ -7,7 +7,12 @@ from importlib.metadata import version
 import boto3
 from pcluster.api.errors import NotFoundException
 
-from hpc_provisioner.aws_queries import create_keypair, list_existing_stacks, store_private_key
+from hpc_provisioner.aws_queries import (
+    create_keypair,
+    get_fsx,
+    list_existing_stacks,
+    store_private_key,
+)
 from hpc_provisioner.cluster import Cluster, ClusterJSONEncoder
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
@@ -159,6 +164,14 @@ def pcluster_describe_handler(event, _context=None):
             pc_output = pcluster_describe(cluster)
             pc_output["vlab_id"] = cluster.vlab_id
             pc_output["project_id"] = cluster.project_id
+            fsx_client = boto3.client("fsx")
+            if cluster_fsx := get_fsx(
+                fsx_client=fsx_client,
+                fs_name=cluster.name,
+            ):
+                pc_output["clusterFsxId"] = cluster_fsx["FileSystemId"]
+            else:
+                pc_output["clusterFsxId"] = None
             logger.debug(f"described pcluster {cluster}")
         except NotFoundException as e:
             return {"statusCode": 404, "body": e.content.message}
