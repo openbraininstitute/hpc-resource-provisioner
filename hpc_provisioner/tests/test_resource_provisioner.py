@@ -266,7 +266,11 @@ def test_get_not_found(get_event):
     ) as describe_cluster:
         result = handlers.pcluster_describe_handler(get_event)
         describe_cluster.assert_called_once()
-    assert result == {"statusCode": 404, "body": error_message}
+        assert result == {
+            "statusCode": 404,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"message": error_message}),
+        }
 
 
 def test_get_internal_server_error(get_event):
@@ -276,7 +280,11 @@ def test_get_internal_server_error(get_event):
     ) as patched_describe_cluster:
         result = handlers.pcluster_describe_handler(get_event)
         patched_describe_cluster.assert_called_once()
-    assert result == {"statusCode": 500, "body": "<class 'RuntimeError'>"}
+        assert result == {
+            "statusCode": 500,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"message": "<class 'RuntimeError'>"}),
+        }
 
 
 @patch(
