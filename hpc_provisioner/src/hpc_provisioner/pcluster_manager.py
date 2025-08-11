@@ -94,7 +94,7 @@ def populate_config(
     CONFIG_VALUES["infra_assets_bucket"] = get_infra_bucket().replace("s3://", "")
     CONFIG_VALUES["create_users_script"] = f"{get_infra_bucket()}/scripts/create_users.py"
     CONFIG_VALUES["environment_script"] = f"{get_infra_bucket()}/scripts/environment.sh"
-    CONFIG_VALUES["lustre_name"] = f"{cluster.vlab_id[:14]}-{cluster.project_id[:15]}"
+    CONFIG_VALUES["lustre_name"] = cluster.fsx_name
     logger.debug(f"Config values: {CONFIG_VALUES}")
 
 

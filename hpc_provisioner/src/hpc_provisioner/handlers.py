@@ -167,7 +167,7 @@ def pcluster_describe_handler(event, _context=None):
             fsx_client = boto3.client("fsx")
             if cluster_fsx := get_fsx(
                 fsx_client=fsx_client,
-                fs_name=cluster.name,
+                fs_name=cluster.fsx_name,
             ):
                 pc_output["clusterFsxId"] = cluster_fsx["FileSystemId"]
             else:
