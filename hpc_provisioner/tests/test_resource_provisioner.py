@@ -1,6 +1,6 @@
 import json
 import logging
-import os
+from copy import deepcopy
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -79,7 +79,9 @@ def test_pcluster_handler_routing(  # noqa PLR0913
             patched_handler.assert_not_called()
 
 
-def test_get(data, get_event):
+@patch("hpc_provisioner.handlers.boto3")
+@pytest.mark.parametrize("fsx_exists", [True, False])
+def test_get(patched_boto3, data, get_event, fsx_exists):
     with patch(
         "hpc_provisioner.pcluster_manager.pc.describe_cluster",
         return_value=data["existingCluster"],
@@ -87,12 +89,21 @@ def test_get(data, get_event):
         cluster_name = (
             f"pcluster-{get_event['queryStringParameters']['vlab_id']}-{get_event['project_id']}"
         )
-        result = handlers.pcluster_describe_handler(get_event)
+        with patch("hpc_provisioner.handlers.get_fsx") as patched_get_fsx:
+            response_dict = deepcopy(data["existingCluster"])
+            if fsx_exists:
+                patched_get_fsx.return_value = {"FileSystemId": "fsx-123"}
+                response_dict["clusterFsxId"] = "fsx-123"
+                expected_response = expected_response_template(text=json.dumps(response_dict))
+            else:
+                patched_get_fsx.return_value = None
+                response_dict["clusterFsxId"] = None
+                expected_response = expected_response_template(text=json.dumps(response_dict))
+            result = handlers.pcluster_describe_handler(get_event)
         describe_cluster.assert_called_once_with(
             cluster_name=cluster_name,
             region="us-east-1",
         )
-    expected_response = expected_response_template(text=json.dumps(data["existingCluster"]))
     assert result == expected_response
 
 
@@ -186,9 +197,8 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
     cluster = Cluster(
         project_id=post_event["project_id"], vlab_id=post_event["vlab_id"], sim_pubkey=sim_pubkey
     )
-    suffix = os.environ["SUFFIX"]
     mock_lambda_client.invoke_async.assert_called_with(
-        FunctionName=f"hpc-resource-provisioner-creator-{suffix}",
+        FunctionName="hpc-resource-provisioner-creator",
         InvokeArgs=json.dumps({"cluster": cluster}, cls=ClusterJSONEncoder),
     )
     expected_response = expected_response_template(
@@ -198,8 +208,8 @@ e15Cgo+/r/nqbT21oTkp4rbw5nT9lVyuHyBralzJ7Q/BDXXY0v0=
                     "clusterName": test_cluster_name,
                     "clusterStatus": "CREATE_REQUEST_RECEIVED",
                     "ssh_user": "sim",
-                    "private_ssh_key_arn": "secret ARN sim",
-                    "admin_user_private_ssh_key_arn": "secret ARN",
+                    "user_private_ssh_key_arn": "secret ARN sim",
+                    "admin_private_ssh_key_arn": "secret ARN",
                 },
             }
         )
@@ -256,7 +266,11 @@ def test_get_not_found(get_event):
     ) as describe_cluster:
         result = handlers.pcluster_describe_handler(get_event)
         describe_cluster.assert_called_once()
-    assert result == {"statusCode": 404, "body": error_message}
+        assert result == {
+            "statusCode": 404,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"message": error_message}),
+        }
 
 
 def test_get_internal_server_error(get_event):
@@ -266,7 +280,11 @@ def test_get_internal_server_error(get_event):
     ) as patched_describe_cluster:
         result = handlers.pcluster_describe_handler(get_event)
         patched_describe_cluster.assert_called_once()
-    assert result == {"statusCode": 500, "body": "<class 'RuntimeError'>"}
+        assert result == {
+            "statusCode": 500,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"message": "<class 'RuntimeError'>"}),
+        }
 
 
 @patch(
@@ -355,7 +373,8 @@ def test_invalid_http_method(put_event):
     actual_response = handlers.pcluster_handler(put_event)
     assert actual_response == {
         "statusCode": 400,
-        "body": f"{put_event['httpMethod']} not supported",
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps({"message": f"{put_event['httpMethod']} not supported"}),
     }
 
 
@@ -375,7 +394,10 @@ def test_http_method_not_specified():
     response = handlers.pcluster_handler({})
     assert response == {
         "statusCode": 400,
-        "body": "Could not determine HTTP method - make sure to GET, POST or DELETE",
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps(
+            {"message": "Could not determine HTTP method - make sure to GET, POST or DELETE"}
+        ),
     }
 
 

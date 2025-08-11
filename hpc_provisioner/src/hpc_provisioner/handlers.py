@@ -7,7 +7,12 @@ from importlib.metadata import version
 import boto3
 from pcluster.api.errors import NotFoundException
 
-from hpc_provisioner.aws_queries import create_keypair, list_existing_stacks, store_private_key
+from hpc_provisioner.aws_queries import (
+    create_keypair,
+    get_fsx,
+    list_existing_stacks,
+    store_private_key,
+)
 from hpc_provisioner.cluster import Cluster, ClusterJSONEncoder
 from hpc_provisioner.constants import (
     BILLING_TAG_KEY,
@@ -16,7 +21,7 @@ from hpc_provisioner.constants import (
     PROJECT_TAG_KEY,
     VLAB_TAG_KEY,
 )
-from hpc_provisioner.utils import generate_public_key, get_suffix
+from hpc_provisioner.utils import generate_public_key
 
 from .logging_config import LOGGING_CONFIG
 from .pcluster_manager import (
@@ -49,22 +54,29 @@ def pcluster_handler(event, _context=None):
         if event["httpMethod"] == "GET":
             if event["path"] == "/hpc-provisioner/pcluster":
                 logger.debug("GET pcluster")
-                return pcluster_describe_handler(event, _context)
+                response = pcluster_describe_handler(event, _context)
             elif event["path"] == "/hpc-provisioner/version":
                 logger.debug("GET version")
-                return response_text(text=version("hpc_provisioner"))
+                response = response_json({"version": version("hpc_provisioner")})
+            else:
+                response = response_json(
+                    {"message": f"Path {event['path']} not implemented"}, code=400
+                )
         elif event["httpMethod"] == "POST":
             logger.debug("POST pcluster")
-            return pcluster_create_request_handler(event, _context)
+            response = pcluster_create_request_handler(event, _context)
         elif event["httpMethod"] == "DELETE":
             logger.debug("DELETE pcluster")
-            return pcluster_delete_handler(event, _context)
+            response = pcluster_delete_handler(event, _context)
         else:
-            return response_text(f"{event['httpMethod']} not supported", code=400)
+            response = response_json({"message": f"{event['httpMethod']} not supported"}, code=400)
+    else:
+        response = response_json(
+            {"message": "Could not determine HTTP method - make sure to GET, POST or DELETE"},
+            code=400,
+        )
 
-    return response_text(
-        "Could not determine HTTP method - make sure to GET, POST or DELETE", code=400
-    )
+    return response
 
 
 def pcluster_create_request_handler(event, _context=None):
@@ -114,8 +126,8 @@ def pcluster_create_request_handler(event, _context=None):
     logger.debug(f"Created sim user keypair: {sim_user_ssh_keypair}")
 
     response["cluster"]["ssh_user"] = "sim"
-    response["cluster"]["private_ssh_key_arn"] = sim_user_secret["ARN"]
-    response["cluster"]["admin_user_private_ssh_key_arn"] = admin_user_secret["ARN"]
+    response["cluster"]["user_private_ssh_key_arn"] = sim_user_secret["ARN"]
+    response["cluster"]["admin_private_ssh_key_arn"] = admin_user_secret["ARN"]
 
     if key_material := sm_client.get_secret_value(SecretId=sim_user_secret["ARN"]):
         cluster.sim_pubkey = generate_public_key(key_material["SecretString"])
@@ -131,7 +143,7 @@ def pcluster_create_request_handler(event, _context=None):
 
     logger.debug(f"calling create lambda async with arguments {create_args}")
     boto3.client("lambda").invoke_async(
-        FunctionName=f"hpc-resource-provisioner-creator-{get_suffix()}",
+        FunctionName="hpc-resource-provisioner-creator",
         InvokeArgs=json.dumps(create_args, cls=ClusterJSONEncoder),
     )
     logger.debug("called create lambda async")
@@ -150,11 +162,21 @@ def pcluster_describe_handler(event, _context=None):
         logger.debug(f"describe pcluster {cluster}")
         try:
             pc_output = pcluster_describe(cluster)
+            pc_output["vlab_id"] = cluster.vlab_id
+            pc_output["project_id"] = cluster.project_id
+            fsx_client = boto3.client("fsx")
+            if cluster_fsx := get_fsx(
+                fsx_client=fsx_client,
+                fs_name=cluster.fsx_name,
+            ):
+                pc_output["clusterFsxId"] = cluster_fsx["FileSystemId"]
+            else:
+                pc_output["clusterFsxId"] = None
             logger.debug(f"described pcluster {cluster}")
         except NotFoundException as e:
-            return {"statusCode": 404, "body": e.content.message}
+            return response_json({"message": e.content.message}, code=404)
         except Exception as e:
-            return {"statusCode": 500, "body": str(type(e))}
+            return response_json({"message": str(type(e))}, code=500)
 
     return response_json(pc_output)
 
@@ -225,10 +247,6 @@ def _get_vlab_query_params(incoming_event) -> Cluster:
     logger.debug(f"Parameters: {params}")
     logger.debug(f"Cluster: {cluster}")
     return cluster
-
-
-def response_text(text: str, code: int = 200):
-    return {"statusCode": code, "body": text}
 
 
 def response_json(data: dict, code: int = 200):

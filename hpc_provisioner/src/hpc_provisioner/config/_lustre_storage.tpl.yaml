@@ -1,7 +1,7 @@
 ---
-Name: FsxLustre-Persistent
+Name: !config lustre_name
 StorageType: FsxLustre
-MountDir: /sbo/data
+MountDir: /obi/data
 FsxLustreSettings:
   DeploymentType: PERSISTENT_2
   StorageCapacity: 1200  # Setup Lustre FSx for 1.2TiB (minimum allowed)

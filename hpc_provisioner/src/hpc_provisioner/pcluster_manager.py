@@ -16,16 +16,12 @@ from pcluster import lib as pc
 from pcluster.api.errors import CreateClusterBadRequestException, InternalServiceException
 
 from hpc_provisioner.aws_queries import (
-    create_dra,
-    create_fsx,
     get_available_subnet,
     get_efs,
-    get_fsx,
     get_keypair_name,
     get_security_group,
     release_subnets,
     remove_key,
-    wait_for_dra,
 )
 from hpc_provisioner.cluster import Cluster
 from hpc_provisioner.constants import (
@@ -40,9 +36,11 @@ from hpc_provisioner.constants import (
 )
 from hpc_provisioner.logging_config import LOGGING_CONFIG
 from hpc_provisioner.utils import (
+    get_ami_id,
     get_containers_bucket,
     get_efa_security_group_id,
     get_fsx_policy_arn,
+    get_infra_bucket,
     get_sbonexusdata_bucket,
     get_scratch_bucket,
 )
@@ -92,6 +90,11 @@ def populate_config(
     if create_users_args:
         CONFIG_VALUES["create_users_args"] = create_users_args
     CONFIG_VALUES["environment_args"] = [cluster.name]
+    CONFIG_VALUES["ami_id"] = get_ami_id()
+    CONFIG_VALUES["infra_assets_bucket"] = get_infra_bucket().replace("s3://", "")
+    CONFIG_VALUES["create_users_script"] = f"{get_infra_bucket()}/scripts/create_users.py"
+    CONFIG_VALUES["environment_script"] = f"{get_infra_bucket()}/scripts/environment.sh"
+    CONFIG_VALUES["lustre_name"] = cluster.fsx_name
     logger.debug(f"Config values: {CONFIG_VALUES}")
 
 
@@ -188,69 +191,16 @@ def pcluster_create(cluster: Cluster):
 
     populate_config(cluster=cluster, create_users_args=create_users_args)
 
-    if cluster.dev:
-        filesystems = [
-            {
-                "name": "projects",
-                "shared": True,
-                "mountpoint": "/sbo/data/projects",
-                "bucket": get_sbonexusdata_bucket(),
-                "writable": False,
-            },
-            {
-                "name": "scratch",
-                "shared": False,
-                "mountpoint": "/sbo/data/scratch",
-                "bucket": f"{get_scratch_bucket()}/{cluster.vlab_id}/{cluster.project_id}",
-                "writable": True,
-            },
-        ]
-        for filesystem in filesystems:
-            logger.debug(f"Checking for filesystem {filesystem}")
-            fs = get_fsx(
-                fsx_client=fsx_client,
-                shared=True,
-                fs_name=filesystem["name"],
-                vlab_id=cluster.vlab_id,
-                project_id=cluster.project_id,
-            )
-            if not fs:
-                logger.debug(f"Creating filesystem {filesystem}")
-                fs = create_fsx(
-                    fsx_client=fsx_client,
-                    fs_name=filesystem["name"],
-                    shared=True,
-                    vlab_id=cluster.vlab_id,
-                    project_id=cluster.project_id,
-                )["FileSystem"]
-                logger.debug("Creating DRA")
-                dra = create_dra(
-                    fsx_client=fsx_client,
-                    filesystem_id=fs["FileSystemId"],
-                    mountpoint=filesystem["mountpoint"],
-                    bucket=filesystem["bucket"],
-                    vlab_id=cluster.vlab_id,
-                    project_id=cluster.project_id,
-                    writable=filesystem["writable"],
-                )
-                wait_for_dra(fsx_client=fsx_client, dra_id=dra["Association"]["AssociationId"])
-            CONFIG_VALUES[f"{filesystem['name']}_fsx"] = {
-                "Name": next(tag["Value"] for tag in fs["Tags"] if tag["Key"] == "Name"),
-                "StorageType": "FsxLustre",
-                "MountDir": filesystem["mountpoint"],
-                "FsxLustreSettings": {"FileSystemId": fs["FileSystemId"]},
-            }
-
     pcluster_config = load_pcluster_config(cluster.dev)
     pcluster_config["Tags"] = populate_tags(pcluster_config, cluster.vlab_id, cluster.project_id)
     pcluster_config["Scheduling"]["SlurmQueues"] = get_tier_config(pcluster_config, cluster.tier)
     if cluster.include_lustre is False:
-        pcluster_config["SharedStorage"].pop(1)  # TODO: should probably pop more
+        pcluster_config["SharedStorage"].pop(1)
     if cluster.benchmark:
         pcluster_config["HeadNode"]["CustomActions"]["OnNodeConfigured"]["Sequence"].append(
             {
-                "Script": "s3://sboinfrastructureassets-sandbox/scripts/80_cloudwatch_agent_config_prolog.sh",
-                "Args": [cluster_name],
+                "Script": f"{get_infra_bucket()}/scripts/80_cloudwatch_agent_config_prolog.sh",
+                "Args": [cluster.name],
             }
         )
 

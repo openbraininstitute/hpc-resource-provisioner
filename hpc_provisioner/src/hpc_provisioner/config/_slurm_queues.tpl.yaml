@@ -17,7 +17,7 @@
       - !config efa_security_group_id  # Efa
   # Iam:
   #   S3Access:
-  #     - BucketName: sboinfrastructureassets-sandbox
+  #     - BucketName: !config infra_assets_bucket
   # CustomActions:
   #   OnNodeConfigured:
   #     Sequence:
@@ -54,7 +54,7 @@
     MaxTime: 720
   Iam:
     S3Access:
-      - BucketName: sboinfrastructureassets-sandbox
+      - BucketName: !config infra_assets_bucket
   # CustomActions:
   #   OnNodeConfigured:
   #     Sequence:
@@ -96,7 +96,7 @@
     MaxTime: 720
   Iam:
     S3Access:
-      - BucketName: sboinfrastructureassets-sandbox
+      - BucketName: !config infra_assets_bucket
   # CustomActions:
   #   OnNodeConfigured:
   #     Sequence:
@@ -131,7 +131,7 @@
     MaxTime: 720
   Iam:
     S3Access:
-      - BucketName: sboinfrastructureassets-sandbox
+      - BucketName: !config infra_assets_bucket
 
 # ==============================================================
 # prod-mpi-mem queue, for tightly-coupled, memory-intensive jobs
@@ -166,7 +166,7 @@
     MaxTime: 720
   Iam:
     S3Access:
-      - BucketName: sboinfrastructureassets-sandbox
+      - BucketName: !config infra_assets_bucket
 
 # ================================
 # prod-mpi-hpc queue, for HPC jobs
@@ -193,7 +193,7 @@
     MaxTime: 720
   Iam:
     S3Access:
-      - BucketName: sboinfrastructureassets-sandbox
+      - BucketName: !config infra_assets_bucket
 
 # ====================================
 # prod-batch queue, for benchmarking
@@ -229,7 +229,7 @@
     MaxTime: 120
   Iam:
     S3Access:
-      - BucketName: sboinfrastructureassets-sandbox
+      - BucketName: !config infra_assets_bucket
   # CustomActions:
   #   OnNodeConfigured:
   #     Sequence:

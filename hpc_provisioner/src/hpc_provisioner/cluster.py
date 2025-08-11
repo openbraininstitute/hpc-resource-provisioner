@@ -45,6 +45,10 @@ class Cluster:
     def name(self):
         return f"pcluster-{self.vlab_id}-{self.project_id}"
 
+    @property
+    def fsx_name(self):
+        return f"{self.vlab_id[:14]}-{self.project_id[:15]}"
+
     def __str__(self):
         return self.__repr__()
 

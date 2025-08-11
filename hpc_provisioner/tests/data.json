@@ -49,7 +49,9 @@
     "clusterStatus": "CREATE_COMPLETE",
     "scheduler": {
       "type": "slurm"
-    }
+    },
+    "vlab_id": "vlab_as_querystring_param",
+    "project_id": "testproject"
   },
   "deletingCluster": {
     "creationTime": "2024-06-04T07:42:24.294Z",

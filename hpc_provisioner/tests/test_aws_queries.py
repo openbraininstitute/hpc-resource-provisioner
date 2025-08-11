@@ -1,6 +1,4 @@
-import json
 import logging
-import os
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -11,13 +9,10 @@ from hpc_provisioner.aws_queries import (
     CouldNotDetermineSecurityGroupException,
     OutOfSubnetsException,
     claim_subnet,
-    create_fsx,
     create_keypair,
     create_secret,
     get_available_subnet,
     get_efs,
-    get_fsx_by_id,
-    get_fsx_name,
     get_secret,
     get_security_group,
     remove_key,
@@ -422,90 +417,3 @@ def test_remove_key(patched_boto3):
     patched_sm_client.delete_secret.assert_called_once_with(
         SecretId=test_key_name, ForceDeleteWithoutRecovery=True
     )
-
-
-@pytest.mark.parametrize("shared", [True, False])
-def test_get_fsx_name(shared, test_cluster):
-    test_fs_name = "test"
-    fsx_name = get_fsx_name(shared=shared, fs_name=test_fs_name, cluster=test_cluster)
-
-    if shared:
-        assert fsx_name == test_fs_name
-    else:
-        assert (
-            fsx_name == f"{test_fs_name}-pcluster-{test_cluster.vlab_id}-{test_cluster.project_id}"
-        )
-
-
-@pytest.mark.parametrize("shared", [True, False])
-def test_create_fsx(shared, test_cluster):
-    patched_fsx_client = MagicMock()
-    retval = {"fs": "fs"}
-    patched_fsx_client.create_file_system.return_value = retval
-    test_fs_name = "test"
-    if shared:
-        expected_args = {"ClientRequestToken": test_fs_name}
-        expected_tags = [
-            {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
-            {"Key": "Name", "Value": test_fs_name},
-        ]
-    else:
-        token = f"{test_fs_name}-{test_cluster.name}"
-        expected_args = {"ClientRequestToken": token}
-        expected_tags = [
-            {"Key": BILLING_TAG_KEY, "Value": BILLING_TAG_VALUE},
-            {"Key": "Name", "Value": token},
-            {"Key": VLAB_TAG_KEY, "Value": test_cluster.vlab_id},
-            {"Key": PROJECT_TAG_KEY, "Value": test_cluster.project_id},
-        ]
-
-    expected_args["FileSystemType"] = "LUSTRE"
-    expected_args["StorageCapacity"] = 19200
-    expected_args["StorageType"] = "SSD"
-    expected_args["SubnetIds"] = json.loads(os.environ["FS_SUBNET_IDS"])
-    expected_args["SecurityGroupIds"] = [os.environ["FS_SG_ID"]]
-    expected_args["Tags"] = expected_tags
-    expected_args["LustreConfiguration"] = {
-        "WeeklyMaintenanceStartTime": "6:05:00",
-        "DeploymentType": "PERSISTENT_2",
-        "PerUnitStorageThroughput": 250,
-        "DataCompressionType": "LZ4",
-        "EfaEnabled": True,
-        "MetadataConfiguration": {"Mode": "AUTOMATIC"},
-    }
-    if shared:
-        fsx = create_fsx(patched_fsx_client, test_fs_name, shared)
-    else:
-        fsx = create_fsx(patched_fsx_client, test_fs_name, shared, test_cluster)
-
-    patched_fsx_client.create_file_system.assert_called_once_with(**expected_args)
-    assert fsx == retval
-
-
-@pytest.mark.parametrize("test_fs_id,expected_call_count", [("fs-1", 1), ("fs-5", 3)])
-def test_get_fsx_by_id(test_fs_id, expected_call_count):
-    patched_fsx_client = MagicMock()
-    patched_fsx_client.describe_file_systems.side_effect = [
-        {"FileSystems": [{"FileSystemId": "fs-1"}, {"FileSystemId": "fs-2"}], "NextToken": "p-2"},
-        {"FileSystems": [{"FileSystemId": "fs-3"}, {"FileSystemId": "fs-4"}], "NextToken": "p-3"},
-        {"FileSystems": [{"FileSystemId": "fs-5"}, {"FileSystemId": "fs-6"}], "NextToken": "p-4"},
-        {"FileSystems": [{"FileSystemId": "fs-7"}, {"FileSystemId": "fs-8"}]},
-    ]
-    found_fs = get_fsx_by_id(patched_fsx_client, test_fs_id)
-    assert found_fs == {"FileSystemId": test_fs_id}
-    assert patched_fsx_client.describe_file_systems.call_count == expected_call_count
-    if test_fs_id == "fs-5":
-        patched_fsx_client.describe_file_systems.assert_has_calls(
-            [call(), call(NextToken="p-2"), call(NextToken="p-3")]
-        )
-
-
-def test_get_nonexisting_fsx_by_id():
-    patched_fsx_client = MagicMock()
-    patched_fsx_client.describe_file_systems.return_value = {
-        "FileSystems": [{"FileSystemId": "fs-1"}, {"FileSystemId": "fs-2"}]
-    }
-    test_fs_id = "fs-1234"
-    found_fs = get_fsx_by_id(patched_fsx_client, test_fs_id)
-    patched_fsx_client.describe_file_systems.assert_called_once_with()
-    assert found_fs is None
