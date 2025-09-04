@@ -8,6 +8,17 @@ There's a GitHub workflow called `Build and Release HPC Resource Provisioner` th
 
 Once released, you'll still have to deploy it - this is not done automatically!
 
+## Deploying the new container image in your AWS sandbox
+
+In order to actually deploy the new version you'll need to clone [aws-terraform-deployment](https://github.com/openbraininstitute/aws-terraform-deployment). Unless you're making changes to the deployment itself, the default `staging` branch will suffice.
+The next steps to take are:
+  * In the tfvars file for your sandbox (e.g. `sandbox-benchmarks.tfvars`), update the `hpc_resource_provisioner_container_version` variable with the new version you just built (it's reported on the GitHub action).
+  * set your `AWS_PROFILE` shell variable to the correct value for your sandbox (the profile you configured for sso authentication in `~/.aws/config`)
+  * Make sure you're logged in to AWS by running `aws sso login`
+  * Run the plan script for your sandbox, e.g. `terraform_plan_sandbox-benchmarks.sh` and double check the output for any unexpected modifications. In general you'll see at least the two lambdas and a bunch of apigateway resources.
+  * If the output for the previous step is okay, run the apply script for your sandbox, e.g. `terraform_apply_sandbox-benchmarks.sh`
+  * Enjoy your new and improved resource provisioner!
+
 ## Manual Usage
 
 If you have awscli configured to connect to the sandbox environment, it's fairly easy to get the necessary variables in your shell. Make sure the keypair for sandbox is the first entry in `~/.aws/credentials`
