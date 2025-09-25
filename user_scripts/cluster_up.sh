@@ -59,7 +59,7 @@ echo "${CLUSTER}" | jq
 # Create SSH key file
 touch ${PROJECT_ID}
 chmod 0600 ${PROJECT_ID}
-export CLUSTER_SSH_KEY_ARN=$(echo ${CLUSTER} | jq -r '.cluster.private_ssh_key_arn')
+export CLUSTER_SSH_KEY_ARN=$(echo ${CLUSTER} | jq -r '.cluster.user_private_ssh_key_arn')
 if [ $CLUSTER_SSH_KEY_ARN = "null" ]
 then
 	echo "Error: could not get the cluster SSH key file"
@@ -72,7 +72,7 @@ fi
 export ADMIN_KEY=${PROJECT_ID}_admin
 touch $ADMIN_KEY
 chmod 0600 ${ADMIN_KEY}
-export CLUSTER_SSH_KEY_ARN_ADMIN=$(echo ${CLUSTER} | jq -r '.cluster.admin_user_private_ssh_key_arn')
+export CLUSTER_SSH_KEY_ARN_ADMIN=$(echo ${CLUSTER} | jq -r '.cluster.admin_private_ssh_key_arn')
 if [ $CLUSTER_SSH_KEY_ARN_ADMIN = "null" ]
 then
 	echo "Error: could not get the cluster admin SSH key file"
