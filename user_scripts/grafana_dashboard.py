@@ -85,7 +85,7 @@ class GrafanaDashboard:
     title: str
     version: int
     editable: Optional[bool] = True
-    refresh: Optional[str] = ""
+    refresh: Optional[str] = "auto"
     id: Optional[str] = None
     uid: Optional[str] = None
 
@@ -159,9 +159,110 @@ def create_dashboard(
         ],
         unit="bytes",
     )
+    panel_efs_read = Panel(
+        title="EFS/DataReadIOBytes",
+        datasource=data_source,
+        gridPos=GridPosition(h=8, w=12, x=0, y=16),
+        id=5,
+        targets=[
+            Target(
+                dimensions={"FileSystemId": fsid},
+                metricName="DataReadIOBytes",
+                namespace="AWS/EFS",
+                statistic="Sum",
+            )
+        ],
+        unit="bytes",
+    )
+    panel_efs_write = Panel(
+        title="EFS/DataWriteIOBytes",
+        datasource=data_source,
+        gridPos=GridPosition(h=8, w=12, x=12, y=16),
+        id=6,
+        targets=[
+            Target(
+                dimensions={"FileSystemId": fsid},
+                metricName="DataWriteIOBytes",
+                namespace="AWS/EFS",
+                statistic="Sum",
+            )
+        ],
+        unit="bytes",
+    )
+    panel_efs_iomit = Panel(
+        title="EFS/PercentIOLimit",
+        datasource=data_source,
+        gridPos=GridPosition(h=8, w=12, x=0, y=24),
+        id=7,
+        targets=[
+            Target(
+                dimensions={"FileSystemId": fsid},
+                metricName="PercentIOLimit",
+                namespace="AWS/EFS",
+                statistic="Average",
+            )
+        ],
+        unit="percent",
+    )
+    panel_efs_throughput = Panel(
+        title="EFS/PermittedThroughput",
+        datasource=data_source,
+        gridPos=GridPosition(h=8, w=12, x=12, y=24),
+        id=8,
+        targets=[
+            Target(
+                dimensions={"FileSystemId": fsid},
+                metricName="PermittedThroughput",
+                namespace="AWS/EFS",
+                statistic="Average",
+            )
+        ],
+        unit="binBps",
+    )
+    panel_efs_totalio = Panel(
+        title="EFS/TotalIOBytes",
+        datasource=data_source,
+        gridPos=GridPosition(h=8, w=12, x=0, y=32),
+        id=9,
+        targets=[
+            Target(
+                dimensions={"FileSystemId": fsid},
+                metricName="TotalIOBytes",
+                namespace="AWS/EFS",
+                statistic="Sum",
+            )
+        ],
+        unit="bytes",
+    )
+    panel_efs_storage = Panel(
+        title="EFS/StorageBytes",
+        datasource=data_source,
+        gridPos=GridPosition(h=8, w=12, x=12, y=32),
+        id=10,
+        targets=[
+            Target(
+                dimensions={"FileSystemId": fsid},
+                metricName="StorageBytes",
+                namespace="AWS/EFS",
+                statistic="Sum",
+            )
+        ],
+        unit="bytes",
+    )
     dashboard = GrafanaDashboard(
         tags=["benchmark"],
-        panels=[panel_mem, panel_cpu, panel_fsx_read, panel_fsx_write],
+        panels=[
+            panel_mem,
+            panel_cpu,
+            panel_fsx_read,
+            panel_fsx_write,
+            panel_efs_read,
+            panel_efs_write,
+            panel_efs_iomit,
+            panel_efs_throughput,
+            panel_efs_totalio,
+            panel_efs_storage,
+        ],
         time=TimeRange(tstart, tend),
         timezone="browser",
         title=cluster_name,
