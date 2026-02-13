@@ -3,7 +3,7 @@ LABEL org.opencontainers.image.source="https://github.com/openbraininstitute/hpc
 
 ARG SETUPTOOLS_SCM_PRETEND_VERSION
 
-RUN dnf -y install nodejs findutils && python3 -m pip install aws-parallelcluster==3.14.0 awslambdaric
+RUN dnf -y install nodejs findutils && python3 -m pip install aws-parallelcluster==3.14.1 awslambdaric
 
 ADD hpc_provisioner /opt/hpc_provisioner
 RUN python3 -m pip install /opt/hpc_provisioner
