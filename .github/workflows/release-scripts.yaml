@@ -1,0 +1,39 @@
+---
+name: Release HPC Resource Provisioner Scripts
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Which AWS environment the release bucket is in
+        type: choice
+        options: [aws-sandbox-hpc, aws-sandbox-benchmarks]
+        required: true
+        default: aws-sandbox-hpc
+      s3_bucket:
+        description: Override the S3 bucket to release the scripts into. If unset,
+          use the bucket configured in the environment.
+        type: string
+        required: false
+jobs:
+  release-scripts:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'aws-sandbox-hpc' }}
+    steps:
+      - name: clone repo
+        uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+          fetch-depth: 0
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Upload to S3
+        run: |-
+          aws s3 cp provisioner_scripts/create_users.py s3://${{ bucket }}/scripts/create_users.py
+          aws s3 cp provisioner_scripts/environment.sh s3://${{ bucket }}/scripts/environment.sh
+          aws s3 cp provisioner_scripts/80_cloudwatch_agent_config_prolog.sh s3://${{ bucket }}/scripts/80_cloudwatch_agent_config_prolog.sh
+        env:
+          bucket: ${{ inputs.s3_bucket || secrets.S3_BUCKET }}
