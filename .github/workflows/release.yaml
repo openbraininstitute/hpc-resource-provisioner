@@ -6,9 +6,18 @@ on:
       environment:
         description: Which environment to push the image to
         type: choice
-        options: [aws-sandbox-hpc, public-ecr, aws-sandbox-benchmarks]
+        options:
+          - aws-sandbox-hpc
+          - public-ecr
+          - aws-sandbox-benchmarks
+          - private-ecr
         required: true
         default: aws-sandbox-hpc
+      publish_s3_scripts:
+        description: Publish helper scripts to S3 bucket
+        type: boolean
+        required: true
+        default: false
   push:
     tags: ['*']
 jobs:
@@ -64,6 +73,7 @@ jobs:
         env:
           AWS_ECR_URI: ${{ secrets.AWS_ECR_URI }}
       - name: Upload to S3
+        if: ${{ inputs.publish_s3_scripts == true }}
         run: |
           aws s3 cp provisioner_scripts/create_users.py s3://${{ secrets.S3_BUCKET }}/scripts/create_users.py
           aws s3 cp provisioner_scripts/environment.sh s3://${{ secrets.S3_BUCKET }}/scripts/environment.sh
