@@ -6,11 +6,7 @@ on:
       environment:
         description: Which environment to push the image to
         type: choice
-        options:
-          - aws-sandbox-hpc
-          - public-ecr
-          - aws-sandbox-benchmarks
-          - private-ecr
+        options: [aws-sandbox-hpc, aws-sandbox-benchmarks, private-ecr]
         required: true
         default: aws-sandbox-hpc
       publish_s3_scripts:
