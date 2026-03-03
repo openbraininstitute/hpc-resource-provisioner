@@ -30,10 +30,25 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
+      - name: Transform environment name for env var
+        if: github.event.inputs.s3_bucket == ''
+        shell: bash
+        run: |-
+          UNDERSCORE_ENV=$(echo ${{ inputs.environment }} | sed 's/-/_/g')
+          echo "UNDERSCORE_ENV=${UNDERSCORE_ENV}" >> $GITHUB_ENV
+      - name: Determine S3 bucket
+        run: |-
+          if [ "${{ inputs.s3_bucket }}" == "" ]
+          then
+            S3_BUCKET="${{ secrets[format('S3_BUCKET_{0}', env.UNDERSCORE_ENV )] }}"
+          else
+            S3_BUCKET="${{ inputs.s3_bucket }}"
+          fi
+          echo S3_BUCKET=${S3_BUCKET} >> $GITHUB_ENV
       - name: Upload to S3
         run: |-
-          aws s3 cp provisioner_scripts/create_users.py s3://${{ bucket }}/scripts/create_users.py
-          aws s3 cp provisioner_scripts/environment.sh s3://${{ bucket }}/scripts/environment.sh
-          aws s3 cp provisioner_scripts/80_cloudwatch_agent_config_prolog.sh s3://${{ bucket }}/scripts/80_cloudwatch_agent_config_prolog.sh
+          aws s3 cp provisioner_scripts/create_users.py s3://${{ env.bucket }}/scripts/create_users.py
+          aws s3 cp provisioner_scripts/environment.sh s3://${{ env.bucket }}/scripts/environment.sh
+          aws s3 cp provisioner_scripts/80_cloudwatch_agent_config_prolog.sh s3://${{ env.bucket }}/scripts/80_cloudwatch_agent_config_prolog.sh
         env:
-          bucket: ${{ inputs.s3_bucket || secrets.S3_BUCKET }}
+          bucket: ${{ env.S3_BUCKET || secrets.S3_BUCKET }}
