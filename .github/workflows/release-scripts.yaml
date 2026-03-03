@@ -14,6 +14,18 @@ on:
           use the bucket configured in the environment.
         type: string
         required: false
+  workflow_call:
+    inputs:
+      environment:
+        description: Which AWS environment the release bucket is in
+        type: string
+        required: true
+        default: aws-sandbox-hpc
+      s3_bucket:
+        description: Override the S3 bucket to release the scripts into. If unset,
+          use the bucket configured in the environment.
+        type: string
+        required: false
 jobs:
   release-scripts:
     runs-on: ubuntu-latest
