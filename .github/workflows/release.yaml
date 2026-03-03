@@ -14,6 +14,12 @@ on:
         type: boolean
         required: true
         default: false
+      scripts_environment:
+        description: Which environment to push the helper scripts to
+        type: choice
+        options: [aws-sandbox-hpc, aws-sandbox-benchmarks]
+        required: true
+        default: aws-sandbox-hpc
   push:
     tags: ['*']
 jobs:
@@ -73,7 +79,7 @@ jobs:
   release-s3:
     needs: release-container
     if: ${{ inputs.publish_s3_scripts == true }}
-    uses: ./.github/workflows/release-scripts.yml
+    uses: ./.github/workflows/release-scripts.yaml
     with:
-      env: ${{ inputs.environment }}
+      environment: ${{ inputs.scripts_environment }}
     secrets: inherit
