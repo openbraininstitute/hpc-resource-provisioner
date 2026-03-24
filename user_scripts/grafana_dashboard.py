@@ -85,7 +85,7 @@ class GrafanaDashboard:
     title: str
     version: int
     editable: Optional[bool] = True
-    refresh: Optional[str] = ""
+    refresh: Optional[str] = "auto"
     id: Optional[str] = None
     uid: Optional[str] = None
 
